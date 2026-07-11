@@ -138,31 +138,53 @@ def generate_preview_image(flags: dict, overrides: dict, internal_barcode: str) 
     except IOError:
         font_large = ImageFont.load_default()
         font_medium = ImageFont.load_default()
-        
-    text_width = 300
-    label_height = max(barcode_img.height + 40, 200)
-    label_width = text_width + barcode_img.width + 40
     
+    # Get text elements
+    name_text = overrides.get("name", "Product Name")
+    price_text = overrides.get("price", "$0.00")
+    expiry_text = overrides.get("expiry", "Exp: --/--")
+    
+    # Calculate text bounding boxes
+    name_bbox = draw.textbbox((0, 0), name_text, font=font_large)
+    name_width = name_bbox[2] - name_bbox[0]
+    name_height = name_bbox[3] - name_bbox[1]
+    
+    price_bbox = draw.textbbox((0, 0), price_text, font=font_medium)
+    price_width = price_bbox[2] - price_bbox[0]
+    price_height = price_bbox[3] - price_bbox[1]
+    
+    expiry_bbox = draw.textbbox((0, 0), expiry_text, font=font_medium)
+    expiry_width = expiry_bbox[2] - expiry_bbox[0]
+    expiry_height = expiry_bbox[3] - expiry_bbox[1]
+    
+    # Determine max text width and total text height
+    max_text_width = max(name_width, price_width, expiry_width)
+    total_text_height = name_height + price_height + expiry_height + 20  # 10px spacing between lines
+    
+    # Calculate dynamic label dimensions
+    label_width = max_text_width + 20 + barcode_img.width + 30  # 20px between text and barcode, 15px padding on each side of barcode
+    label_height = max(total_text_height, barcode_img.height) + 40  # 20px padding top and bottom
+    
+    # Create new label image with dynamic dimensions
     label_img = Image.new('RGB', (label_width, label_height), 'white')
     draw = ImageDraw.Draw(label_img)
     
-    y_offset = (label_height - 120) // 2 # center the text roughly
-    if y_offset < 20: y_offset = 20
+    # Center text vertically
+    text_y = (label_height - total_text_height) // 2
     
+    # Draw text elements
     if flags.get("show_name", True):
-        draw.text((20, y_offset), overrides.get("name", "Product Name"), fill='black', font=font_large)
-        y_offset += 45
-        
+        draw.text((20, text_y), name_text, fill='black', font=font_large)
+        text_y += name_height + 10
     if flags.get("show_price", True):
-        draw.text((20, y_offset), overrides.get("price", "$0.00"), fill='black', font=font_medium)
-        y_offset += 35
-        
+        draw.text((20, text_y), price_text, fill='black', font=font_medium)
+        text_y += price_height + 10
     if flags.get("show_expiry", True):
-        draw.text((20, y_offset), overrides.get("expiry", "Exp: --/--"), fill='black', font=font_medium)
-        
-    # Paste barcode on the right
-    paste_x = text_width + 20
-    paste_y = (label_height - barcode_img.height) // 2
-    label_img.paste(barcode_img, (paste_x, paste_y))
+        draw.text((20, text_y), expiry_text, fill='black', font=font_medium)
+    
+    # Center barcode vertically with 15px quiet zone padding
+    barcode_x = max_text_width + 20 + 15  # 15px padding between text and barcode
+    barcode_y = (label_height - barcode_img.height) // 2
+    label_img.paste(barcode_img, (barcode_x, barcode_y))
     
     return label_img

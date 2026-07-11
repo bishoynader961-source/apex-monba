@@ -67,36 +67,47 @@ def create_label(price: float, internal_barcode: str) -> str:
     barcode_img = Image.open(barcode_img_path)
     
     # Create a blank white canvas for the label
-    label_width = max(350, barcode_img.width + 40)
-    label_height = barcode_img.height + 80
-    label_img = Image.new('RGB', (label_width, label_height), 'white')
+    PADDING = 30
+    dummy_img = Image.new('RGB', (1, 1))
+    draw = ImageDraw.Draw(dummy_img)
     
+    name_bbox = draw.textbbox((0, 0), pharmacy_name, font=ImageFont.truetype("arial.ttf", int(font_size)))
+    price_bbox = draw.textbbox((0, 0), f"${price:.2f}", font=ImageFont.truetype("arial.ttf", 16))
+    expiry_text = "Exp: --/--"
+    expiry_bbox = draw.textbbox((0, 0), expiry_text, font=ImageFont.truetype("arial.ttf", 16))
+    
+    name_height = name_bbox[3] - name_bbox[1]
+    price_height = price_bbox[3] - price_bbox[1]
+    expiry_height = expiry_bbox[3] - expiry_bbox[1]
+    
+    max_text_width = max(name_bbox[2] - name_bbox[0], price_bbox[2] - price_bbox[0], expiry_bbox[2] - expiry_bbox[0])
+    total_text_height = name_height + price_height + expiry_height + 20  # 10px spacing between lines
+    
+    label_width = PADDING + max_text_width + PADDING + barcode_img.width + PADDING
+    label_height = max(total_text_height, barcode_img.height) + PADDING * 2
+    
+    label_img = Image.new('RGB', (label_width, label_height), 'white')
     draw = ImageDraw.Draw(label_img)
     
-    try:
-        # Use arial if available, else default
-        font_large = ImageFont.truetype("arial.ttf", int(font_size))
-        font_medium = ImageFont.truetype("arial.ttf", 16)
-    except IOError:
-        font_large = ImageFont.load_default()
-        font_medium = ImageFont.load_default()
-    
     # Draw Pharmacy Name (centered at top)
-    name_bbox = draw.textbbox((0, 0), pharmacy_name, font=font_large)
-    name_w = name_bbox[2] - name_bbox[0]
-    draw.text(((label_width - name_w) / 2, 10), pharmacy_name, fill='black', font=font_large)
+    name_y = PADDING
+    draw.text((PADDING, name_y), pharmacy_name, fill='black', font=ImageFont.truetype("arial.ttf", int(font_size)))
+    name_y += name_height + 10
     
     # Draw Price if enabled
     if include_price:
         price_str = f"${price:.2f}"
-        price_bbox = draw.textbbox((0, 0), price_str, font=font_medium)
-        price_w = price_bbox[2] - price_bbox[0]
-        draw.text(((label_width - price_w) / 2, 35), price_str, fill='black', font=font_medium)
+        draw.text((PADDING, name_y), price_str, fill='black', font=ImageFont.truetype("arial.ttf", 16))
+        name_y += price_height + 10
     
-    # Paste barcode
-    paste_x = (label_width - barcode_img.width) // 2
-    paste_y = 60
-    label_img.paste(barcode_img, (paste_x, paste_y))
+    # Draw Expiry Date
+    expiry_text = "Exp: --/--"
+    draw.text((PADDING, name_y), expiry_text, fill='black', font=ImageFont.truetype("arial.ttf", 16))
+    
+    # Center barcode vertically with 15px quiet zone padding
+    barcode_x = PADDING + max_text_width + PADDING + 15
+    barcode_y = (label_height - barcode_img.height) // 2
+    label_img.paste(barcode_img, (barcode_x, barcode_y))
     
     # Save final label
     final_path = os.path.join(LABELS_DIR, f"{internal_barcode}_label.png")
@@ -132,12 +143,8 @@ def generate_preview_image(flags: dict, overrides: dict, internal_barcode: str) 
     my_barcode = code128(internal_barcode, writer=writer)
     barcode_img = my_barcode.render(writer_options)
     
-    try:
-        font_large = ImageFont.truetype("arial.ttf", 28)
-        font_medium = ImageFont.truetype("arial.ttf", 22)
-    except IOError:
-        font_large = ImageFont.load_default()
-        font_medium = ImageFont.load_default()
+    dummy_img = Image.new('RGB', (1, 1))
+    draw = ImageDraw.Draw(dummy_img)
     
     # Get text elements
     name_text = overrides.get("name", "Product Name")
@@ -145,23 +152,20 @@ def generate_preview_image(flags: dict, overrides: dict, internal_barcode: str) 
     expiry_text = overrides.get("expiry", "Exp: --/--")
     
     # Calculate text bounding boxes
-    name_bbox = draw.textbbox((0, 0), name_text, font=font_large)
-    name_width = name_bbox[2] - name_bbox[0]
+    name_bbox = draw.textbbox((0, 0), name_text, font=ImageFont.truetype("arial.ttf", 28))
+    price_bbox = draw.textbbox((0, 0), price_text, font=ImageFont.truetype("arial.ttf", 22))
+    expiry_bbox = draw.textbbox((0, 0), expiry_text, font=ImageFont.truetype("arial.ttf", 22))
+    
     name_height = name_bbox[3] - name_bbox[1]
-    
-    price_bbox = draw.textbbox((0, 0), price_text, font=font_medium)
-    price_width = price_bbox[2] - price_bbox[0]
     price_height = price_bbox[3] - price_bbox[1]
-    
-    expiry_bbox = draw.textbbox((0, 0), expiry_text, font=font_medium)
-    expiry_width = expiry_bbox[2] - expiry_bbox[0]
     expiry_height = expiry_bbox[3] - expiry_bbox[1]
     
     # Determine max text width and total text height
-    max_text_width = max(name_width, price_width, expiry_width)
+    max_text_width = max(name_bbox[2] - name_bbox[0], price_bbox[2] - price_bbox[0], expiry_bbox[2] - expiry_bbox[0])
     total_text_height = name_height + price_height + expiry_height + 20  # 10px spacing between lines
     
     # Calculate dynamic label dimensions
+    PADDING = 30
     label_width = max_text_width + 20 + barcode_img.width + 30  # 20px between text and barcode, 15px padding on each side of barcode
     label_height = max(total_text_height, barcode_img.height) + 40  # 20px padding top and bottom
     
@@ -174,13 +178,13 @@ def generate_preview_image(flags: dict, overrides: dict, internal_barcode: str) 
     
     # Draw text elements
     if flags.get("show_name", True):
-        draw.text((20, text_y), name_text, fill='black', font=font_large)
+        draw.text((20, text_y), name_text, fill='black', font=ImageFont.truetype("arial.ttf", 28))
         text_y += name_height + 10
     if flags.get("show_price", True):
-        draw.text((20, text_y), price_text, fill='black', font=font_medium)
+        draw.text((20, text_y), price_text, fill='black', font=ImageFont.truetype("arial.ttf", 22))
         text_y += price_height + 10
     if flags.get("show_expiry", True):
-        draw.text((20, text_y), expiry_text, fill='black', font=font_medium)
+        draw.text((20, text_y), expiry_text, fill='black', font=ImageFont.truetype("arial.ttf", 22))
     
     # Center barcode vertically with 15px quiet zone padding
     barcode_x = max_text_width + 20 + 15  # 15px padding between text and barcode

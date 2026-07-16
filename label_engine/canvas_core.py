@@ -16,6 +16,16 @@ CANVAS_BG = "#2b2b2b"
 SELECTED_OUTLINE = "#3484F0"
 RESIZE_HANDLE = 6
 
+_DEFAULT_CONTEXT = {}
+
+
+def resolve_variables(text: str, context: dict = None) -> str:
+    if not context:
+        context = _DEFAULT_CONTEXT
+    for key, val in context.items():
+        text = text.replace("{{" + key + "}}", str(val))
+    return text
+
 
 @dataclass
 class LabelElement:
@@ -98,6 +108,49 @@ class ShapeElement(LabelElement):
         super().__init__(**kwargs)
 
 
+MIN_FONT_SIZE = 8
+TEXT_LEFT_MARGIN = 15
+RIGHT_PADDING = 20
+
+
+def _fit_text_to_width(text, font_family, font_size, max_width, scale=1.0):
+    fitted_size = max(MIN_FONT_SIZE, int(font_size * scale))
+    try:
+        font = ImageFont.truetype(f"{font_family}.ttf", fitted_size)
+    except OSError:
+        try:
+            font = ImageFont.truetype(f"{font_family}.TTF", fitted_size)
+        except OSError:
+            try:
+                font = ImageFont.truetype("arial.ttf", fitted_size)
+            except OSError:
+                font = ImageFont.load_default()
+
+    bbox = font.getbbox(text)
+    tw = bbox[2] - bbox[0]
+
+    while tw > max_width and fitted_size > MIN_FONT_SIZE:
+        fitted_size -= 1
+        try:
+            font = ImageFont.truetype(f"{font_family}.ttf", fitted_size)
+        except OSError:
+            try:
+                font = ImageFont.truetype(f"{font_family}.TTF", fitted_size)
+            except OSError:
+                try:
+                    font = ImageFont.truetype("arial.ttf", fitted_size)
+                except OSError:
+                    font = ImageFont.load_default()
+        bbox = font.getbbox(text)
+        tw = bbox[2] - bbox[0]
+
+    use_wrap = False
+    if tw > max_width and " " in text:
+        use_wrap = True
+
+    return text, fitted_size, use_wrap
+
+
 def _rounded_rect_coords(x0, y0, x1, y1, r):
     points = []
     steps = 12
@@ -158,12 +211,12 @@ def _generate_qr_img(elem):
     return qr.make_image(fill_color=fill, back_color=back).convert("RGB")
 
 
-def draw_elements(surface, elements, scale=1.0):
+def draw_elements(surface, elements, scale=1.0, context=None):
     is_pil = isinstance(surface, Image.Image)
     is_tk = isinstance(surface, tk.Canvas)
 
     for elem in elements:
-        x0, y0 = elem.x * scale, elem.y * scale
+        x0, y0 = elem.x * scale + TEXT_LEFT_MARGIN * scale, elem.y * scale
         w, h = elem.width * scale, elem.height * scale
         x1, y1 = x0 + w, y0 + h
         fill_color = elem.props.get("fill_color", elem.props.get("fill", "#cccccc"))
@@ -171,22 +224,51 @@ def draw_elements(surface, elements, scale=1.0):
         bw = int(elem.props.get("border_width", 2) * scale)
 
         if elem.type == "text":
-            text = elem.props.get("text", "Text")
+            text = resolve_variables(elem.props.get("text", "Text"), context)
             color = elem.props.get("color", "#000000")
+            font_family = elem.props.get("font", "Arial")
+            font_size = elem.props.get("font_size", 16)
+            max_width = max(40, w - RIGHT_PADDING * scale)
+            _, fitted_size, use_wrap = _fit_text_to_width(text, font_family, font_size, max_width, scale)
             if is_tk:
-                font_family = elem.props.get("font", "Arial")
-                font_size = elem.props.get("font_size", 16)
+                wrap_width = w if use_wrap or elem.props.get("wrap") else 0
                 surface.create_text(
-                    x0 + w // 2, y0 + h // 2,
-                    text=text, font=(font_family, int(font_size * scale)),
-                    fill=color, width=w,
+                    x0, y0 + h // 2,
+                    text=text, font=(font_family, fitted_size),
+                    fill=color, width=wrap_width, anchor="w",
                 )
             elif is_pil:
-                font = _get_font(elem, scale)
+                try:
+                    font = ImageFont.truetype(f"{font_family}.ttf", fitted_size)
+                except OSError:
+                    try:
+                        font = ImageFont.truetype(f"{font_family}.TTF", fitted_size)
+                    except OSError:
+                        try:
+                            font = ImageFont.truetype("arial.ttf", fitted_size)
+                        except OSError:
+                            font = ImageFont.load_default()
                 draw = ImageDraw.Draw(surface)
-                bbox = draw.textbbox((0, 0), text, font=font)
-                tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-                draw.text((x0 + (w - tw) / 2, y0 + (h - th) / 2), text, fill=color, font=font)
+                if use_wrap:
+                    lines = []
+                    words = text.split()
+                    current = ""
+                    for word in words:
+                        test = f"{current} {word}".strip()
+                        bbox = font.getbbox(test)
+                        if bbox[2] - bbox[0] > w and current:
+                            lines.append(current)
+                            current = word
+                        else:
+                            current = test
+                    if current:
+                        lines.append(current)
+                    y_line = y0
+                    for line in lines:
+                        draw.text((x0, y_line), line, fill=color, font=font)
+                        y_line += (font.getbbox(line)[3] - font.getbbox(line)[1]) + 2
+                else:
+                    draw.text((x0, y0 + (h - draw.textbbox((0, 0), text, font=font)[3]) / 2), text, fill=color, font=font)
 
         elif elem.type == "shape":
             shape = elem.props.get("shape", "rectangle")
@@ -213,9 +295,15 @@ def draw_elements(surface, elements, scale=1.0):
                     draw.rectangle([x0, y0, x1, y1], fill=fill_color, outline=border_color, width=bw)
 
         elif elem.type == "barcode":
+            bc_data = resolve_variables(elem.props.get("data", ""), context)
             if is_tk:
                 try:
-                    img = _generate_barcode_img(elem)
+                    resolved_elem = BarcodeElement(
+                        id=elem.id, x=elem.x, y=elem.y,
+                        width=elem.width, height=elem.height,
+                        props={**elem.props, "data": bc_data},
+                    )
+                    img = _generate_barcode_img(resolved_elem)
                     img = img.resize((int(w), int(h)), Image.LANCZOS)
                     tk_img = ImageTk.PhotoImage(img)
                     surface._image_cache = getattr(surface, "_image_cache", {})
@@ -228,7 +316,12 @@ def draw_elements(surface, elements, scale=1.0):
                     )
             elif is_pil:
                 try:
-                    img = _generate_barcode_img(elem)
+                    resolved_elem = BarcodeElement(
+                        id=elem.id, x=elem.x, y=elem.y,
+                        width=elem.width, height=elem.height,
+                        props={**elem.props, "data": bc_data},
+                    )
+                    img = _generate_barcode_img(resolved_elem)
                     img = img.resize((int(w), int(h)), Image.LANCZOS)
                     surface.paste(img, (int(x0), int(y0)))
                 except Exception:
@@ -269,8 +362,13 @@ class LabelCanvas:
         self._image_cache: dict[str, ImageTk.PhotoImage] = {}
         self._drag_data: dict | None = None
         self._resize_data: dict | None = None
+        self.var_context: dict = {}
 
         self.frame = tk.Frame(parent, bg=CANVAS_BG)
+
+        self.v_scroll = tk.Scrollbar(self.frame, orient="vertical")
+        self.h_scroll = tk.Scrollbar(self.frame, orient="horizontal")
+
         self.canvas = tk.Canvas(
             self.frame,
             width=self.width,
@@ -278,18 +376,35 @@ class LabelCanvas:
             bg="white",
             highlightthickness=1,
             highlightbackground="#555",
+            xscrollcommand=self.h_scroll.set,
+            yscrollcommand=self.v_scroll.set,
         )
-        self.canvas.pack()
+
+        self.v_scroll.config(command=self.canvas.yview)
+        self.h_scroll.config(command=self.canvas.xview)
+
+        self.v_scroll.pack(side="right", fill="y")
+        self.h_scroll.pack(side="bottom", fill="x")
+        self.canvas.pack(side="left", fill="both", expand=True)
+
+        self._update_scrollregion()
 
         self.canvas.bind("<Button-1>", self._on_press)
         self.canvas.bind("<B1-Motion>", self._on_drag)
         self.canvas.bind("<ButtonRelease-1>", self._on_release)
         logger.info("LabelCanvas created (%dx%d)", self.width, self.height)
 
+    def _update_scrollregion(self):
+        self.canvas.config(scrollregion=(0, 0, self.width, self.height))
+
+    def _canvas_coords(self, event):
+        return self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+
     def set_size(self, width: int, height: int):
         self.width = width
         self.height = height
         self.canvas.config(width=self.width, height=self.height)
+        self._update_scrollregion()
         self.redraw()
         logger.info("Canvas resized to %dx%d", width, height)
 
@@ -326,7 +441,7 @@ class LabelCanvas:
 
     def redraw(self):
         self.canvas.delete("all")
-        draw_elements(self.canvas, self.elements, scale=1.0)
+        draw_elements(self.canvas, self.elements, scale=1.0, context=self.var_context)
         self.canvas._image_cache = self._image_cache
         if self.selected_id:
             sel = self.get_element(self.selected_id)
@@ -361,6 +476,7 @@ class LabelCanvas:
         sel = self.get_element(self.selected_id)
         if not sel:
             return None
+        cx, cy = self._canvas_coords(event)
         positions = {
             "se": (sel.x + sel.width, sel.y + sel.height),
             "sw": (sel.x, sel.y + sel.height),
@@ -369,26 +485,27 @@ class LabelCanvas:
             "e": (sel.x + sel.width, (sel.y + sel.y + sel.height) // 2),
         }
         for name, (hx, hy) in positions.items():
-            if abs(event.x - hx) <= RESIZE_HANDLE and abs(event.y - hy) <= RESIZE_HANDLE:
+            if abs(cx - hx) <= RESIZE_HANDLE and abs(cy - hy) <= RESIZE_HANDLE:
                 return name
         return None
 
     def _on_press(self, event):
+        cx, cy = self._canvas_coords(event)
         handle = self._hit_handle(event)
         if handle and self.selected_id:
             sel = self.get_element(self.selected_id)
             if sel:
-                self._resize_data = {"handle": handle, "start_x": event.x, "start_y": event.y,
+                self._resize_data = {"handle": handle, "start_x": cx, "start_y": cy,
                                      "orig_x": sel.x, "orig_y": sel.y, "orig_w": sel.width, "orig_h": sel.height}
                 return
         hit = None
         for elem in reversed(self.elements):
-            if elem.x <= event.x <= elem.x + elem.width and elem.y <= event.y <= elem.y + elem.height:
+            if elem.x <= cx <= elem.x + elem.width and elem.y <= cy <= elem.y + elem.height:
                 hit = elem.id
                 break
         if hit:
             elem = self.get_element(hit)
-            self._drag_data = {"id": hit, "start_x": event.x - elem.x, "start_y": event.y - elem.y}
+            self._drag_data = {"id": hit, "start_x": cx - elem.x, "start_y": cy - elem.y}
             self.select(hit)
         else:
             self.select(None)
@@ -407,17 +524,19 @@ class LabelCanvas:
         elem = self.get_element(self._drag_data["id"])
         if not elem:
             return
-        elem.x = max(0, min(event.x - self._drag_data["start_x"], self.width - elem.width))
-        elem.y = max(0, min(event.y - self._drag_data["start_y"], self.height - elem.height))
+        cx, cy = self._canvas_coords(event)
+        elem.x = max(0, min(cx - self._drag_data["start_x"], self.width - elem.width))
+        elem.y = max(0, min(cy - self._drag_data["start_y"], self.height - elem.height))
         self.redraw()
 
     def _do_resize(self, event):
         sel = self.get_element(self.selected_id)
         if not sel:
             return
+        cx, cy = self._canvas_coords(event)
         d = self._resize_data
-        dx = event.x - d["start_x"]
-        dy = event.y - d["start_y"]
+        dx = cx - d["start_x"]
+        dy = cy - d["start_y"]
         h = d["handle"]
         new_x, new_y = d["orig_x"], d["orig_y"]
         new_w, new_h = d["orig_w"], d["orig_h"]

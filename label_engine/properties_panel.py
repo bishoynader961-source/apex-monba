@@ -13,8 +13,8 @@ class PropertiesPanel:
         self.current_id: str | None = None
         self._updating = False
 
-        self.frame = ctk.CTkFrame(parent, width=220)
-        self.frame.grid_propagate(False)
+        self.frame = ctk.CTkFrame(parent, width=350)
+        self.frame.pack_propagate(False)
 
         self.title = ctk.CTkLabel(
             self.frame, text="Properties", font=ctk.CTkFont(size=16, weight="bold")
@@ -45,9 +45,9 @@ class PropertiesPanel:
 
     def _make_labeled_entry(self, parent, label_text: str, attr_name: str, on_change=None):
         row = ctk.CTkFrame(parent, fg_color="transparent")
-        row.pack(fill="x", padx=10, pady=3)
-        ctk.CTkLabel(row, text=label_text, width=50, anchor="w").pack(side="left")
-        entry = ctk.CTkEntry(row, width=125)
+        row.pack(fill="x", padx=10, pady=5)
+        ctk.CTkLabel(row, text=label_text, width=55, anchor="w").pack(side="left")
+        entry = ctk.CTkEntry(row, width=160)
         entry.pack(side="left", fill="x", expand=True)
         if on_change:
             entry.bind("<KeyRelease>", on_change)
@@ -56,10 +56,10 @@ class PropertiesPanel:
 
     def _make_combobox(self, parent, label_text: str, attr_name: str, values: list[str], on_change=None):
         row = ctk.CTkFrame(parent, fg_color="transparent")
-        row.pack(fill="x", padx=10, pady=3)
-        ctk.CTkLabel(row, text=label_text, width=50, anchor="w").pack(side="left")
+        row.pack(fill="x", padx=10, pady=5)
+        ctk.CTkLabel(row, text=label_text, width=55, anchor="w").pack(side="left")
         var = ctk.StringVar(value=values[0] if values else "")
-        combo = ctk.CTkComboBox(row, values=values, variable=var, width=125)
+        combo = ctk.CTkComboBox(row, values=values, variable=var, width=160)
         combo.pack(side="left", fill="x", expand=True)
         if on_change:
             combo.bind("<<ComboboxSelected>>", on_change)

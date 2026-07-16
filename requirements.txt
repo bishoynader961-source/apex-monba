@@ -1,9 +1,4 @@
-argcomplete==3.7.0
-click==8.4.2
-colorama==0.4.6
-distlib==0.4.0
-packaging==26.2
-pipx==1.15.0
-platformdirs==4.10.0
-setuptools==81.0.0
-userpath==1.9.2
+customtkinter
+pillow
+python-barcode
+requests

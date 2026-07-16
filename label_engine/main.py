@@ -1,14 +1,20 @@
 import sys
 import os
+import argparse
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import ttk, filedialog
 import logging
 import customtkinter as ctk
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from canvas_core import LabelCanvas, LabelElement, BarcodeElement, QRElement, ShapeElement
+from canvas_core import LabelCanvas, LabelElement, BarcodeElement, QRElement, ShapeElement, resolve_variables
 from properties_panel import PropertiesPanel
-from export import save_label, load_label, export_to_png, print_label, FILE_TYPES, FILE_EXTENSION, PNG_FILE_TYPES
+from export import (
+    save_label, load_label, export_to_png, print_label,
+    save_label_by_id, load_label_by_id,
+    save_template, load_template,
+    FILE_TYPES, FILE_EXTENSION, PNG_FILE_TYPES,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,20 +26,52 @@ DEFAULT_W = 400
 DEFAULT_H = 300
 
 
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Dynamic Label Design Engine")
+    parser.add_argument("--id", dest="product_id", default=None, help="Product ID for context-aware label editing")
+    parser.add_argument("--barcode", dest="barcode_value", default=None, help="Barcode value to pre-fill on new labels")
+    parser.add_argument("--name", dest="product_name", default=None, help="Product name to pre-fill on new labels")
+    parser.add_argument("--price", dest="product_price", default=None, help="Product price to pre-fill on new labels")
+    parser.add_argument("--expiry", dest="product_expiry", default=None, help="Expiry date to pre-fill on new labels")
+    parser.add_argument("--manufacture", dest="product_manufacture", default=None, help="Manufacture date to pre-fill on new labels")
+    parser.add_argument("--show-name", dest="show_name", default="True", help="Whether to show the name element (True/False)")
+    parser.add_argument("--show-price", dest="show_price", default="True", help="Whether to show the price element (True/False)")
+    parser.add_argument("--show-expiry", dest="show_expiry", default="True", help="Whether to show the expiry element (True/False)")
+    parser.add_argument("--show-barcode-text", dest="show_barcode_text", default="True", help="Whether to show barcode text (True/False)")
+    return parser.parse_args()
+
+
 class LabelEngineApp(ctk.CTk):
-    def __init__(self):
+    def __init__(self, product_id: str | None = None, barcode_value: str | None = None,
+                 product_name: str | None = None, product_price: str | None = None,
+                 product_expiry: str | None = None, product_manufacture: str | None = None,
+                 show_name: bool = True, show_price: bool = True,
+                 show_expiry: bool = True, show_barcode_text: bool = True):
         super().__init__()
-        self.title("Label Design Engine")
-        self.geometry("1100x650")
-        self.grid_rowconfigure(1, weight=1)
-        self.grid_columnconfigure(1, weight=1)
+        self.product_id = product_id
+        self.barcode_value = barcode_value
+        self.product_name = product_name
+        self.product_price = product_price
+        self.product_expiry = product_expiry
+        self.product_manufacture = product_manufacture
+        self.show_name = show_name
+        self.show_price = show_price
+        self.show_expiry = show_expiry
+        self.show_barcode_text = show_barcode_text
+
+        title = "Label Design Engine"
+        if self.product_id:
+            title += f" — Product: {self.product_id}"
+        self.title(title)
+        self.geometry("1200x700")
 
         self._build_menu()
         self._build_toolbar()
-        self._build_canvas_area()
-        self._build_properties_panel()
+        self._build_main_pane()
+        self._load_product_context()
 
-        logger.info("LabelEngineApp launched")
+        logger.info("LabelEngineApp launched (product_id=%s)", self.product_id)
+        self.after(500, self.verify_layout_geometry)
 
     def _build_menu(self):
         self.menu_bar = tk.Menu(self)
@@ -56,7 +94,7 @@ class LabelEngineApp(ctk.CTk):
 
     def _build_toolbar(self):
         toolbar = ctk.CTkFrame(self, height=50)
-        toolbar.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=(10, 0))
+        toolbar.pack(side="top", fill="x", padx=10, pady=(10, 0))
 
         ctk.CTkLabel(toolbar, text="W:").grid(row=0, column=0, padx=(10, 2), pady=8)
         self.entry_w = ctk.CTkEntry(toolbar, width=60)
@@ -113,18 +151,134 @@ class LabelEngineApp(ctk.CTk):
             command=self._print_label,
         ).grid(row=0, column=13, padx=(3, 10), pady=8)
 
-    def _build_canvas_area(self):
-        self.canvas_frame = ctk.CTkFrame(self)
-        self.canvas_frame.grid(row=1, column=0, sticky="nsew", padx=(10, 0), pady=10)
-        self.canvas_frame.grid_rowconfigure(0, weight=1)
-        self.canvas_frame.grid_columnconfigure(0, weight=1)
+        sep3 = ctk.CTkLabel(toolbar, text="|", text_color="gray")
+        sep3.grid(row=0, column=14, padx=4, pady=8)
+
+        ctk.CTkButton(
+            toolbar, text="Save Template", width=100, fg_color="#e83e8c", hover_color="#d63384",
+            command=self._save_template,
+        ).grid(row=0, column=15, padx=3, pady=8)
+
+        ctk.CTkButton(
+            toolbar, text="Load Template", width=100, fg_color="#e83e8c", hover_color="#d63384",
+            command=self._load_template,
+        ).grid(row=0, column=16, padx=(3, 10), pady=8)
+
+    def _build_main_pane(self):
+        self.main_pane = ttk.PanedWindow(self, orient="horizontal")
+        self.main_pane.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+
+        self.canvas_frame = ctk.CTkFrame(self.main_pane, width=800, fg_color="#1e1e1e")
+        self.canvas_frame.pack_propagate(False)
 
         self.label_canvas = LabelCanvas(self.canvas_frame, DEFAULT_W, DEFAULT_H)
-        self.label_canvas.frame.grid(row=0, column=0, sticky="nsew")
+        self.label_canvas.frame.pack(expand=True)
+        self.main_pane.add(self.canvas_frame, weight=1)
 
-    def _build_properties_panel(self):
-        self.props_panel = PropertiesPanel(self, self.label_canvas)
-        self.props_panel.frame.grid(row=1, column=1, sticky="ns", padx=(0, 10), pady=10)
+        self.props_panel = PropertiesPanel(self.main_pane, self.label_canvas)
+        self.main_pane.add(self.props_panel.frame, weight=0)
+
+    def verify_layout_geometry(self):
+        self.update_idletasks()
+        win_w = self.winfo_width()
+        win_h = self.winfo_height()
+        pp_w = self.props_panel.frame.winfo_width()
+        cf_w = self.canvas_frame.winfo_width()
+        total = cf_w + pp_w
+        min_panel = 300
+
+        print("\n===== LAYOUT GEOMETRY AUDIT =====")
+        print(f"  Window size:    {win_w}x{win_h}")
+        print(f"  Canvas frame:   {cf_w}px")
+        print(f"  Properties:     {pp_w}px")
+        print(f"  Pane total:     {total}px (window={win_w})")
+
+        failure = False
+        if pp_w < min_panel:
+            print(f"  LAYOUT FAILURE: Properties panel ({pp_w}px) below minimum ({min_panel}px) — UI IS CRUSHED OR CLIPPED")
+            failure = True
+        if total > win_w + 10:
+            print(f"  LAYOUT FAILURE: Panes ({total}px) exceed window ({win_w}px) — UI IS CLIPPED OFF-SCREEN")
+            failure = True
+        if cf_w < 200:
+            print(f"  LAYOUT FAILURE: Canvas frame ({cf_w}px) too narrow — UI IS CRUSHED")
+            failure = True
+
+        if not failure:
+            print("  RESULT: OK — all dimensions within tolerance")
+        print("=================================\n")
+
+        logger.info("Layout audit: window=%d, canvas=%d, panel=%d, total=%d, failure=%s",
+                     win_w, cf_w, pp_w, total, failure)
+
+    def _load_product_context(self):
+        ctx = {}
+        if self.barcode_value:
+            ctx["BARCODE"] = self.barcode_value
+        if self.product_name:
+            ctx["NAME"] = self.product_name
+        if self.product_price:
+            ctx["PRICE"] = self.product_price
+        if self.product_expiry:
+            ctx["EXPIRY"] = self.product_expiry
+        if self.product_manufacture:
+            ctx["MFG_DATE"] = self.product_manufacture
+        self.label_canvas.var_context = ctx
+
+        if self.product_id and self.product_id != "NEW":
+            loaded = load_label_by_id(self.product_id, self.label_canvas)
+            if loaded:
+                logger.info("Loaded existing label for product %s", self.product_id)
+                return
+
+        if load_template(self.label_canvas):
+            for elem in self.label_canvas.elements:
+                if "text" in elem.props:
+                    elem.props["text"] = resolve_variables(elem.props["text"], ctx)
+                if "data" in elem.props:
+                    elem.props["data"] = resolve_variables(elem.props["data"], ctx)
+            self.label_canvas.redraw()
+            self.entry_w.delete(0, "end")
+            self.entry_w.insert(0, str(self.label_canvas.width))
+            self.entry_h.delete(0, "end")
+            self.entry_h.insert(0, str(self.label_canvas.height))
+            logger.info("Loaded template as layout source")
+            for elem in self.label_canvas.elements:
+                logger.info("  element id=%s type=%s x=%d y=%d text=%r",
+                            elem.id, elem.type, elem.x, elem.y,
+                            elem.props.get("text", elem.props.get("data", "")))
+            return
+
+        y_offset = 30
+        gap = 8
+        if self.barcode_value:
+            elem = BarcodeElement(x=50, y=y_offset, props={"data": self.barcode_value, "show_text": self.show_barcode_text})
+            self.label_canvas.add_element(elem)
+            y_offset += 90 + gap
+            logger.info("Created barcode element for product %s at (50, %d)", self.product_id, y_offset - 90 - gap)
+        if self.product_name and self.show_name:
+            elem = LabelElement(type="text", x=50, y=y_offset, width=280, height=40,
+                props={"text": self.product_name, "font": "Arial", "font_size": 16, "color": "#000000"})
+            self.label_canvas.add_element(elem)
+            y_offset += 40 + gap
+            logger.info("Created name element at (50, %d): %s", y_offset - 40 - gap, self.product_name)
+        if self.product_price and self.show_price:
+            elem = LabelElement(type="text", x=50, y=y_offset, width=150, height=32,
+                props={"text": self.product_price, "font": "Arial", "font_size": 14, "color": "#000000"})
+            self.label_canvas.add_element(elem)
+            y_offset += 32 + gap
+            logger.info("Created price element at (50, %d): %s", y_offset - 32 - gap, self.product_price)
+        if self.product_expiry and self.show_expiry:
+            elem = LabelElement(type="text", x=50, y=y_offset, width=200, height=28,
+                props={"text": f"Exp: {self.product_expiry}", "font": "Arial", "font_size": 11, "color": "#666666"})
+            self.label_canvas.add_element(elem)
+            y_offset += 28 + gap
+            logger.info("Created expiry element at (50, %d): %s", y_offset - 28 - gap, self.product_expiry)
+        if self.product_manufacture:
+            elem = LabelElement(type="text", x=50, y=y_offset, width=200, height=28,
+                props={"text": f"Mfg: {self.product_manufacture}", "font": "Arial", "font_size": 11, "color": "#666666"})
+            self.label_canvas.add_element(elem)
+            logger.info("Created manufacture element at (50, %d): %s", y_offset, self.product_manufacture)
 
     def _apply_canvas_size(self):
         try:
@@ -162,18 +316,24 @@ class LabelEngineApp(ctk.CTk):
             self.label_canvas.remove_element(self.label_canvas.selected_id)
 
     def _save_file(self):
-        filename = filedialog.asksaveasfilename(
-            title="Save Label", filetypes=FILE_TYPES, defaultextension=FILE_EXTENSION
-        )
-        if filename:
-            save_label(filename, self.label_canvas)
+        if self.product_id and self.product_id != "NEW":
+            save_label_by_id(self.product_id, self.label_canvas)
+        else:
+            filename = filedialog.asksaveasfilename(
+                title="Save Label", filetypes=FILE_TYPES, defaultextension=FILE_EXTENSION
+            )
+            if filename:
+                save_label(filename, self.label_canvas)
 
     def _load_file(self):
-        filename = filedialog.askopenfilename(
-            title="Load Label", filetypes=FILE_TYPES
-        )
-        if filename:
-            load_label(filename, self.label_canvas)
+        if self.product_id and self.product_id != "NEW":
+            load_label_by_id(self.product_id, self.label_canvas)
+        else:
+            filename = filedialog.askopenfilename(
+                title="Load Label", filetypes=FILE_TYPES
+            )
+            if filename:
+                load_label(filename, self.label_canvas)
 
     def _export_png(self):
         filename = filedialog.asksaveasfilename(
@@ -185,11 +345,39 @@ class LabelEngineApp(ctk.CTk):
     def _print_label(self):
         print_label(self.label_canvas)
 
+    def _save_template(self):
+        if save_template(self.label_canvas):
+            logger.info("Template saved")
+        else:
+            logger.error("Template save failed")
+
+    def _load_template(self):
+        if load_template(self.label_canvas):
+            self.entry_w.delete(0, "end")
+            self.entry_w.insert(0, str(self.label_canvas.width))
+            self.entry_h.delete(0, "end")
+            self.entry_h.insert(0, str(self.label_canvas.height))
+            logger.info("Template loaded")
+        else:
+            logger.info("No template found")
+
 
 def main():
+    args = _parse_args()
     ctk.set_appearance_mode("Dark")
     ctk.set_default_color_theme("blue")
-    app = LabelEngineApp()
+    app = LabelEngineApp(
+        product_id=args.product_id,
+        barcode_value=args.barcode_value,
+        product_name=args.product_name,
+        product_price=args.product_price,
+        product_expiry=args.product_expiry,
+        product_manufacture=args.product_manufacture,
+        show_name=args.show_name == "True",
+        show_price=args.show_price == "True",
+        show_expiry=args.show_expiry == "True",
+        show_barcode_text=args.show_barcode_text == "True",
+    )
     app.mainloop()
 
 

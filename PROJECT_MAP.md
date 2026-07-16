@@ -1,205 +1,550 @@
 # Project Map
 
-> Auto-generated from the codebase at `E:\my progam pharmacy`.
-> Last scanned: 2026-07-12
+> PROJECT STATUS: ARCHITECTURE AUDIT — SERIALIZED TRACKING
 
-## Directory Structure
+> Pharmacy Management & Label Design Suite — desktop application for
+> serialized inventory management, data storage, barcode/label generation, and custom label design.
+> Auto-generated from the codebase at `E:\my progam pharmacy`.
+> Last synced: 2026-07-16
+
+---
+
+## 1. Paradigm Shift: Bulk Quantity Tracking → Serialized Unit-Level Tracking
+
+### Old Model (Bulk)
+- One row = N boxes (e.g., 50 units of Aspirin)
+- Stock tracked via `quantity INTEGER` column
+- Sale decrements quantity by 1
+- No individual box identity — only batch-level tracking
+- Vendor linked loosely via batch metadata
+
+### New Model (Serialized)
+- **One row = exactly 1 physical box**
+- Stock tracked via `COUNT(*)` of rows with `status = 'In Stock'`
+- Sale **deletes** the row from `products` and **inserts** into `sold_items`
+- Every box has a **cryptographically unique `internal_barcode`** (format: `{VENDOR[:3]}-{uuid6}`, e.g., `MED-A3F9B2`)
+- The `internal_barcode` is now the **primary source of truth** for:
+  - Vendor traceability (prefix encodes vendor)
+  - Stock counting (row count = box count)
+  - Sale tracking (barcode carried into `sold_items`)
+  - Label printing (physical sticker matches DB row)
+  - Receiving log linkage (barcode stored in `receiving_log`)
+
+### Why This Matters
+| Concern | Bulk Model | Serialized Model |
+|---|---|---|
+| "How many Aspirin do we have?" | `SELECT SUM(quantity)` | `SELECT COUNT(*) WHERE name='Aspirin' AND status='In Stock'` |
+| "Which vendor supplied this box?" | Lookup batch metadata | Read `internal_barcode` prefix or `vendor_name` column |
+| "Sell one box" | `UPDATE products SET quantity = quantity - 1` | `DELETE FROM products WHERE id=X; INSERT INTO sold_items...` |
+| "Print a label for this box" | Generic batch label | Unique barcode per box — physical sticker is unique |
+| "Receive 50 boxes" | `INSERT INTO products (quantity=50)` | Loop: `INSERT INTO products` × 50, each with unique `internal_barcode` |
+
+---
+
+## 2. Database Schema Blueprint
+
+### `products` — Serialized Inventory (1 row = 1 box)
+
+```sql
+CREATE TABLE products (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                    TEXT NOT NULL,          -- Drug name (e.g., "Aspirin 500mg")
+    price                   REAL NOT NULL,          -- Price per box
+    manufacturer_barcode    TEXT NOT NULL,          -- Shared across all boxes of same drug
+    internal_unique_barcode TEXT NOT NULL UNIQUE,   -- UNIQUE per box (VND-XXXXXX)
+    status                  TEXT DEFAULT 'In Stock',-- 'In Stock' or 'Sold'
+    expiry_date             TEXT DEFAULT '',         -- YYYY-MM-DD
+    manufacture_date        TEXT DEFAULT '',         -- YYYY-MM-DD
+    vendor_name             TEXT DEFAULT 'N/A'      -- Vendor who supplied this box
+);
+```
+
+**Key relationships:**
+- `name` groups boxes of the same drug (used by `GROUP BY name` for UI display)
+- `internal_unique_barcode` is the **surrogate key** for the physical box
+- `vendor_name` is denormalized per-box for fast vendor queries (no JOIN needed)
+- `status` controls visibility: `'In Stock'` = in inventory, `'Sold'` = archived
+
+### `sold_items` — Sales Archive (1 row = 1 sold box)
+
+```sql
+CREATE TABLE sold_items (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_name            TEXT NOT NULL,        -- Copied from products.name
+    price                REAL NOT NULL,        -- Copied from products.price
+    manufacturer_barcode TEXT NOT NULL,        -- Copied from products.manufacturer_barcode
+    internal_barcode     TEXT NOT NULL,        -- Copied from products.internal_unique_barcode
+    timestamp_of_sale    TEXT NOT NULL,        -- 'YYYY-MM-DD HH:MM:SS'
+    vendor_name          TEXT DEFAULT 'N/A'    -- Captured at sale time for traceability
+);
+```
+
+**Key relationships:**
+- `internal_barcode` links back to the original `products.internal_unique_barcode`
+- `vendor_name` is **snapshot-captured** at sale time (survives if product is refunded)
+- `timestamp_of_sale` enables daily/period sales reporting
+
+### `receiving_log` — Vendor Shipment Ledger
+
+```sql
+CREATE TABLE receiving_log (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    vendor_name    TEXT NOT NULL,    -- Who shipped
+    product_name   TEXT NOT NULL,    -- Drug name
+    date_received  TEXT NOT NULL,    -- YYYY-MM-DD
+    quantity       INTEGER NOT NULL, -- How many boxes in this shipment
+    total_cost     REAL NOT NULL,    -- Total cost for the shipment
+    barcode        TEXT DEFAULT ''   -- Links to products.internal_unique_barcode
+);
+```
+
+**Key relationships:**
+- `barcode` stores the `internal_unique_barcode` for permanent ID linking
+- `vendor_name` + `total_cost` enables vendor payables calculation
+- `barcode` allows `update_product_full()` to cascade vendor/name/price changes reliably
+
+### `templates` — Reusable Product Templates
+
+```sql
+CREATE TABLE templates (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    name  TEXT NOT NULL,
+    price REAL NOT NULL
+);
+```
+
+### How Generic Products Link to Serialized Boxes
+
+```
+"Aspirin 500mg" (generic drug name)
+  ├── Box 1: MED-A3F9B2  (vendor: MedSupply,  expiry: 2027-01-15)
+  ├── Box 2: MED-C7D2E1  (vendor: MedSupply,  expiry: 2027-01-20)
+  ├── Box 3: DRU-8F3A1B  (vendor: DrugDirect, expiry: 2026-11-30)
+  └── Box 4: DRU-2E9C4D  (vendor: DrugDirect, expiry: 2026-12-05)
+
+UI displays: "Aspirin 500mg" × 4 boxes (grouped by name)
+DB has: 4 separate rows in products table, each with unique internal_unique_barcode
+```
+
+---
+
+## 3. Component Impact Analysis
+
+### 3A. Add Product Tab (`ui.py:setup_add_tab()`)
+
+**Current behavior:**
+- User fills: name, price, mfg barcode, expiry, mfg date, vendor
+- `save_product()` calls `barcode_logic.generate_internal_barcode(vendor_name)` → generates unique `{VND}-{uuid6}`
+- `database.add_product()` inserts **one row** with the generated `internal_unique_barcode`
+- **M36:** `database.log_shipment()` is called immediately after, recording a `receiving_log` entry (qty=1, cost=price, barcode linked)
+- Opens `LabelDesignerPopup` with the new barcode for label printing
+
+**Serialized impact:**
+- ✅ Already correct: each "Save" creates exactly one serialized box
+- ✅ `generate_internal_barcode(vendor_name)` produces `MED-A3F9B2` format
+- ✅ `log_shipment()` ensures Shipment History reflects Add Product actions
+
+### 3B. Receive Inventory Tab (`ui.py:setup_receive_tab()` + `database.py`)
+
+**Architecture: Queue-Based State Management**
+
+The Receive Inventory tab operates as a **Purchase Order & Receiving Dashboard** with 3 zones:
+
+- **Zone A (Left — Direct Add Panel):** Canonical `tk.Canvas + CTkFrame` scrollable panel (replaces `CTkScrollableFrame` — M34 fix). Inputs: Vendor, Product (filtered by vendor via `_on_vendor_change()`), Date, Qty, Cost + "Add to Queue" button. Auto-fill section: Mfg Date, Expiry Date, **Unit Price**, **Mfg Barcode** — populated from vendor-specific template via `_on_product_change()`. Does NOT hit the database.
+- **Zone B (Top Right — Pending PO Treeview):** Grouped Treeview. Parent = Vendor (showing total qty). Child = individual product lines (Product, Qty, Unit Price, Line Total, Mfg Date, Expiry, Barcode).
+- **Zone C (Bottom Right — Reconciliation & Commit):** Invoice Total entry + "Remove Selected" + "Commit Shipment" button. Calls `database.receive_inventory_atomically()` per vendor, then syncs all tabs.
+- **Zone D (Bottom — Shipment History):** Vendor-grouped hierarchical treeview. Parent rows = vendor names with total unit count. Child rows = individual shipment entries (Product, Date, Qty, Total Cost, Barcode). Data source: `receiving_log` table via `get_all_receiving_log()`. Cost column shows per-box cost matching Inventory "Price" column (M39/M40).
+
+**In-memory state:** `self.receiving_session` dictionary keyed by vendor name:
+```python
+{
+  "MedSupply": {
+    "total_quantity": 150,
+    "vendor_asking_price": 0.00,
+    "items": [
+      {"name": "Aspirin 500mg", "qty": 50, "price": 5.99, "cost": 250.00,
+       "mfg_barcode": "123", "internal_barcode": "", "mfg_date": "...", "exp_date": "...",
+       "date_received": "2026-07-15"}
+    ]
+  }
+}
+```
+
+**Key methods:**
+- `_add_to_queue()` — Validates inputs, appends to `receiving_session`, refreshes PO treeview, clears Zone A inputs
+- `_refresh_po_treeview()` — Clears and rebuilds `tree_po` from `receiving_session`
+- `_remove_selected_from_queue()` — Removes selected vendor/item from queue and refreshes
+- `_commit_shipment()` — Iterates `receiving_session`, calls `receive_inventory_atomically()` per vendor, clears queue, refreshes Inventory + Receiving tabs
+- `load_receiving_log()` — Delegates to `_refresh_po_treeview()`
+
+### 3C. Inventory Tab (`ui.py:setup_inventory_tab()`)
+
+**Current behavior:**
+- `load_inventory()` calls `get_grouped_products()` → `GROUP BY name` with `COUNT(*)` and `MIN/MAX(price)`
+- Parent rows show: drug name, qty count, price range
+- Double-click expands to child rows via `get_batches_by_name()` — shows individual boxes
+- Child rows display: expiry, mfg date, mfg barcode, internal barcode, price, vendor
+
+**Serialized impact:**
+- ✅ `get_grouped_products()` already uses `COUNT(*)` — correct for serialized model
+- ✅ `get_batches_by_name()` already returns individual rows — correct for serialized model
+- ✅ Treeview parent/child pattern naturally fits: group = drug name, children = individual boxes
+- ✅ Expiry alerts (`get_expiring_batches()`) counts rows within date thresholds — correct
+- ✅ Search works on both barcode types — correct
+
+**No changes needed** — the grouped UI already works correctly with serialized rows.
+
+### 3D. Sales / Point of Sale (`ui.py:sell_product()` + `database.py:mark_item_as_sold()`)
+
+**Current behavior:**
+- User selects a specific batch (child row in treeview)
+- `sell_product()` reads `values[3]` (mfg barcode) from the selected row
+- Calls `database.mark_item_as_sold(barcode)` which:
+  1. Finds the product by `manufacturer_barcode OR internal_unique_barcode`
+  2. Copies all fields to `sold_items`
+  3. **Deletes** the row from `products`
+
+**Serialized impact:**
+- ✅ Already correct: `mark_item_as_sold()` deletes the specific row (1 box)
+- ✅ `sold_items` captures `vendor_name` at sale time for traceability
+- ✅ `reverse_sale()` restores the row to `products` with original `internal_unique_barcode`
+- ✅ Sales report shows individual sold items with unique barcodes
+
+**No changes needed** — the sell flow already operates on individual serialized boxes.
+
+### 3E. Label Printing (`ui.py:open_label_for_selected()` + `barcode_logic.py`)
+
+**Current behavior:**
+- User selects a batch (child row) in inventory treeview
+- `open_label_for_selected()` reads `values[4]` (internal barcode) from the row
+- Opens `LabelDesignerPopup` with the unique barcode
+- Label renders the **unique internal barcode** as a Code128 barcode on the sticker
+
+**Serialized impact:**
+- ✅ Already correct: each box gets its own unique barcode on the physical sticker
+- ✅ `LabelDesignerPopup` uses `self.internal_barcode` for preview and PNG export
+- ✅ `export_to_png()` renders the unique barcode at 300 DPI
+- ✅ `print_label()` sends the unique barcode to the printer
+
+**No changes needed** — each physical box already gets a unique sticker.
+
+### 3F. Edit Batch Dialog (`ui.py:EditBatchDialog`)
+
+**Current behavior:**
+- Shows all fields for a specific box: name, price, mfg barcode, internal barcode (disabled), expiry, mfg date, vendor, status
+- `_save()` calls `update_product_full()` which cascades vendor/name/price changes to `receiving_log` via barcode
+- **M36:** If vendor changed from N/A → valid, calls `database.log_shipment()` to record a new `receiving_log` entry before launching `QuickReceiveModal`
+
+**Serialized impact:**
+- ✅ Internal barcode is disabled with "(Auto-Generated)" hint — correct
+- ✅ `update_product_full()` cascades vendor/name/price via `WHERE barcode = ?` — correct
+- ✅ `log_shipment()` ensures orphaned batches get proper Shipment History entries on vendor assignment
+- ✅ `QuickReceiveModal` integration — correct
+
+### 3G. Sales Report Tab (`ui.py:setup_report_tab()`)
+
+**Current behavior:**
+- Shows all sold items with columns: ID, Name, Price, Mfg Barcode, Internal Barcode, Timestamp, Vendor
+- Revenue calculated as `SUM(price)` of all sold items
+- Today's sales total via `get_today_sales_total()`
+- Custom date query via `get_sales_for_date()`
+
+**Serialized impact:**
+- ✅ Already correct: each sold box is a separate row in `sold_items`
+- ✅ Revenue calculation sums individual box prices — correct
+- ✅ Date filtering works on `timestamp_of_sale` — correct
+
+**No changes needed** — the sales report already handles serialized items.
+
+---
+
+## 4. Step-by-Step Refactoring Plan
+
+### Phase 1: Receiving Flow (CRITICAL — Currently Broken)
+
+| # | Task | File | Risk | Notes |
+|---|---|---|---|---|
+| 1 | Modify `log_shipment_handler()` to accept price per box | `ui.py:663` | Low | Need to add price entry or derive from product |
+| 2 | Add loop in `log_shipment_handler()` to call `add_product()` N times | `ui.py:663` | **High** | Core serialized receiving logic |
+| 3 | Generate unique `internal_barcode` per iteration | `ui.py:213` | Low | `generate_internal_barcode(vendor_name)` already works |
+| 4 | Update `QuickReceiveModal._submit()` with same loop logic | `ui.py:1258` | Medium | Mirror the loop for modal path |
+| 5 | Add price field to receiving form (or inherit from product) | `ui.py:575` | Low | Need price per box for `add_product()` |
+| 6 | Test: Receive 5 boxes → verify 5 rows in products table | Manual | — | Validation step |
+
+### Phase 2: Edge Cases & Data Integrity
+
+| # | Task | File | Risk | Notes |
+|---|---|---|---|---|
+| 7 | Handle existing bulk data migration (if any) | `database.py` | Medium | Old rows with quantity > 1 need splitting |
+| 8 | Verify `get_products_with_vendors()` returns correct barcode for combobox | `database.py:164` | Low | Used by receive tab product selection |
+| 9 | Add transaction safety to receiving loop (rollback on failure) | `database.py` | Medium | Prevent partial receives |
+| 10 | Verify `receiving_log.barcode` stores the last generated barcode | `database.py:405` | Low | Already implemented |
+
+### Phase 3: UI Polish
+
+| # | Task | File | Risk | Notes |
+|---|---|---|---|---|
+| 11 | Add "Price per Box" field to receive form | `ui.py:575` | Low | Required for `add_product()` |
+| 12 | Show "Received N boxes" confirmation with barcode list | `ui.py:663` | Low | UX improvement |
+| 13 | Add batch number display in inventory child rows | `ui.py:381` | Low | Show vendor prefix in treeview |
+
+### Phase 4: Verification Checklist
+
+| # | Test Case | Expected Result | Status |
+|---|---|---|---|
+| A | Receive 3 boxes of Aspirin from MedSupply | 3 rows in products, each with MED-XXXXXX barcode | ⬜ |
+| B | Sell 1 box of Aspirin | 1 row deleted from products, 1 row in sold_items | ⬜ |
+| C | Print label for received box | Sticker shows unique MED-XXXXXX barcode | ⬜ |
+| D | Edit batch vendor from N/A → MedSupply | QuickReceiveModal appears, receiving_log updated | ⬜ |
+| E | Search by internal barcode | Finds exact box in inventory | ⬜ |
+| F | Refund sold item | Row restored to products with original barcode | ⬜ |
+| G | Receive 0 boxes | Validation error, no rows created | ⬜ |
+| H | Receive boxes with duplicate vendor | All barcodes unique (uuid6 guarantee) | ⬜ |
+
+---
+
+## 5. Source File Reference
+
+### Root Structure
 
 ```
 my progam pharmacy/
-├── main.py                 # Application entrypoint (pharmacy app)
-├── ui.py                   # All GUI code (customtkinter)
+├── main_app.py             # Unified suite entry + open_label_engine() subprocess bridge
+├── main.py                 # Pharmacy app entrypoint (PharmacyApp window)
+├── ui.py                   # All pharmacy GUI code (customtkinter)
 ├── database.py             # SQLite CRUD operations
 ├── barcode_logic.py        # Barcode/label generation + config loading
 ├── config.json             # Runtime settings (pharmacy name, font, DB path)
+├── label_template.json     # Persistent label template (optional, auto-created by engine)
 ├── main.spec               # PyInstaller build spec
 ├── pharmacy.db             # SQLite database (runtime, auto-created)
 ├── labels/                 # Generated label PNG images
 ├── build/                  # PyInstaller build artifacts
 ├── dist/                   # PyInstaller output (main.exe)
-├── label_engine/           # [NEW] Dynamic Label Design Engine
-│   ├── main.py             #   App entry + File menu + toolbar + canvas area
+├── label_engine/           # Dynamic Label Design Engine (module)
+│   ├── __init__.py         #   Module marker
+│   ├── migrate_data.py     #   M33: Legacy barcode normalization script
+│   ├── main.py             #   App entry + argparse + product context + File menu
 │   ├── canvas_core.py      #   Element hierarchy + unified draw_elements() + drag/resize
-│   ├── properties_panel.py #   Property editor sidebar (text/shape/barcode/QR)
-│   └── export.py           #   JSON save/load + PNG export (300 DPI) + print support
-├── venv/                   # Python virtual environment
-├── AGENTS.md               # Agent instructions
+│   ├── properties_panel.py #   Property editor sidebar (text/shape/barcode/QR fields)
+│   ├── export.py           #   JSON save/load + PNG export (300 DPI) + print + id-based paths
+│   └── data/labels/        #   Persisted label designs (auto-created per product ID)
+├── venv/                   # Python 3.12.7 virtual environment
+├── requirements.txt        # Pinned project dependencies
+├── README.md               # Project overview + getting started
+├── LICENSE                 # MIT License
+├── AGENTS.md               # Agent execution protocols
 ├── PROJECT_MAP.md          # This file
 └── .gitignore
 ```
 
-## Source Files
+### Milestones
 
-### `main.py` — Entrypoint (22 lines)
+| # | Milestone | Status | Verified |
+|---|---|---|---|
+| M1 | Scaffold + Canvas | Complete | 2026-07-12 |
+| M2 | Text Elements + Properties Panel | Complete | 2026-07-12 |
+| M3 | Barcode (Code128) + QR Elements + Drag/Resize | Complete | 2026-07-12 |
+| M4 | Advanced Shapes (rectangle, ellipse, rounded-rectangle) | Complete | 2026-07-12 |
+| M5 | Label Save/Load (JSON Serialization) | Complete | 2026-07-12 |
+| M6 | PNG Export (300 DPI) + Print Support | Complete | 2026-07-12 |
+| M8 | Integration Bridge (Context-Aware Label Engine) | Complete | 2026-07-12 |
+| M9 | Schema Migration + Date Columns | Complete | 2026-07-12 |
+| M10 | Grouped Database Queries | Complete | 2026-07-12 |
+| M11 | Grouped Inventory UI (Treeview parent/child) | Complete | 2026-07-12 |
+| M12 | Sorting Toggle + Search Integration | Complete | 2026-07-12 |
+| M13 | Sell + Print Integration (batch-level) | Complete | 2026-07-12 |
+| M14 | Date Validation + Expiry Dashboard | Complete | 2026-07-12 |
+| M15 | RBAC + Batch Edit | Complete | 2026-07-12 |
+| M16 | Label Engine V2 Bridge + Dates | Complete | 2026-07-12 |
+| M17 | Template System + Edit->Label Integration | Complete | 2026-07-12 |
+| M18 | Full-Field EditBatchDialog + Database Expansion | Complete | 2026-07-13 |
+| M19 | Label Designer Layout Re-Proportioning | Stable/Verified | 2026-07-13 |
+| M20 | Typography, Spacing & Style Stability | Stable/Verified | 2026-07-13 |
+| M21 | Subprocess Hardening + Pack Layout + Canvas Scrollbars | Stable/Verified | 2026-07-13 |
+| M22 | UI Remediation: ttk.PanedWindow + pack_propagate(False) + Layout Geometry Auditor | Stable/Verified | 2026-07-13 |
+| M23 | Text Anchor Fix: Left-Aligned Canvas Text (anchor="w") | Stable/Verified | 2026-07-13 |
+| M24 | LabelDesignerPopup: grid minsize=300 on controls column | Stable/Verified | 2026-07-13 |
+| M25 | Dynamic Text Scaling: Fit-to-Width font reduction + word-wrap fallback | Stable/Verified | 2026-07-13 |
+| M26 | Interactive Scrollable Canvas Viewport: Zoom controls + mouse-wheel panning | Stable/Verified | 2026-07-13 |
+| M27 | Persistent Label Template System: Save/load templates + dynamic popup fields | Stable/Verified | 2026-07-14 |
+| M28 | Vendor Traceability: vendor_name column + cascade + receiving_log barcode | Complete | 2026-07-15 |
+| M29 | Quick Receive Modal: Vendor N/A→valid triggers qty/cost dialog | Complete | 2026-07-15 |
+| M30 | Serialized Barcode Generation: `{VND[:3]}-{uuid6}` format | Complete | 2026-07-15 |
+| M31 | Serialized Receiving Loop: `log_shipment_handler()` + `QuickReceiveModal` create N rows per shipment | Complete | 2026-07-15 |
+| M32 | Atomic Receiving: `receive_inventory_atomically()` wraps loop + ledger in single transaction with rollback | Complete | 2026-07-15 |
+| M33 | Legacy Barcode Normalization: `migrate_data.py` renames old-format barcodes to `{VND[:3]}-{UUID6}` with `receiving_log` cascade | Complete | 2026-07-15 |
+| M34 | Interaction Lock Fix: Replaced `CTkScrollableFrame` in Receive tab with canonical `tk.Canvas + CTkFrame` scrollable panel — eliminates `bind_all` event-chain and `create_window` focus anomaly | Complete | 2026-07-15 |
+| M35 | Talking Tabs (Observer Pattern): Added `_notify_inventory_updated()` event-bus method; `_commit_shipment()` now emits this signal to sync Inventory, Sales Report, Add Product, and Receive tabs simultaneously | Complete | 2026-07-15 |
+
+---
+
+## 6. Pharmacy App Source Files
+
+### `main.py` — Pharmacy Entrypoint (22 lines)
 - Sets customtkinter appearance (Dark mode, blue theme)
 - Calls `database.init_db()` to create tables
 - Calls `barcode_logic.init_labels_dir()` to ensure `labels/` exists
 - Launches `PharmacyApp` main window
 
-### `ui.py` — GUI Layer (641 lines)
+### `main_app.py` — Unified Suite Entry + Subprocess Bridge (39 lines)
+- Single entry point for the entire suite
+- Delegates to `main.main()` for the pharmacy app
+- `open_label_engine(product_id, barcode_value, product_name, product_price, expiry, manufacture, show_name, show_price, show_expiry, show_barcode_text)`: launches `label_engine/main.py` as subprocess with all context and visibility flags. Uses `subprocess.Popen` for clean detachment.
+
+### `ui.py` — Pharmacy GUI Layer (1760 lines)
+
+**Module-level helpers:**
+- `_extract_first_var(text)` — Returns first `{{VAR}}` name from template text, or None
+- `_extract_all_vars(text)` — Returns list of all `{{VAR}}` names from template text
 
 **Classes:**
 
 | Class | Purpose |
 |---|---|
-| `PharmacyApp(ctk.CTk)` | Main window with 5 tabs |
-| `LabelDesignerPopup(ctk.CTkToplevel)` | Label preview/print popup |
+| `PharmacyApp(ctk.CTk)` | Main window with 6 tabs |
+| `LabelDesignerPopup(ctk.CTkToplevel)` | Label preview/print popup — loads template if available, dynamically generates entry fields from text elements (resolves `{{VAR}}` defaults for mixed text like `"Exp: {{EXPIRY}}"`), renders via draw_elements. Includes Mfg Date and Exp Date fields in both default and template modes. |
+| `QuickReceiveModal(ctk.CTkToplevel)` | Appears when vendor changes from N/A to a valid vendor in EditBatchDialog. Qty entry (focused) + Cost entry. Submit calls `receive_inventory_atomically()` and refreshes inventory + receiving log via non-blocking `.after()`. |
+| `BulkAddModal(ctk.CTkToplevel)` | Opened from Add Product tab "Quick Receive (Bulk)" button. Dual-path workflow: "Submit & Save Directly" writes to DB immediately (M44); "Save to Queue" stages items in `receiving_session` for Pending PO commit. "Print All Tags" checkbox triggers batch label printing via template. Shows read-only product info + editable Qty + Total Wholesale Cost. **M45:** Stores `pre_barcodes` list in queue items so `_commit_shipment()` uses stored barcodes (printed labels match committed DB barcodes). |
+| `EditBatchDialog(ctk.CTkToplevel)` | Full-field batch editor: name, price, mfg barcode, internal barcode (disabled, "Auto-Generated" hint), expiry, mfg date, vendor, status. On vendor N/A→valid change, launches QuickReceiveModal instead of success messagebox. |
 
 **Tab breakdown:**
 
 | Tab | Method | Purpose |
 |---|---|---|
-| Add Product | `setup_add_tab()` | Form: template dropdown, name, price, mfg barcode → saves + opens label designer |
-| Inventory | `setup_inventory_tab()` | Treeview of all products, search, sell button |
-| Sales Report | `setup_report_tab()` | Treeview of sold items, revenue totals, refund button |
-| Templates | `setup_templates_tab()` | CRUD for reusable product templates |
-| Settings | `setup_settings_tab()` | Pharmacy name, font size, price toggle, DB path, backup |
+| Add Product | `setup_add_tab()` | Form: template dropdown, name, price, mfg barcode, expiry date (YYYY-MM-DD validated), manufacture date, vendor name → saves + opens label designer with dates. **"Quick Receive (Bulk)" button** opens `BulkAddModal` for multi-unit serialization (M44). |
+| Inventory | `setup_inventory_tab()` | Expiry alert bar (<=30/60/90d), grouped Treeview: drug groups with qty sum (COUNT(*)), double-click expand to individual boxes, Expiry/Mfg sorting toggle, search, sell, edit batch, print, **Vendor column**. EditBatchDialog triggers Quick Receive modal on vendor N/A→valid change. |
+| Sales Report | `setup_report_tab()` | Treeview of sold items with **Vendor column**, revenue totals, today's sales total (teal), custom date query (purple label + entry + button), refund button |
+| Receive Inventory | `setup_receive_tab()` | **Purchase Order & Receiving Dashboard.** Zone A (left, scrollable): input form + "Add to Queue" button — holds items in `self.receiving_session` in-memory. Zone B (top right): Pending PO Treeview (vendor-grouped, expandable). Zone C (bottom right): Invoice Total + "Remove Selected" + "Commit Shipment" — calls `receive_inventory_atomically()` per vendor, then syncs Inventory + Receiving tabs. Vendor Payables lookup at bottom. Zone D: Shipment History — vendor-grouped hierarchical treeview (M41). |
+| Templates | `setup_templates_tab()` | CRUD for reusable product templates, `{{VARIABLE}}` syntax on selection |
+| Settings | `setup_settings_tab()` | Pharmacy name, font size, price toggle, DB path, RBAC segmented button (Admin/User), backup |
 
-**Key methods:**
+### `database.py` — Data Layer (455 lines)
 
-| Method | Line | Purpose |
-|---|---|---|
-| `save_product()` | `ui.py:103` | Validates form, generates internal barcode, saves to DB, opens label designer |
-| `perform_search()` | `ui.py:206` | Exact barcode match → highlight; otherwise LIKE search |
-| `sell_product()` | `ui.py:231` | Moves selected product to `sold_items` via `database.mark_item_as_sold()` |
-| `refund_item()` | `ui.py:299` | Moves sold item back to products via `database.reverse_sale()` |
-| `save_settings()` | `ui.py:497` | Writes config.json, reinitializes DB connection |
-| `print_label()` | `ui.py:626` | Saves label PNG to temp, sends to Windows default printer via `os.startfile` |
+**Tables:** `products`, `templates`, `sold_items`, `receiving_log`
 
-### `database.py` — Data Layer (243 lines)
+**Products schema:** `id`, `name`, `price`, `manufacturer_barcode`, `internal_unique_barcode` (UNIQUE), `status`, `expiry_date`, `manufacture_date`, `vendor_name`
 
-**Tables:**
+**Sold Items schema:** `id`, `item_name`, `price`, `manufacturer_barcode`, `internal_barcode`, `timestamp_of_sale`, `vendor_name`
 
-#### `products`
-| Column | Type | Constraints |
-|---|---|---|
-| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT |
-| `name` | TEXT | NOT NULL |
-| `price` | REAL | NOT NULL |
-| `manufacturer_barcode` | TEXT | NOT NULL |
-| `internal_unique_barcode` | TEXT | NOT NULL UNIQUE |
-| `status` | TEXT | DEFAULT 'In Stock' |
-
-#### `templates`
-| Column | Type | Constraints |
-|---|---|---|
-| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT |
-| `name` | TEXT | NOT NULL |
-| `price` | REAL | NOT NULL |
-
-#### `sold_items`
-| Column | Type | Constraints |
-|---|---|---|
-| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT |
-| `item_name` | TEXT | NOT NULL |
-| `price` | REAL | NOT NULL |
-| `manufacturer_barcode` | TEXT | NOT NULL |
-| `internal_barcode` | TEXT | NOT NULL |
-| `timestamp_of_sale` | TEXT | NOT NULL |
+**Receiving Log schema:** `id`, `vendor_name`, `product_name`, `date_received`, `quantity`, `total_cost`, `barcode`
 
 **Functions:**
 
 | Function | Purpose |
 |---|---|
-| `get_db_path()` | Reads DB path from `config.json` via `barcode_logic.load_config()` |
-| `init_db()` | Creates tables if missing, seeds default templates |
-| `add_product()` | Inserts into `products` |
-| `get_all_products()` | Returns all rows from `products` |
-| `search_products(query)` | LIKE search on name, mfg barcode, internal barcode |
-| `get_product_by_barcode(barcode)` | Exact match on either barcode column |
-| `update_product_status()` | Updates `status` field by barcode |
-| `mark_item_as_sold(barcode)` | Moves product → `sold_items` (delete + insert in one transaction) |
-| `reverse_sale(sold_item_id)` | Moves sold item → `products` (delete + insert in one transaction) |
-| `get_sold_items()` | Returns all `sold_items` ordered by timestamp DESC |
-| `get_templates()` | Returns all templates ordered by name ASC |
-| `add_template()` | Inserts into `templates` |
-| `update_template()` | Updates template by id |
-| `delete_template()` | Deletes template by id |
+| `init_db()` | Creates tables if missing, seeds default templates, migrates schema (status, expiry_date, manufacture_date, vendor_name, receiving_log.barcode) |
+| `add_product(name, price, mfg_barcode, internal_barcode, expiry, mfg, vendor)` | Inserts **one serialized row** into `products` |
+| `get_all_products()` | Returns all rows from `products` (includes dates) |
+| `search_products(query)` | LIKE search on name, barcodes (includes dates) |
+| `get_grouped_products()` | `GROUP BY name` → `[(name, COUNT(*), MIN(price), MAX(price))]` — serialized box count |
+| `get_batches_by_name(name, sort_by)` | Returns all **individual boxes** for a drug, sorted by expiry ASC or mfg DESC |
+| `search_grouped_products(query)` | LIKE search → grouped results |
+| `update_product_dates(product_id, expiry, mfg)` | Updates expiry_date and manufacture_date for a single box |
+| `update_product_full(product_id, name, price, mfg_barcode, int_barcode, expiry, mfg, status, vendor_name)` | Full product field update (all 8 mutable columns) + cascade vendor/name/price to receiving_log via barcode |
+| `get_product_by_id(product_id)` | Returns single product row by ID (all columns) |
+| `get_expiring_batches()` | Returns dict `{'30': count, '60': count, '90': count}` of boxes expiring within thresholds |
+| `get_product_by_barcode(barcode)` | Returns single product by barcode (includes dates) |
+| `mark_item_as_sold(barcode)` | **Deletes** product row → **Inserts** into `sold_items` (captures vendor_name at sale time) |
+| `reverse_sale(sold_item_id)` | **Deletes** sold item → **Inserts** back to `products` (restores vendor_name) |
+| `get_today_sales_total()` | Returns sum of prices for today's sales (timestamp LIKE 'YYYY-MM-DD%') |
+| `get_sales_for_date(date_str)` | Returns sum of prices for a specific date (timestamp LIKE 'date%') |
+| `log_shipment(vendor, product, date, qty, cost, barcode)` | Inserts a row into `receiving_log` (with barcode for permanent ID linking) |
+| `receive_inventory_atomically(vendor, product, date, qty, cost, price, mfg_barcode, expiry, mfg_date, barcode_generator)` | Atomic receiving: loops `qty` times inserting serialized product rows + one `receiving_log` entry, all in a single transaction. Rolls back entirely on any failure. Returns last generated barcode. |
+| `get_all_receiving_log(filter_date=None)` | Returns receiving_log rows (7 columns including barcode) ordered by date DESC. Optional `filter_date` parameter filters to a specific date. |
+| `get_vendor_total_owed(vendor_name)` | Returns SUM(total_cost) for a specific vendor |
+| `get_all_vendors()` | Returns distinct vendor names from receiving_log |
+| `get_products_with_vendors()` | Returns name, vendor_name, internal_unique_barcode for In Stock products |
+| `get_product_template(name)` | Returns (name, price, mfg_barcode, expiry, mfg_date) from most recent In Stock product with given name — used by receiving loop |
 | `backup_database(dest_folder)` | Copies `pharmacy.db` with date suffix |
 
-### `barcode_logic.py` — Barcode & Config (194 lines)
+### `barcode_logic.py` — Barcode & Config (191 lines)
 
 | Function | Purpose |
 |---|---|
-| `init_labels_dir()` | Creates `labels/` directory if missing |
 | `load_config()` | Reads `config.json`, creates with defaults if missing |
-| `generate_internal_barcode(mfg_barcode)` | Returns `<mfg>-<timestamp4><random2>` string |
-| `create_label(price, internal_barcode)` | Renders full label PNG to `labels/` dir, returns path |
-| `generate_preview_image(flags, overrides, internal_barcode)` | Returns PIL Image for live preview in LabelDesignerPopup |
-
-**Constants:**
-- `LABELS_DIR = "labels"`
-- `CONFIG_FILE = "config.json"`
-
-### `config.json` — Runtime Settings
-
-```json
-{
-    "pharmacy_name": "My Pharmacy",   // Printed on labels
-    "font_size": 20,                  // Label pharmacy name font size
-    "include_price": true,            // Whether price appears on label
-    "db_path": "pharmacy.db"          // SQLite database path
-}
-```
-
-## Data Flow
-
-```
-User input (ui.py)
-  → database.py (SQLite CRUD)
-  → barcode_logic.py (label generation)
-  → labels/ directory (PNG output)
-  → os.startfile() (print on Windows)
-```
-
-## Dependencies
-
-| Package | Used By | Purpose |
-|---|---|---|
-| `customtkinter` | `ui.py`, `main.py`, `label_engine/main.py` | GUI framework |
-| `python-barcode` | `barcode_logic.py`, `label_engine/canvas_core.py` | Code128 barcode rendering |
-| `Pillow` (PIL) | `barcode_logic.py`, `label_engine/canvas_core.py` | Label image composition + element rendering |
-| `qrcode` | `label_engine/canvas_core.py` | QR code image generation |
-| `tkinter` | `ui.py`, `label_engine/canvas_core.py` | Canvas, Treeview, messagebox (via stdlib) |
-
-## Build & Run
-
-```bash
-# Run from source
-python main.py
-
-# Build standalone executable (Windows)
-pyinstaller main.spec
-# Output → dist/main.exe
-```
-
-## Notes (Pharmacy App)
-
-- No API layer — this is a desktop GUI app, not a web service.
-- No ORM — raw sqlite3 with manual connect/close per function.
-- No test suite.
-- No `requirements.txt` — dependencies must be installed manually.
-- Font dependency: `arial.ttf` required for label rendering (Windows stdlib).
-- Database schema migrations done via `ALTER TABLE` wrapped in try/except.
+| `generate_internal_barcode(vendor_name)` | Returns `{VND[:3]}-{uuid6}` (e.g. `MED-A3F9B2`). Falls back to `PRD-` prefix for N/A vendors. Uses `uuid.uuid4().hex[:6].upper()` for cryptographic uniqueness. |
+| `create_label(price, internal_barcode)` | Renders full label PNG to `labels/` dir |
+| `generate_preview_image(flags, overrides, internal_barcode)` | Returns PIL Image for live preview |
+| `open_label_engine(product_id, barcode_value, ...)` | Launches label_engine/main.py subprocess with context |
 
 ---
 
-# Dynamic Label Design Engine
+## 7. Label Engine Source Files (`label_engine/`)
 
-> Status: **M6 Complete** — PNG export (300 DPI) + Print support. Unified `draw_elements()` renderer. No regression.
-> Last updated: 2026-07-12
+### `label_engine/main.py` — App Entry + Product Context (379 lines)
 
-## label_engine/ Directory Structure
+**Argparse:** `--id <product_id>`, `--barcode <barcode_value>`, `--name <product_name>`, `--price <product_price>`, `--expiry <date>`, `--manufacture <date>` for context-aware launch. Visibility flags: `--show-name`, `--show-price`, `--show-expiry`, `--show-barcode-text`.
 
+**Class: `ZoomableLabelCanvas(LabelCanvas)`** (subclass of canvas_core LabelCanvas)
+
+| Method | Purpose |
+|---|---|
+| `__init__(parent, width, height)` | Sets zoom=1.0, binds MouseWheel + Shift-MouseWheel for panning, canvas click for focus |
+| `set_zoom(zoom)` | Clamps to ZOOM_MIN..ZOOM_MAX, updates scrollregion, redraws |
+| `_update_scrollregion()` | Overrides parent: sets scrollregion to (0, 0, width*zoom, height*zoom) |
+| `redraw()` | Overrides parent: calls draw_elements(scale=self.zoom), draws zoom-scaled selection rect + resize handles |
+| `_on_mousewheel(event)` | Vertical scroll (yview_scroll) |
+| `_on_shift_mousewheel(event)` | Horizontal scroll (xview_scroll) |
+
+**Class: `LabelEngineApp(ctk.CTk)`**
+
+| Method | Purpose |
+|---|---|
+| `__init__(product_id, barcode_value, product_name, product_price, product_expiry, product_manufacture, show_*)` | Window setup, ttk.PanedWindow layout, 3-tier context loading |
+| `_load_product_context` | 3-tier fallback: (1) saved label by real product_id, (2) template with var_context substitution, (3) hardcoded defaults. Treats `"NEW"` sentinel as no product ID. |
+| `_build_menu` | File menu: Save (Ctrl+S), Load (Ctrl+O), Export PNG (Ctrl+E), Print (Ctrl+P), Exit |
+| `_build_toolbar` | Canvas size, + Text/Shape/Barcode/QR, Delete, Export PNG, Print, Zoom controls (-, %, +, Reset), Save Template, Load Template buttons |
+| `_build_main_pane` | Creates ttk.PanedWindow (horizontal). Canvas frame: width=800, pack_propagate(False), weight=1. Properties panel: width=350, pack_propagate(False), weight=0 |
+| `verify_layout_geometry` | Geometric auditor: fetches actual winfo_width() of window, canvas frame, and properties panel; asserts panel >= 300px, panes don't exceed window, canvas >= 200px |
+| `_save_file` | Uses `save_label_by_id()` if real product context (not "NEW"), else opens Save dialog |
+| `_load_file` | Uses `load_label_by_id()` if real product context (not "NEW"), else opens Load dialog |
+| `_export_png` | Opens Export PNG dialog → `export.export_to_png()` |
+| `_print_label` | → `export.print_label()` → temp PNG → Windows print dialog |
+| `_delete_selected` | Removes the currently selected element |
+
+### `label_engine/canvas_core.py` — Canvas Engine (435 lines)
+
+**Class Hierarchy:**
 ```
-label_engine/
-├── main.py              # App entry, window setup, File menu, toolbar
-├── canvas_core.py       # Element hierarchy + unified draw_elements() + drag/resize
-├── properties_panel.py  # Property editor sidebar (text/shape/barcode/QR fields)
-└── export.py            # JSON save/load + PNG export (300 DPI) + print support
+LabelElement (base dataclass)
+├── BarcodeElement    — Code128 barcode rendering via python-barcode
+├── QRElement         — QR code rendering via qrcode library
+└── ShapeElement      — Rectangle, ellipse, rounded-rectangle with configurable fill/border
 ```
 
-## label_engine/ Tech Stack
+**Unified Renderer:**
+`draw_elements(surface, elements, scale=1.0)` — Draws all elements onto either a `tkinter.Canvas` or a `PIL.Image`. Handles text (with `_fit_text_to_width` auto-scaling, `anchor="w"` left-aligned), shapes, barcodes, and QR codes.
+
+**`LabelCanvas` class:** add_element, remove_element, select, redraw, _update_scrollregion, _canvas_coords. Drag (B1-Motion), Resize (5 handles), Hit-test selection.
+
+### `label_engine/properties_panel.py` — Property Editor (214 lines)
+
+| Group | Shown For | Fields |
+|---|---|---|
+| `text_fields` | `type == "text"` | Text, Font dropdown, Size, Color hex |
+| `shape_fields` | `type == "shape"` | Shape type dropdown, Fill Color, Border Color, Border Width |
+| `barcode_fields` | `type == "barcode"` | Data, Show Text checkbox |
+| `qr_fields` | `type == "qr"` | Data, Fill Color, Back Color |
+| `no_selection` | Nothing selected | "No element selected" label |
+
+### `label_engine/export.py` — Export & I/O (113 lines)
+
+| Function | Purpose |
+|---|---|
+| `save_label(filename, canvas)` | Serializes canvas to JSON via `to_dict()` |
+| `load_label(filename, canvas)` | Deserializes JSON, restores canvas via `from_dict()` |
+| `export_to_png(filename, canvas)` | Renders to PIL Image at 300 DPI via `draw_elements()` |
+| `print_label(canvas)` | Exports to temp PNG, invokes Windows print via `os.startfile(path, "print")` |
+| `get_label_path(product_id)` | Returns `data/labels/<product_id>.json` path |
+| `save_label_by_id(product_id, canvas)` | Saves label to ID-based path |
+| `load_label_by_id(product_id, canvas)` | Loads label from ID-based path |
+| `save_template(canvas)` | Saves canvas layout to `label_template.json` |
+| `load_template(canvas)` | Loads template from `label_template.json` |
+
+---
+
+## 8. Tech Stack
 
 | Component | Choice | Version |
 |---|---|---|
@@ -208,198 +553,145 @@ label_engine/
 | Imaging | Pillow | 12.3.0 |
 | Barcode | python-barcode | 0.16.1 |
 | QR Code | qrcode | 8.2 |
+| Database | sqlite3 | stdlib |
+| UUID | uuid | stdlib |
+| Packaging | PyInstaller | (build spec) |
 
-> Downgraded from Python 3.14 to 3.12.7 for Pillow pre-built wheel compatibility.
+---
 
-## label_engine/ Source Files
-
-### `main.py` — App Entry (192 lines)
-
-**Class: `LabelEngineApp(ctk.CTk)`**
-
-| Method | Purpose |
-|---|---|
-| `__init__` | Window setup, grid layout, menu bar + toolbar + canvas + properties panel |
-| `_build_menu` | File menu with Save (Ctrl+S), Load (Ctrl+O), Export PNG (Ctrl+E), Print (Ctrl+P), Exit |
-| `_build_toolbar` | Canvas size inputs, Apply Size, + Text/Shape/Barcode/QR, Delete, Export PNG, Print buttons |
-| `_build_canvas_area` | Frame container for LabelCanvas |
-| `_build_properties_panel` | Creates PropertiesPanel sidebar wired to canvas |
-| `_apply_canvas_size` | Reads W/H entries, calls `label_canvas.set_size()` |
-| `_add_text_element` | Adds a sample text element to canvas |
-| `_add_shape_element` | Adds a ShapeElement rectangle to canvas with default props |
-| `_add_barcode_element` | Adds a Code128 barcode element with sample data |
-| `_add_qr_element` | Adds a QR code element with sample URL |
-| `_delete_selected` | Removes the currently selected element |
-| `_save_file` | Opens Save dialog, calls `export.save_label()` |
-| `_load_file` | Opens Load dialog, calls `export.load_label()` |
-| `_export_png` | Opens Export PNG dialog, calls `export.export_to_png()` |
-| `_print_label` | Calls `export.print_label()` → renders to temp PNG → os.startfile("print") |
-
-**Constants:** `DEFAULT_W = 400`, `DEFAULT_H = 300`
-
-### `canvas_core.py` — Canvas Engine (430 lines)
-
-**Class Hierarchy:**
+## 9. System Flow
 
 ```
-LabelElement (base dataclass)
-├── BarcodeElement    — Code128 barcode rendering via python-barcode
-├── QRElement         — QR code rendering via qrcode library
-└── ShapeElement      — Rectangle, ellipse, rounded-rectangle with configurable fill/border
+main_app.py
+  → main.py (PharmacyApp)
+    → database.init_db() → creates/migrates all 4 tables
+    → barcode_logic.init_labels_dir()
+
+Add Product Flow (1 box):
+  → setup_add_tab() → form: template, name, price, mfg barcode, expiry, mfg date, vendor
+  → save_product() → validates dates → generate_internal_barcode(vendor_name) → add_product()
+  → add_product() → INSERT INTO products (one serialized row with unique barcode)
+  → LabelDesignerPopup(self, name, price, int_barcode, expiry, mfg)
+    → update_preview() → draw_elements(preview_canvas, elements, context=ctx)
+    → launch_m8_engine() → open_label_engine("NEW", barcode, name, price, expiry, mfg, show_*)
+
+Receive Inventory Flow (Queue-Based — ATOMIC per vendor):
+  → setup_receive_tab() → 3-zone layout (A: input, B: PO treeview, C: commit)
+  → _add_to_queue() → validates inputs → appends to self.receiving_session[vendor]["items"]
+  → _refresh_po_treeview() → clears + rebuilds tree_po from receiving_session
+  → _commit_shipment() → iterates receiving_session:
+      → for each vendor, for each item:
+          → receive_inventory_atomically(vendor, item, date, qty, cost, price, mfg_barcode, expiry, mfg_date, barcode_generator)
+              → BEGIN TRANSACTION
+              → LOOP qty times:
+                  → barcode_generator(vendor) → unique barcode (VND-XXXXXX)
+                  → INSERT INTO products (one serialized row)
+              → INSERT INTO receiving_log (shipment ledger entry)
+              → COMMIT (or ROLLBACK on any error)
+      → receiving_session.clear()
+      → load_inventory() + load_receiving_log() → cross-tab sync
+
+Inventory Tab Flow:
+  → load_inventory() → get_grouped_products() → GROUP BY name, COUNT(*) → parent rows
+  → double-click group → _toggle_group() → get_batches_by_name() → individual box rows
+  → sort toggle (Expiry Date / Mfg Date) → _on_sort_change() → re-query with new ORDER BY
+  → sell_product() → batch-level selection → mark_item_as_sold(barcode) → DELETE + INSERT
+  → open_label_for_selected() → batch-level selection → LabelDesignerPopup with unique barcode
+  → EditBatchDialog._save() → update_product_full() → cascade vendor/name/price via WHERE barcode = ?
+  → if vendor changed N/A→valid → QuickReceiveModal (qty + cost → log_shipment())
+
+Sales Report Flow:
+  → load_sales_report() → get_sold_items() → individual sold boxes with barcodes
+  → refund_item() → reverse_sale(sold_id) → DELETE from sold_items, INSERT back to products
+
+Integration Bridge:
+  main_app.open_label_engine(product_id, barcode_value, ...)
+    → subprocess.Popen: label_engine/main.py --id <id> --barcode <barcode> ...
+      → auto-loads saved label from data/labels/<id>.json (if exists)
+      → or auto-creates elements from args (gated by show_* flags)
+
+Template System:
+  Standalone engine toolbar → "Save Template" → save_template(canvas) → label_template.json
+  Standalone engine toolbar → "Load Template" → load_template(canvas) → restores layout
+  LabelDesignerPopup → reads label_template.json → dynamic entry fields via {{VAR}} syntax
 ```
 
-**`LabelElement` dataclass (base):**
+---
 
-| Field | Type | Default |
+## 10. Dependencies
+
+| Package | Used By | Purpose |
 |---|---|---|
-| `id` | str | `uuid.uuid4().hex[:8]` |
-| `type` | str | `"text"` |
-| `x` | int | `50` |
-| `y` | int | `50` |
-| `width` | int | `120` |
-| `height` | int | `120` |
-| `props` | dict | `{}` |
+| `customtkinter` | `ui.py`, `main.py`, `label_engine/main.py` | GUI framework |
+| `python-barcode` | `barcode_logic.py`, `label_engine/canvas_core.py` | Code128 barcode rendering |
+| `Pillow` | `barcode_logic.py`, `label_engine/canvas_core.py` | Image composition + element rendering |
+| `qrcode` | `label_engine/canvas_core.py` | QR code image generation |
+| `sqlite3` | `database.py` | Database (stdlib) |
+| `uuid` | `barcode_logic.py` | Cryptographic barcode generation (stdlib) |
+| `tkinter` | `ui.py`, `label_engine/canvas_core.py` | Canvas, Treeview, messagebox (stdlib) |
 
-**`BarcodeElement(LabelElement)`:**
-- Default width=200, height=80
-- `props`: `data` (str), `show_text` (bool)
+---
 
-**`QRElement(LabelElement)`:**
-- Default width=120, height=120
-- `props`: `data` (str), `fill_color` (hex), `back_color` (hex)
+## 11. Build & Run
 
-**`ShapeElement(LabelElement)`:**
-- Default width=120, height=120
-- `props`: `shape` (rectangle|ellipse|rounded-rectangle), `fill_color` (hex), `border_color` (hex), `border_width` (int)
+```bash
+# Install dependencies
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
 
-**Unified Renderer:**
+# Run full pharmacy suite
+python main_app.py
 
-`draw_elements(surface, elements, scale=1.0)` — Draws all elements onto either a `tkinter.Canvas` or a `PIL.Image`. Handles text, shapes (rectangle/ellipse/rounded-rectangle), barcodes, and QR codes. The `scale` parameter multiplies all coordinates and sizes for high-DPI export.
+# Run label designer only (standalone)
+python label_engine/main.py
 
-**Helper Functions:**
+# Run label designer with product context
+python label_engine/main.py --id PROD-001 --barcode MED-A3F9B2 --name "Aspirin 500mg" --price "$5.99"
 
-| Function | Purpose |
+# Build standalone executable (Windows)
+pyinstaller main.spec
+# Output → dist/main.exe
+```
+
+---
+
+## 12. ORPHANS & PENDING
+
+### Active TODO Items
+
+_No remaining items. All planned features complete._
+
+### Known Orphans
+
+| Item | Detail |
 |---|---|
-| `_rounded_rect_coords(x0, y0, x1, y1, r)` | Generates 52-point polygon path for smooth rounded corners |
-| `_get_font(elem, scale)` | Resolves TrueType font with fallback chain (family → arial.ttf → default) |
-| `_generate_barcode_img(elem)` | Returns PIL Image of Code128 barcode |
-| `_generate_qr_img(elem)` | Returns PIL Image of QR code |
+| `receiving_log` entries 1 & 2 | Pre-serialization artifacts (dated 2026-07-14). They lack `barcode` values intentionally to preserve historical accuracy. Entry 1: 50x aspirin from medsupply ($200). Entry 2: 50x bands from medsupply ($100). No referential link to `products` exists and no further action is required. |
 
-**`LabelCanvas` class:**
+### Completed Items
 
-| Method | Purpose |
-|---|---|
-| `__init__(parent, width, height)` | Creates tkinter.Canvas, sets `_image_cache`, `on_select` callback |
-| `set_size(width, height)` | Resizes canvas and redraws |
-| `add_element(element)` | Appends element and redraws |
-| `remove_element(element_id)` | Removes element by ID |
-| `get_element(element_id)` | Returns element or None |
-| `select(element_id)` | Sets selection, redraws, fires `on_select` callback |
-| `clear()` | Removes all elements |
-| `redraw()` | Clears canvas, calls `draw_elements()`, draws selection + resize handles |
-
-**Dragging:** B1-Motion on selected element → updates x/y → redraw.
-**Resizing:** 5 handles (SE, SW, NE, S, E) rendered as 6px squares. `_hit_handle()` detects cursor near a handle; B1-Motion adjusts width/height/min 30px.
-
-**Callbacks:**
-- `on_select(element | None)` — Fired when selection changes
-
-### `properties_panel.py` — Property Editor Sidebar (175 lines)
-
-**Class: `PropertiesPanel`**
-
-| Field | Purpose |
-|---|---|
-| `label_canvas` | Reference to the `LabelCanvas` instance |
-| `current_id` | ID of the currently inspected element |
-| `_updating` | Lock to prevent recursive updates during programmatic field changes |
-
-**UI Element Groups:**
-
-| Group | Shown For | Fields |
+| Milestone | Description | Status |
 |---|---|---|
-| `text_fields` | `type == "text"` | Text entry, Font dropdown, Size entry, Color hex entry |
-| `shape_fields` | `type == "shape"` | Shape type dropdown, Fill Color hex, Border Color hex, Border Width int |
-| `barcode_fields` | `type == "barcode"` | Data entry, Show Text checkbox |
-| `qr_fields` | `type == "qr"` | Data entry, Fill Color hex, Back Color hex |
-| `no_selection` | No element selected | "No element selected" label |
+| M1–M27 | Label Engine + Pharmacy Core | ✅ Complete |
+| M28 | Vendor Traceability (vendor_name column + cascade + receiving_log barcode) | ✅ Complete |
+| M29 | Quick Receive Modal (vendor N/A→valid triggers qty/cost dialog) | ✅ Complete |
+| M30 | Serialized Barcode Generation (`{VND[:3]}-{uuid6}` format) | ✅ Complete |
+| M31 | Serialized Receiving Loop (`log_shipment_handler()` + `QuickReceiveModal` create N rows per shipment) | ✅ Complete |
+| M32 | Atomic Receiving (`receive_inventory_atomically()` — single transaction with rollback) | ✅ Complete |
+| M33 | Legacy Barcode Normalization (`migrate_data.py` — renames ~49 old-format barcodes to `{VND[:3]}-{UUID6}` with receiving_log cascade) | ✅ Complete |
+| M34 | Vendor Prefix in Inventory Treeview (child rows show barcode prefix e.g. `MED` for instant vendor identification) | ✅ Complete |
+| M35 | Purchase Order & Receiving Dashboard (queue-based state management, 3-zone UI, cross-tab sync on commit) | ✅ Complete |
+| M36 | Shipment History Bridge (`save_product()` + `EditBatchDialog._save()` now log to `receiving_log` — Shipment History shows Add Product + vendor-change entries) | ✅ Complete |
+| M37 | Shipment History Unit Cost Display (tree_history "Cost" column shows per-box unit cost — directly comparable to Inventory "Price" column) | ✅ Complete |
+| M38 | Vendor-Filtered Combobox + Auto-Fill Expansion (Receive tab product combobox filters by vendor, `_on_product_change()` autofills Unit Price + Mfg Barcode from vendor-specific template) | ✅ Complete |
+| M39 | Shipment History Cost Alignment (`_commit_shipment()` + `QuickReceiveModal._submit()` store `qty × tpl_price` as `total_cost` — all paths now produce matching unit_cost) | ✅ Complete |
+| M40 | Price Cascade to Receiving Log (`update_product_full()` now cascades price changes to `receiving_log.total_cost` — `total_cost = new_price × quantity`) | ✅ Complete |
+| M41 | Vendor-Grouped Shipment History (tree_history upgraded to hierarchical treeview — parent rows = vendor groups with unit count, child rows = individual shipment entries) | ✅ Complete |
+| M42 | Click-to-Sort Date Column (Date column heading is clickable — sorts child rows within each vendor group chronologically, toggles ascending/descending with arrow indicator) | ✅ Complete |
+| M43 | Date Filter for Shipment History (date entry + Filter/Clear buttons — filters treeview to show only shipments from a specific date, grouped by vendor) | ✅ Complete |
+| M44 | Bulk Add from Add Product Tab (`BulkAddModal` — "Quick Receive (Bulk)" button creates N serialized boxes with unique barcodes in single transaction, logs consolidated shipment to `receiving_log`) | ✅ Complete |
+| M45 | Bulk Print Tags + Save to Queue (`BulkAddModal` dual-path: "Submit & Save Directly" preserves existing DB-write path; "Save to Queue" stages items in `receiving_session` for Pending PO commit. "Print All Tags" checkbox triggers batch label printing via template. `_commit_shipment()` uses stored `pre_barcodes` to ensure printed labels match committed DB barcodes.) | ✅ Complete |
 
-**Methods:**
+---
 
-| Method | Purpose |
-|---|---|
-| `__init__(parent, label_canvas)` | Builds all field groups, registers `on_select` callback |
-| `_on_selection_changed(element)` | Dispatches to correct field group by `element.type`, populates fields |
-| `_on_text_change(event)` | Writes text fields back to element.props, triggers redraw |
-| `_on_shape_change(event)` | Writes shape fields back to element.props, triggers redraw |
-| `_on_barcode_change(event)` | Writes barcode fields back to element.props, triggers redraw |
-| `_on_qr_change(event)` | Writes QR fields back to element.props, triggers redraw |
-
-**Constants:** `FONT_FAMILIES` — 6 standard font names, `SHAPE_TYPES` — rectangle, ellipse, rounded-rectangle
-
-### `export.py` — Export & I/O (82 lines)
-
-**Functions:**
-
-| Function | Purpose |
-|---|---|
-| `save_label(filename, canvas)` | Serializes canvas to JSON via `to_dict()`. Returns bool. |
-| `load_label(filename, canvas)` | Deserializes JSON, restores canvas via `from_dict()`. Returns bool. |
-| `export_to_png(filename, canvas)` | Renders to PIL Image at 300 DPI via `draw_elements()`, saves as PNG. Returns bool. |
-| `print_label(canvas)` | Exports to temp PNG, invokes Windows print dialog via `os.startfile(path, "print")`. Returns bool. |
-
-**Serialization format:**
-```json
-{
-  "canvas_width": 500,
-  "canvas_height": 400,
-  "elements": [
-    {"id": "...", "type": "text", "x": 50, "y": 50, "width": 200, "height": 40, "props": {...}},
-    {"id": "...", "type": "barcode", "x": 50, "y": 120, "width": 200, "height": 80, "props": {...}},
-    {"id": "...", "type": "qr", "x": 300, "y": 50, "width": 120, "height": 120, "props": {...}},
-    {"id": "...", "type": "shape", "x": 300, "y": 200, "width": 100, "height": 80, "props": {...}}
-  ]
-}
-```
-
-**Constants:**
-- `FILE_EXTENSION = ".json"`, `FILE_TYPES`, `PNG_FILE_TYPES`
-- `DPI = 300`, `SCREEN_DPI = 96` (scale factor = 3.125x for print-quality rendering)
-
-## label_engine/ System Flow
-
-```
-main.py (LabelEngineApp)
-  → File menu (Ctrl+S / Ctrl+O / Ctrl+E / Ctrl+P)
-    → export.py
-      → save_label / load_label (JSON serialization via to_dict/from_dict)
-      → export_to_png (PIL Image @ 300 DPI via draw_elements)
-      → print_label (temp PNG → os.startfile("print"))
-  → canvas_core.py (LabelCanvas)
-    → draw_elements(surface, elements, scale) — unified renderer
-      → tkinter.Canvas (on-screen rendering)
-      → PIL.Image (PNG export rendering)
-    → LabelElement / BarcodeElement / QRElement / ShapeElement
-    → _image_cache (PIL PhotoImage lifecycle for on-screen)
-    → on_select callback → properties_panel.py
-  → properties_panel.py (PropertiesPanel)
-    → reads element type → shows correct field group
-    → reads element.props → populates fields
-    → field edits → writes element.props → canvas.redraw()
-```
-
-## ORPHANS & PENDING
-
-_All milestones complete. No pending items._
-
-| Item | Milestone | Status |
-|---|---|---|
-| Text elements | M1/M2 | Done |
-| Shape elements | M4 | Done |
-| Barcode elements | M3 | Done |
-| QR code elements | M3 | Done |
-| Drag & resize | M3 | Done |
-| Properties panel | M2-M4 | Done |
-| JSON save/load | M5 | Done |
-| PNG export (300 DPI) | M6 | Done |
-| Print support | M6 | Done |
+_This document reflects the architectural state as of 2026-07-16. The serialized unit-level tracking model is fully implemented: barcode generation, receiving loop, inventory grouping, selling, label printing, and sales reporting all operate on individual serialized boxes. The Receive Inventory tab now operates as a queue-based Purchase Order & Receiving Dashboard with cross-tab sync, vendor-filtered product combobox, and auto-fill of Unit Price + Mfg Barcode from vendor-specific templates (M38). All product additions and vendor-change edits now log to `receiving_log` for complete Shipment History coverage (M36). BulkAddModal now supports dual-path workflow (M45): "Submit & Save Directly" preserves the existing DB-write path, while "Save to Queue" stages items in the Pending PO queue for later atomic commit. Both paths support batch label printing via the "Print All Tags" checkbox._

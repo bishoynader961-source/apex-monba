@@ -1,9 +1,12 @@
 import json
 import os
+import sys
 import logging
 import tempfile
 
 from PIL import Image
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from canvas_core import LabelCanvas, LabelElement, draw_elements
 
 logger = logging.getLogger(__name__)
@@ -13,6 +16,30 @@ FILE_TYPES = [("Label Files", "*.json"), ("All Files", "*.*")]
 PNG_FILE_TYPES = [("PNG Images", "*.png"), ("All Files", "*.*")]
 DPI = 300
 SCREEN_DPI = 96
+
+LABELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "labels")
+TEMPLATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "label_template.json")
+
+
+def _ensure_labels_dir():
+    os.makedirs(LABELS_DIR, exist_ok=True)
+
+
+def get_label_path(product_id: str) -> str:
+    _ensure_labels_dir()
+    return os.path.join(LABELS_DIR, f"{product_id}.json")
+
+
+def save_label_by_id(product_id: str, canvas: LabelCanvas) -> bool:
+    return save_label(get_label_path(product_id), canvas)
+
+
+def load_label_by_id(product_id: str, canvas: LabelCanvas) -> bool:
+    path = get_label_path(product_id)
+    if not os.path.exists(path):
+        logger.info("No saved label for product %s, starting fresh", product_id)
+        return False
+    return load_label(path, canvas)
 
 
 def save_label(filename: str, canvas: LabelCanvas) -> bool:
@@ -54,7 +81,7 @@ def export_to_png(filename: str, canvas: LabelCanvas) -> bool:
         img_w = int(canvas.width * scale)
         img_h = int(canvas.height * scale)
         img = Image.new("RGB", (img_w, img_h), "white")
-        draw_elements(img, canvas.elements, scale=scale)
+        draw_elements(img, canvas.elements, scale=scale, context=canvas.var_context)
         img.save(filename, "PNG", dpi=(DPI, DPI))
         logger.info("PNG exported to %s (%dx%d @ %d DPI)", filename, img_w, img_h, DPI)
         return True
@@ -74,3 +101,13 @@ def print_label(canvas: LabelCanvas) -> bool:
     except Exception as e:
         logger.error("Print failed: %s", e)
         return False
+
+
+def save_template(canvas: LabelCanvas) -> bool:
+    return save_label(TEMPLATE_PATH, canvas)
+
+
+def load_template(canvas: LabelCanvas) -> bool:
+    if not os.path.exists(TEMPLATE_PATH):
+        return False
+    return load_label(TEMPLATE_PATH, canvas)

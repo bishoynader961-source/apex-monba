@@ -1,1 +1,9 @@
-.aider*
+venv/
+.venv/
+__pycache__/
+*.pyc
+build/
+dist/
+*.db
+.license_cache
+.env

@@ -1,0 +1,91 @@
+
+# 2026-07-11 13:58:32.474039
++y
+
+# 2026-07-11 14:00:11.505228
++/add main.py barcode_logic.py database.py
+
+# 2026-07-11 14:01:03.960759
++/add main.py barcode_logic.py database.py config.json
+
+# 2026-07-11 14:02:04.359107
++Task: Fix the Label Designer layout to stop cutting off text and images.
++
++Instructions:
++
++In barcode_logic.py, update generate_preview_image to calculate text and barcode dimensions dynamically before rendering.
++
++Use draw.textbbox() to find the width/height of the text elements and include them in the final label_width and label_height calculations.
++
++Add a mandatory 15px "quiet zone" (padding) around the barcode to ensure it remains scannable.
++
++Ensure all elements are vertically centered on the canvas.
++
++If the product name is too long, wrap the text to a new line or truncate it so it never extends past the canvas edge.
++
++Update ui.py (via the LabelDesignerPopup class) to ensure the preview canvas properly updates to match these new dynamic dimensions, preventing clipping in the GUI.
+
+# 2026-07-11 14:31:10.452371
++y
+
+# 2026-07-11 15:18:47.414433
++/undo
+
+# 2026-07-11 15:18:55.699070
++/exit
+
+# 2026-07-11 15:19:42.407655
++Task: Fix the Label Designer layout in barcode_logic.py without deleting the draw object.
++
++Instructions:
++
++You cannot use draw.textbbox before creating the draw object.
++
++First, create a temporary dummy image to initialize draw:
++dummy_img = Image.new('RGB', (1, 1))
++draw = ImageDraw.Draw(dummy_img)
++
++Now, use draw.textbbox to calculate name_width, price_width, and expiry_width.
++
++Set PADDING = 30.
++
++The text must be drawn starting at x = PADDING.
++
++The barcode_x coordinate must be: PADDING + max_text_width + PADDING.
++
++The total canvas width must be: barcode_x + barcode_img.width + PADDING.
++
++After calculating the final dimensions, create the real label_img and a new draw object for it:
++label_img = Image.new('RGB', (label_width, label_height), 'white')
++draw = ImageDraw.Draw(label_img)
++
++Draw the text and paste the barcode using the safe coordinates calculated above.
+
+# 2026-07-11 15:19:47.526798
++y
+
+# 2026-07-11 15:59:19.823533
++n
+
+# 2026-07-11 15:59:30.423214
++/undo
+
+# 2026-07-11 15:59:43.458624
++Task: Fix the undefined variables (draw, name_height, price_height, expiry_height) in BOTH create_label and generate_preview_image inside barcode_logic.py.
++
++Instructions for BOTH functions:
++
++Right before you calculate any widths or heights, you MUST initialize a dummy draw object:
++dummy_img = Image.new('RGB', (1, 1))
++draw = ImageDraw.Draw(dummy_img)
++
++Use that draw object and draw.textbbox to calculate the widths AND heights for the name, price, and expiry text.
++
++You MUST define name_height, price_height, and expiry_height BEFORE you calculate total_text_height.
++
++Once all dimensions are calculated, create the real label_img and the real draw = ImageDraw.Draw(label_img).
++
++Finally, draw the text and paste the barcode using the safe PADDING coordinates.
+
+# 2026-07-11 19:14:58.944564
++exit

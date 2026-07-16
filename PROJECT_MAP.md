@@ -660,7 +660,11 @@ pyinstaller main.spec
 
 ### Active TODO Items
 
-_No remaining items. All planned features complete._
+| Item | Status |
+|---|---|
+| Phase 2: Serverless Backend (Vercel + Upstash Redis) | Pending approval |
+| Phase 3: Landing Page (GitHub Pages) | Blocked on Phase 2 |
+| Replace `API_BASE_URL` placeholder in `license_gate.py` with real Vercel URL | Pending Phase 2 |
 
 ### Known Orphans
 
@@ -691,7 +695,8 @@ _No remaining items. All planned features complete._
 | M43 | Date Filter for Shipment History (date entry + Filter/Clear buttons — filters treeview to show only shipments from a specific date, grouped by vendor) | ✅ Complete |
 | M44 | Bulk Add from Add Product Tab (`BulkAddModal` — "Quick Receive (Bulk)" button creates N serialized boxes with unique barcodes in single transaction, logs consolidated shipment to `receiving_log`) | ✅ Complete |
 | M45 | Bulk Print Tags + Save to Queue (`BulkAddModal` dual-path: "Submit & Save Directly" preserves existing DB-write path; "Save to Queue" stages items in `receiving_session` for Pending PO commit. "Print All Tags" checkbox triggers batch label printing via template. `_commit_shipment()` uses stored `pre_barcodes` to ensure printed labels match committed DB barcodes.) | ✅ Complete |
+| M46 | License Gate — Client-Side (`license_gate.py`: hardware fingerprinting via SHA-256, 24-hour offline cache with clock-rollback protection, `LicenseGate` CTk blocking window. `main.py` wrapper blocks `PharmacyApp` launch until validation passes. `config.json` extended with `license_key` field.) | ✅ Complete |
 
 ---
 
-_This document reflects the architectural state as of 2026-07-16. The serialized unit-level tracking model is fully implemented: barcode generation, receiving loop, inventory grouping, selling, label printing, and sales reporting all operate on individual serialized boxes. The Receive Inventory tab now operates as a queue-based Purchase Order & Receiving Dashboard with cross-tab sync, vendor-filtered product combobox, and auto-fill of Unit Price + Mfg Barcode from vendor-specific templates (M38). All product additions and vendor-change edits now log to `receiving_log` for complete Shipment History coverage (M36). BulkAddModal now supports dual-path workflow (M45): "Submit & Save Directly" preserves the existing DB-write path, while "Save to Queue" stages items in the Pending PO queue for later atomic commit. Both paths support batch label printing via the "Print All Tags" checkbox._
+_This document reflects the architectural state as of 2026-07-16. The serialized unit-level tracking model is fully implemented: barcode generation, receiving loop, inventory grouping, selling, label printing, and sales reporting all operate on individual serialized boxes. The Receive Inventory tab now operates as a queue-based Purchase Order & Receiving Dashboard with cross-tab sync, vendor-filtered product combobox, and auto-fill of Unit Price + Mfg Barcode from vendor-specific templates (M38). All product additions and vendor-change edits now log to `receiving_log` for complete Shipment History coverage (M36). BulkAddModal now supports dual-path workflow (M45): "Submit & Save Directly" preserves the existing DB-write path, while "Save to Queue" stages items in the Pending PO queue for later atomic commit. Both paths support batch label printing via the "Print All Tags" checkbox. **M46:** License Gate client-side module (`license_gate.py`) added — hardware fingerprinting, 24h offline cache with clock-rollback protection, blocking startup window. Server-side (Phase 2) and landing page (Phase 3) pending._

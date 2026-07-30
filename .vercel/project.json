@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_eFRDRZvIxpKWyYy2INlCB3h2SvRq",
+  "orgId": "team_PkPdSDkRErNagREyUeAoXMC8",
+  "projectName": "license_server-1",
+  "settings": {
+    "createdAt": 1784266437119,
+    "framework": "python",
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}

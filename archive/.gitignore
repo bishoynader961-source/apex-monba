@@ -1,0 +1,29 @@
+# Python environment
+venv/
+.venv/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE settings
+.vscode/
+.idea/
+
+# Local database files
+*.db
+*.sqlite3
+
+# Dev config (must not be bundled)
+dev_config.json
+
+# Build artifacts
+build/
+build_temp/
+dist/
+
+# Generated labels
+labels/
+.vercel
+.env*

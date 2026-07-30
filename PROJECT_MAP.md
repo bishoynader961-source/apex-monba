@@ -5,7 +5,7 @@
 > Pharmacy Management & Label Design Suite — desktop application for
 > serialized inventory management, data storage, barcode/label generation, and custom label design.
 > Auto-generated from the codebase at `E:\my progam pharmacy`.
-> Last synced: 2026-07-16
+> Last synced: 2026-07-19
 
 ---
 
@@ -110,6 +110,30 @@ CREATE TABLE templates (
     id    INTEGER PRIMARY KEY AUTOINCREMENT,
     name  TEXT NOT NULL,
     price REAL NOT NULL
+);
+```
+
+### `receipts` — Checkout Transaction Log
+
+```sql
+CREATE TABLE receipts (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp      TEXT NOT NULL,       -- 'YYYY-MM-DD HH:MM:SS'
+    total_amount   REAL NOT NULL,       -- Sum of (quantity × price_at_time) for all items
+    payment_method TEXT NOT NULL DEFAULT 'Cash'  -- 'Cash', 'Card', or 'Transfer'
+);
+```
+
+### `receipt_items` — Line Items Per Receipt
+
+```sql
+CREATE TABLE receipt_items (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    receipt_id    INTEGER NOT NULL,     -- FK → receipts.id
+    product_name  TEXT NOT NULL,        -- Drug name at time of sale
+    quantity      INTEGER NOT NULL,     -- Number of units sold
+    price_at_time REAL NOT NULL,        -- Price per unit at time of sale
+    FOREIGN KEY (receipt_id) REFERENCES receipts(id) ON DELETE CASCADE
 );
 ```
 
@@ -311,9 +335,27 @@ The Receive Inventory tab operates as a **Purchase Order & Receiving Dashboard**
 my progam pharmacy/
 ├── main_app.py             # Unified suite entry + open_label_engine() subprocess bridge
 ├── main.py                 # Pharmacy app entrypoint (PharmacyApp window)
-├── ui.py                   # All pharmacy GUI code (customtkinter)
-├── database.py             # SQLite CRUD operations
-├── barcode_logic.py        # Barcode/label generation + config loading
+├── ui.py                   # Thin wrapper (303 lines): imports + class def + attachments
+├── ui_helpers.py           # _extract_first_var, _extract_all_vars regex utilities
+├── ui_modals.py            # LabelDesignerPopup, QuickReceiveModal, BulkAddModal, BulkLabelPrintDialog, EditBatchDialog
+├── ui_add_tab.py           # Add Product tab setup + save + bulk
+├── ui_inventory_tab.py     # Inventory tab: grouped treeview, search, sort, sell, edit, label print dialog
+├── ui_expiring_tab.py      # Expiring Soon tab: alerts + vendor summary
+├── ui_dashboard_tab.py     # Dashboard tab: KPI cards + alerts + expiry summary
+├── ui_report_tab.py        # Sales Report tab: sales treeview + analytics + CSV export
+├── ui_receive_tab.py       # Receive Inventory tab: queue-based PO dashboard + shipment history
+├── receipt_engine.py       # Receipt generation: thermal-format .txt with pharmacy info + auto-open
+├── path_utils.py           # PyInstaller-safe path resolution + runtime directory initialization
+├── build_exe.py            # PyInstaller build automation (--noconsole / --debug / --icon)
+├── server_app.py           # Flask license server for PythonAnywhere (/api/validate, /api/activate, /api/create)
+├── deploy_to_server.py     # Deployment script: upload server_app.py + reload via PythonAnywhere REST API
+├── ui_checkout_tab.py      # Checkout tab: POS cart with qty management + receipts + payment + patient linkage
+├── ui_templates_tab.py     # Templates tab: CRUD for product templates
+├── ui_patients_tab.py      # Patients CRM tab: search, Treeview, dynamic custom field editor
+├── ui_settings_tab.py      # Settings tab: config + RBAC + backup
+├── excel_handler.py        # Excel import/export engine using openpyxl (threaded)
+├── database.py             # SQLite CRUD operations + analytics + patient CRM
+├── barcode_logic.py        # Barcode/label generation + config loading + Python finder
 ├── config.json             # Runtime settings (pharmacy name, font, DB path)
 ├── label_template.json     # Persistent label template (optional, auto-created by engine)
 ├── main.spec               # PyInstaller build spec
@@ -392,7 +434,54 @@ my progam pharmacy/
 - Delegates to `main.main()` for the pharmacy app
 - `open_label_engine(product_id, barcode_value, product_name, product_price, expiry, manufacture, show_name, show_price, show_expiry, show_barcode_text)`: launches `label_engine/main.py` as subprocess with all context and visibility flags. Uses `subprocess.Popen` for clean detachment.
 
-### `ui.py` — Pharmacy GUI Layer (1760 lines)
+### `ui_helpers.py` — Regex Utilities (6 lines)
+- `_extract_first_var(text)` — Returns first `{{VAR}}` name from template text, or None
+- `_extract_all_vars(text)` — Returns list of all `{{VAR}}` names from template text
+
+### `ui_modals.py` — Popup Dialog Classes (692 lines)
+
+| Class | Purpose |
+|---|---|
+| `LabelDesignerPopup(ctk.CTkToplevel)` | Label preview/print popup — loads template if available, dynamically generates entry fields from text elements (resolves `{{VAR}}` defaults for mixed text like `"Exp: {{EXPIRY}}"`), renders via draw_elements. Includes Mfg Date and Exp Date fields in both default and template modes. |
+| `QuickReceiveModal(ctk.CTkToplevel)` | Appears when vendor changes from N/A to a valid vendor in EditBatchDialog. Qty entry (focused) + Cost entry. Submit calls `receive_inventory_atomically()` and refreshes inventory + receiving log via non-blocking `.after()`. |
+| `BulkAddModal(ctk.CTkToplevel)` | Opened from Add Product tab "Quick Receive (Bulk)" button. Dual-path workflow: "Submit & Save Directly" writes to DB immediately (M44); "Save to Queue" stages items in `receiving_session` for Pending PO commit. "Print All Tags" checkbox triggers batch label printing via template. Shows read-only product info + editable Qty + Total Wholesale Cost. **M45:** Stores `pre_barcodes` list in queue items so `_commit_shipment()` uses stored barcodes (printed labels match committed DB barcodes). |
+| `EditBatchDialog(ctk.CTkToplevel)` | Full-field batch editor: name, price, mfg barcode, internal barcode (disabled, "Auto-Generated" hint), expiry, mfg date, vendor, status. On vendor N/A→valid change, launches QuickReceiveModal instead of success messagebox. |
+| `BulkLabelPrintDialog(ctk.CTkToplevel)` | Batch label printing dialog with barcode range selection, printer selection, and preview. |
+
+### `ui_add_tab.py` — Add Product Tab (164 lines)
+- `setup_add_tab(self)` — Form: template dropdown, name, price, mfg barcode, expiry, mfg date, vendor → saves + opens label designer
+- `refresh_add_tab_templates(self)` — Refreshes template dropdown
+- `save_product(self)` — Validates inputs, generates internal barcode, inserts product, opens label designer
+- `_open_bulk_add_modal(self)` — Opens BulkAddModal for multi-unit serialization
+
+### `ui_inventory_tab.py` — Inventory Tab (232 lines)
+- `setup_inventory_tab(self)` — Expiry alert bar, grouped Treeview, sort toggle, search
+- `load_inventory(self)` — Refreshes grouped inventory display
+- `perform_search(self)` — LIKE search on name, barcodes
+- `_send_to_checkout(self)` — Sends selected item to checkout cart
+- `_edit_batch(self)` — Opens EditBatchDialog
+- `open_label_for_selected(self)` — Opens LabelDesignerPopup with unique barcode
+
+### `ui_expiring_tab.py` — Expiring Soon Tab (249 lines)
+- `setup_expiring_tab(self)` — Expiring items list with date thresholds
+- `load_expiring_items(self)` — Refreshes expiring items display
+- `_on_vendor_summary_click(self)` — Vendor summary drill-down
+
+### `ui_dashboard_tab.py` — Dashboard Tab (123 lines)
+- `setup_dashboard_tab(self)` — 8 KPI cards in responsive grid: total products, in-stock count, low stock, expiring soon, today's revenue, total revenue, unique vendors. Low-stock alerts panel. Expiry summary panel.
+- `load_dashboard(self)` — Refreshes all dashboard KPI cards and alerts
+
+### `ui_report_tab.py` — Sales Report + Analytics Tab (530 lines)
+- `setup_report_tab(self)` — Segmented "Sales"/"Analytics" switcher. Sales view: date-based treeview + refund. Analytics view: date-range presets + ranked products + CSV export.
+- `load_sales_report(self)` — Refreshes grouped sales display
+- `_search_for_refund(self)` — Barcode search for refund
+- `calculate_custom_date_sales(self)` — Custom date query
+- `refund_item(self)` — Restores item to inventory
+- `setup_analytics_panel(self, parent)` — Date-range controls + KPI cards + ranked products treeview
+- `load_analytics(self)` — Fetches analytics for selected date range
+- `_export_analytics_csv(self)` — Exports analytics to CSV via stdlib csv module
+
+### `ui.py` — Pharmacy GUI Layer (303 lines — thin wrapper)
 
 **Module-level helpers:**
 - `_extract_first_var(text)` — Returns first `{{VAR}}` name from template text, or None
@@ -402,26 +491,26 @@ my progam pharmacy/
 
 | Class | Purpose |
 |---|---|
-| `PharmacyApp(ctk.CTk)` | Main window with 6 tabs |
-| `LabelDesignerPopup(ctk.CTkToplevel)` | Label preview/print popup — loads template if available, dynamically generates entry fields from text elements (resolves `{{VAR}}` defaults for mixed text like `"Exp: {{EXPIRY}}"`), renders via draw_elements. Includes Mfg Date and Exp Date fields in both default and template modes. |
-| `QuickReceiveModal(ctk.CTkToplevel)` | Appears when vendor changes from N/A to a valid vendor in EditBatchDialog. Qty entry (focused) + Cost entry. Submit calls `receive_inventory_atomically()` and refreshes inventory + receiving log via non-blocking `.after()`. |
-| `BulkAddModal(ctk.CTkToplevel)` | Opened from Add Product tab "Quick Receive (Bulk)" button. Dual-path workflow: "Submit & Save Directly" writes to DB immediately (M44); "Save to Queue" stages items in `receiving_session` for Pending PO commit. "Print All Tags" checkbox triggers batch label printing via template. Shows read-only product info + editable Qty + Total Wholesale Cost. **M45:** Stores `pre_barcodes` list in queue items so `_commit_shipment()` uses stored barcodes (printed labels match committed DB barcodes). |
-| `EditBatchDialog(ctk.CTkToplevel)` | Full-field batch editor: name, price, mfg barcode, internal barcode (disabled, "Auto-Generated" hint), expiry, mfg date, vendor, status. On vendor N/A→valid change, launches QuickReceiveModal instead of success messagebox. |
+| `PharmacyApp(ctk.CTk)` | Main window with 9 tabs |
 
 **Tab breakdown:**
 
 | Tab | Method | Purpose |
 |---|---|---|
-| Add Product | `setup_add_tab()` | Form: template dropdown, name, price, mfg barcode, expiry date (YYYY-MM-DD validated), manufacture date, vendor name → saves + opens label designer with dates. **"Quick Receive (Bulk)" button** opens `BulkAddModal` for multi-unit serialization (M44). |
-| Inventory | `setup_inventory_tab()` | Expiry alert bar (<=30/60/90d), grouped Treeview: drug groups with qty sum (COUNT(*)), double-click expand to individual boxes, Expiry/Mfg sorting toggle, search, sell, edit batch, print, **Vendor column**. EditBatchDialog triggers Quick Receive modal on vendor N/A→valid change. |
-| Sales Report | `setup_report_tab()` | Treeview of sold items with **Vendor column**, revenue totals, today's sales total (teal), custom date query (purple label + entry + button), refund button |
-| Receive Inventory | `setup_receive_tab()` | **Purchase Order & Receiving Dashboard.** Zone A (left, scrollable): input form + "Add to Queue" button — holds items in `self.receiving_session` in-memory. Zone B (top right): Pending PO Treeview (vendor-grouped, expandable). Zone C (bottom right): Invoice Total + "Remove Selected" + "Commit Shipment" — calls `receive_inventory_atomically()` per vendor, then syncs Inventory + Receiving tabs. Vendor Payables lookup at bottom. Zone D: Shipment History — vendor-grouped hierarchical treeview (M41). |
-| Templates | `setup_templates_tab()` | CRUD for reusable product templates, `{{VARIABLE}}` syntax on selection |
-| Settings | `setup_settings_tab()` | Pharmacy name, font size, price toggle, DB path, RBAC segmented button (Admin/User), backup |
+| Dashboard | `setup_dashboard_tab()` | KPI cards + low-stock alerts + expiry summary (via `ui_dashboard_tab.py`) |
+| Add Product | `setup_add_tab()` | Form: template dropdown, name, price, mfg barcode, expiry, vendor → saves + opens label designer. Bulk button opens BulkAddModal. (via `ui_add_tab.py`) |
+| Inventory | `setup_inventory_tab()` | Expiry alert bar, grouped Treeview, double-click expand, sort toggle, search, sell, edit batch, label print dialog, import/export. (via `ui_inventory_tab.py`) |
+| Expiring Soon | `setup_expiring_tab()` | Expiring items + vendor summary drill-down. (via `ui_expiring_tab.py`) |
+| Sales Report | `setup_report_tab()` | Segmented "Sales"/"Analytics" switcher. Sales view: date-based treeview + refund. Analytics view: date-range presets + ranked products + CSV export. (via `ui_report_tab.py`) |
+| Receive Inventory | `setup_receive_tab()` | Queue-based PO dashboard: input form, pending PO treeview, commit + shipment history. (via `ui_receive_tab.py`) |
+| Checkout | `setup_checkout_tab()` | POS cart with barcode scan + qty management + payment + receipts + patient linkage. (via `ui_checkout_tab.py`) |
+| Templates | `setup_templates_tab()` | CRUD for reusable product templates. (via `ui_templates_tab.py`) |
+| Patients | `setup_patients_tab()` | Patient CRM: search, Treeview, add/edit with dynamic custom fields, delete. (via `ui_patients_tab.py`) |
+| Settings | `setup_settings_tab()` | Pharmacy name, font size, price toggle, DB path, RBAC, backup. (via `ui_settings_tab.py`) |
 
-### `database.py` — Data Layer (455 lines)
+### `database.py` — Data Layer (500+ lines)
 
-**Tables:** `products`, `templates`, `sold_items`, `receiving_log`
+**Tables:** `products`, `templates`, `sold_items`, `receiving_log`, `receipts`, `receipt_items`, `patients`, `patient_fields`
 
 **Products schema:** `id`, `name`, `price`, `manufacturer_barcode`, `internal_unique_barcode` (UNIQUE), `status`, `expiry_date`, `manufacture_date`, `vendor_name`
 
@@ -457,6 +546,44 @@ my progam pharmacy/
 | `get_products_with_vendors()` | Returns name, vendor_name, internal_unique_barcode for In Stock products |
 | `get_product_template(name)` | Returns (name, price, mfg_barcode, expiry, mfg_date) from most recent In Stock product with given name — used by receiving loop |
 | `backup_database(dest_folder)` | Copies `pharmacy.db` with date suffix |
+| `create_receipt(payment_method, items)` | Creates receipt + receipt_items, atomically deducts stock from products. Items: `[{product_name, quantity, price_at_time}]`. Rolls back on insufficient stock. |
+| `get_receipts()` | Returns all receipts ordered by most recent first: `[(id, timestamp, total_amount, payment_method)]` |
+| `get_receipt_items(receipt_id)` | Returns line items for a receipt: `[(id, receipt_id, product_name, quantity, price_at_time)]` |
+| `get_receipt_items_grouped_by_date()` | Returns sold items grouped by date: `{date: [(id, receipt_id, name, qty, price, total, timestamp, payment, int_barcode, vendor, expiry)]}` |
+| `get_all_receipt_items_flat()` | Returns all sold items as flat list for barcode search |
+| `get_receipts_total_for_date(date_str)` | Returns sum of receipt totals for a specific date |
+| `reverse_receipt_item(receipt_item_id)` | Reverses a sold item: restores to products, updates receipt total, deletes receipt if empty |
+| `get_dashboard_metrics()` | Returns dict with: total_products, total_items_sold, total_revenue, in_stock_count, out_of_stock, expiring_soon, unique_vendors, total_inventory_value, low_stock_count |
+| `get_sales_analytics(start_date, end_date)` | Returns analytics: ranked_products [(rank, name, qty, revenue, avg_price)], total_items_sold, total_revenue, unique_products, total_transactions, avg_basket_size |
+| `add_patient(name, phone, email, custom_fields)` | Inserts patient + optional custom fields (EAV). Returns patient_id. |
+| `get_all_patients(search_query)` | Returns all patients with custom fields dict: `[(pid, name, phone, email, created_at, {field: value})]` |
+| `get_patient_by_id(patient_id)` | Returns single patient with custom fields, or None. |
+| `update_patient(patient_id, name, phone, email, custom_fields)` | Updates core fields, replaces all custom fields (delete + re-insert). |
+| `delete_patient(patient_id)` | Deletes patient and all custom fields (CASCADE). |
+
+### `excel_handler.py` — Smart Mapping Import/Export Engine (170 lines)
+
+| Function/Class | Purpose |
+|---|---|
+| `DB_FIELDS` | Schema dict: `{field_key: {label, required, default}}` for each importable field |
+| `HEADER_ALIASES` | 30+ heuristic rules mapping lowercased header strings to DB field keys |
+| `read_excel_headers(file_path)` | Returns `(headers: list[str], row_count: int)` without importing data |
+| `auto_map_headers(excel_headers)` | Matches headers via aliases → `(mapping: {db_key: col_idx}, unmatched: [(idx, header)])` |
+| `execute_import(file_path, column_map, default_values, on_complete)` | Background thread import using validated column_map. Creates unique barcodes per row. |
+| `export_to_excel(data_list, headers, output_path, on_complete)` | Generic Excel export with styled headers, auto-sized columns. Background thread. |
+| `export_inventory(output_path, on_complete)` | Exports current in-stock inventory to .xlsx with all batch columns. |
+
+### `ui_inventory_tab.py` — Inventory Tab + Import Wizard (400 lines)
+
+| Component | Purpose |
+|---|---|
+| `ImportWizardModal(ctk.CTkToplevel)` | Smart mapping wizard: DB fields with `CTkComboBox` (auto-mapped to Excel columns), default value `Entry` per field, unmatched columns with `[Ignore / Create Field]` toggle, required field validation, "Confirm Import" callback. |
+| `setup_inventory_tab(self)` | Builds toolbar (search, action buttons, sort toggle), Treeview with professional styling, expiry alert bar. |
+| `_configure_tree_tags(self)` | Configures `"odd"`/`"even"`/`"imported"` row tags for striping and import highlighting. |
+| `_header_sort(self, col)` | Click-to-sort on column headers: ascending/descending toggle with ▲/▼ indicators, striping reapplied. |
+| `load_inventory(self)` | Refreshes Treeview with alternating row tags, highlights recently imported batches. |
+| `_refresh_after_import(self)` | Tags newly imported rows with `"imported"` highlight, auto-clears after 8 seconds. |
+| `_import_excel(self)` | Reads Excel headers → opens `ImportWizardModal` → calls `execute_import()` with mapping. |
 
 ### `barcode_logic.py` — Barcode & Config (191 lines)
 
@@ -604,6 +731,19 @@ Sales Report Flow:
   → load_sales_report() → get_sold_items() → individual sold boxes with barcodes
   → refund_item() → reverse_sale(sold_id) → DELETE from sold_items, INSERT back to products
 
+Checkout & Receipts Flow:
+  → setup_checkout_tab() → product dropdown (from get_grouped_products()), cart Treeview, order summary
+  → _checkout_add_item() → validates stock availability (considers cart vs DB) → appends to self.cart
+  → _refresh_cart_treeview() → rebuilds cart display, updates total + change calculator
+  → _checkout_confirm() → create_receipt(payment_method, items):
+      → BEGIN TRANSACTION
+      → INSERT INTO receipts (timestamp, total_amount, payment_method)
+      → FOR EACH item: INSERT INTO receipt_items
+      → FOR EACH item: DELETE oldest `quantity` In Stock products by name (FIFO deduction)
+      → COMMIT (or ROLLBACK on insufficient stock)
+  → _refresh_receipts_history() → get_receipts() → displays past receipts
+  → _on_receipt_double_click() → get_receipt_items(receipt_id) → messagebox with line items
+
 Integration Bridge:
   main_app.open_label_engine(product_id, barcode_value, ...)
     → subprocess.Popen: label_engine/main.py --id <id> --barcode <barcode> ...
@@ -662,9 +802,10 @@ pyinstaller main.spec
 
 | Item | Status |
 |---|---|
-| Phase 2: Serverless Backend (Vercel + Upstash Redis) | Pending approval |
-| Phase 3: Landing Page (GitHub Pages) | Blocked on Phase 2 |
-| Replace `API_BASE_URL` placeholder in `license_gate.py` with real Vercel URL | Pending Phase 2 |
+| Replace `API_BASE_URL` placeholder in `licensing/main.py` with real Vercel URL | Pending deployment |
+| Deploy `licensing/` to Vercel | Pending manual deployment (see `licensing/DEPLOY.md`) |
+| Create Upstash Redis database + set env vars in Vercel | Pending manual setup (see `licensing/DEPLOY.md`) |
+| Enable GitHub Pages (source: `licensing/static/` folder on `main` branch) | Pending manual setup |
 
 ### Known Orphans
 
@@ -696,7 +837,38 @@ pyinstaller main.spec
 | M44 | Bulk Add from Add Product Tab (`BulkAddModal` — "Quick Receive (Bulk)" button creates N serialized boxes with unique barcodes in single transaction, logs consolidated shipment to `receiving_log`) | ✅ Complete |
 | M45 | Bulk Print Tags + Save to Queue (`BulkAddModal` dual-path: "Submit & Save Directly" preserves existing DB-write path; "Save to Queue" stages items in `receiving_session` for Pending PO commit. "Print All Tags" checkbox triggers batch label printing via template. `_commit_shipment()` uses stored `pre_barcodes` to ensure printed labels match committed DB barcodes.) | ✅ Complete |
 | M46 | License Gate — Client-Side (`license_gate.py`: hardware fingerprinting via SHA-256, 24-hour offline cache with clock-rollback protection, `LicenseGate` CTk blocking window. `main.py` wrapper blocks `PharmacyApp` launch until validation passes. `config.json` extended with `license_key` field.) | ✅ Complete |
+| M47 | License Server — Backend (`licensing/api/`: `BaseHTTPRequestHandler` endpoints for activate/validate/webhook. Upstash Redis via REST API. Lemon Squeezy webhook integration.) | ✅ Complete |
+| M48 | Landing Page — GitHub Pages (`docs/`: dark-themed responsive site with hero, features grid, how-it-works steps, pricing card, and footer. Lemon Squeezy Checkout CTA. Vanilla JS with smooth scroll, intersection observer animations, and analytics placeholder.) | ✅ Complete |
+| M49 | Checkout & Receipts Module (`receipts` + `receipt_items` tables in DB. New "Checkout" tab with product selector, cart Treeview, running total, payment method (Cash/Card/Transfer), amount paid + change calculator, confirm button that atomically deducts stock and creates receipt. Receipts History with double-click detail view.) | ✅ Complete |
+| M50 | Batch-Aware Selling (flat batch-level inventory treeview — no parent/child grouping. Every in-stock batch is its own top-level row with columns: Drug Name, Price, Int. Barcode, Vendor, Expiry, Mfg Date, Mfg Barcode. Stock deduction uses `WHERE internal_unique_barcode = ?` instead of FIFO-by-name. Cart deduplication by `product_name + internal_barcode`. `_send_to_checkout()`, `_edit_batch()`, `open_label_for_selected()`, search, sort all adapted to flat structure.) | ✅ Complete |
+| M51 | Dev Hardware MAC Whitelist + Standalone Key Generator (`license_gate.py`: `get_device_mac()` extracts MAC via `uuid.getnode()` with try/except safety; `DEV_MAC_WHITELIST` set constant; `is_dev_mac()` checks membership. `main.py` + `validate_license()` both check MAC before license gate — whitelisted devices skip GUI entirely and return `(True, "Dev Hardware Bypass Active")`. `generate_key.py`: standalone argparse CLI — `--days`, `--prefix`, `--email` — generates `{PREFIX}-XXXX-XXXX-XXXX` via `secrets.token_hex(4)`, inserts into `licenses.db` with WAL mode and 10s timeout.) | ✅ Complete |
+| M52 | Phase 0: `ui.py` Monolith Modularization (3647 → 303 lines, 93% reduction). Split into 11 focused module files: `ui.py` (wrapper + shared methods), `ui_helpers.py`, `ui_modals.py`, `ui_add_tab.py`, `ui_inventory_tab.py`, `ui_expiring_tab.py`, `ui_report_tab.py`, `ui_receive_tab.py`, `ui_checkout_tab.py`, `ui_templates_tab.py`, `ui_settings_tab.py`. Module-level functions attached to `PharmacyApp` class post-import — preserves all `self` references without mixin complexity. | ✅ Complete |
+| M53 | Phase 1 Part 1: `barcode_logic.py:_find_python_executable()` PyInstaller Fix (detects `sys.frozen` builds, searches venv + PATH for real Python via `shutil.which()`, raises descriptive exception if none found in frozen mode). **Verified:** venv detection now checks `archive/venv/Scripts/python.exe` first regardless of frozen state — fixes MinGW Python fallback issue. | ✅ Complete |
+| M54 | Phase 1 Part 2: `database.py` Enhanced Metrics + Analytics (`get_dashboard_metrics()` now returns `total_inventory_value` + `low_stock_count`; new `get_sales_analytics(start_date, end_date)` returns ranked products with qty sold, revenue, avg price, plus total_items_sold, total_revenue, unique_products, total_transactions, avg_basket_size). | ✅ Complete |
+| M55 | Phase 1 Part 2: Dashboard Tab (`ui_dashboard_tab.py` — 8 KPI cards in responsive grid: total products, in-stock count, low stock, expiring soon, today's revenue, total revenue, unique vendors. Low-stock alerts panel with item names + quantities. Expiry summary panel with critical/warning/safe counts. Auto-refresh on tab switch.) | ✅ Complete |
+| M56 | Phase 1 Part 2: Report Tab Analytics Upgrade (`ui_report_tab.py` — segmented "Sales"/"Analytics" switcher. Sales view: existing date-based receipt treeview + barcode search + refund. Analytics view: date-range controls with presets (Today, This Week, This Month, Last 30 Days, This Year, Custom), 4 KPI cards (total sold, revenue, transactions, avg basket), ranked products treeview (top sellers by quantity), CSV export via stdlib `csv` module.) | ✅ Complete |
+| M57 | Phase 2: Patient CRM Schema + CRUD (`database.py` — `patients` table: id, name, phone, email, created_at; `patient_fields` table: id, patient_id, field_name, field_value (EAV pattern for user-defined custom fields). Functions: `add_patient()`, `get_all_patients(search)`, `get_patient_by_id()`, `update_patient()`, `delete_patient()` with full transactional safety.) | ✅ Complete |
+| M58 | Phase 2: Patient CRM Tab (`ui_patients_tab.py` — search bar with live filtering on name/phone/email, Treeview listing all patients with custom fields summary, Add/Edit modal dialog with dynamic custom field rows (add/remove), double-click to edit, delete with confirmation, wired to `database.py` CRUD.) | ✅ Complete |
+| M59 | Phase 2: Excel Import/Export Engine (`excel_handler.py` — `import_inventory_from_excel()` maps Excel columns (Name, Price, Expiry, SKU, Vendor) to serialized products with unique barcodes; `export_to_excel()` outputs formatted .xlsx with styled headers and auto-sized columns; `export_inventory()` shortcut for in-stock inventory. All operations run in background threads with GUI loading feedback via `on_complete` callbacks.) | ✅ Complete |
+| M60 | Phase 2: Inventory Tab Excel Buttons (`ui_inventory_tab.py` — "Import Excel" (purple) and "Export Excel" (blue) buttons in the toolbar, wired to threaded `excel_handler` functions with non-blocking Toplevel loading indicators and result messageboxes.) | ✅ Complete |
+| M61 | Smart Mapping Wizard (`excel_handler.py` + `ImportWizardModal` — `read_excel_headers()` reads Excel headers + row count without importing. `auto_map_headers()` uses 30+ heuristic alias rules to auto-match headers to DB fields. `ImportWizardModal` Toplevel presents: DB fields with `CTkComboBox` mapped to Excel columns (auto-selected or manual), default value `Entry` per field, unmatched columns with `[Ignore / Create Field]` segmented toggle, required field validation. `execute_import()` accepts validated `column_map` + `default_values` dict.) | ✅ Complete |
+| M62 | Inventory Tab Visual Overhaul (`ui_inventory_tab.py` — alternating row striping via `"odd"/"even"` tags (#2b2b2b/#333340), import highlight tagging (`"imported"` tag → #1a3a2a with 8-second auto-clear), column header click sorting (ascending/descending with ▲/▼ arrow indicators, striping reapplied after sort), professional column alignment (strings left, prices right, dates center), bold Segoe UI headings with hover color.) | ✅ Complete |
+| M63 | POS Checkout Tab Rewrite (`ui_checkout_tab.py` — cart with Qty column + per-item quantity display, Qty +/- adjustment buttons, Remove/Clear Cart, receipt detail modal via `get_receipt_items()` messagebox, patient linkage via CTkComboBox, barcode scan with dedup merge, Complete Sale with audit log + receipt creation. All backward-compatible stubs preserved for ui.py imports.) | ✅ Complete |
+| M64 | Receipt Generation Engine (`receipt_engine.py` — thermal-format .txt receipts with pharmacy name/address/phone header, patient name, itemized line totals, payment method. `open_receipt_file()` auto-opens after sale. `ui_checkout_tab.py` passes pharmacy config + patient name to generator, asks to open receipt after each sale.) | ✅ Complete |
+| M65 | Label Print Dialog (`ui_inventory_tab.py` — `LabelPrintDialog` Toplevel: displays product info, quantity input, "Generate Labels" creates N barcode label PNGs via `barcode_logic.create_label()`, "Open Label Designer" launches full M8 engine. Toolbar "Label" button renamed to "Print Label" and wired to new dialog.) | ✅ Complete |
+| M66 | Store Configuration Fields (`ui_settings_tab.py` + `barcode_logic.py` — new config fields: `address`, `phone`, `tax_rate` (float 0-100%). Settings tab rows shifted to accommodate Address, Phone, Default Tax Rate (%) fields. `save_settings()` validates tax rate 0-100 and persists all new fields. Config defaults updated in `load_config()`.) | ✅ Complete |
+| M67 | Proactive Alert Engine & Tab Badges (`ui.py` — `_calculate_alert_counts()` returns low-stock + expiring-30d counts; `_update_tab_badges()` renames tab headers to "Inventory [N Alerts]" / "Expiring Soon [N]". `ui_inventory_tab.py` — filter toggle segmented control: All / Low Stock / Expiring Soon filters Treeview rows. Badge auto-refreshes on `_notify_inventory_updated()`.) | ✅ Complete |
+| M68 | Sales Analytics & Reporting Overhaul (`ui_report_tab.py` — Est. Profit KPI card added to analytics panel (30% margin estimate); "Export Sales Report (CSV)" button added to Sales view exports full grouped report; `barcode_logic.load_config()` supplies tax_rate for profit calc.) | ✅ Complete |
+| M69 | Automated Database Backup (`backup.py` — `MAX_BACKUPS` increased to 10; `create_backup()` copies `pharmacy.db` to `archive/backups/pharmacy_backup_YYYYMMDD_HHMMSS.db` with auto-cleanup. Settings tab "Backup Database Now" button wired to `backup_database_gui()` with success notification.) | ✅ Complete |
+| M70 | Audit Trail Viewer (`audit_log.py` — `user_pin` column added via migration; `log_action()` accepts `user_pin` param; `get_logs()` supports `search_query` filter. `ui_settings_tab.py` — `AuditLogViewer` Toplevel: searchable Treeview with Timestamp/Action/User-PIN/Details columns, alternating row striping, "View Audit Logs" button in Settings tab.) | ✅ Complete |
+| M71 | Dynamic Path Resolution (`path_utils.py` — `get_resource_path()` resolves paths via `sys._MEIPASS` when frozen or `__file__` when running from source. `ensure_runtime_directories()` auto-creates `receipts/`, `backups/`, `labels/` at startup. Updated `barcode_logic.py`, `database.py`, `receipt_engine.py`, `backup.py`, `license_gate.py`, `main_app.py` to use `get_resource_path()` for all file I/O.) | ✅ Complete |
+| M72 | PyInstaller Build Automation (`build_exe.py` — CLI script: `python build_exe.py` (production, `--noconsole`) or `--debug` (console). Auto-collects CustomTkinter assets, bundles `config.json`/`pharmacy.db`/`licenses.db` as data files, registers 25+ hidden imports. Output: `dist/PharmacyManagementSystem/PharmacyManagementSystem.exe`.) | ✅ Complete |
+| M73 | Production License Fallback (`license_gate.py` — `_frozen_app_dir()` resolves writable paths next to `.exe` (not `_MEIPASS`). License cache + `licenses.db` stored in exe directory when frozen. `is_dev_mode()` structurally returns False for frozen builds. Offline validation falls back to local cache → local DB → server.) | ✅ Complete |
+| M74 | Custom Application Icon (`build_exe.py` — `_find_icon()` searches assets/ for logo.ico/app.ico/pharmacy.ico/icon.ico, accepts `--icon` CLI flag, graceful skip if none found. `ui.py` — `_set_window_icon()` sets title bar icon via `iconbitmap()` at startup with same search order + fallback.) | ✅ Complete |
+| M75 | License Server + Deployment (`server_app.py` — Flask app with `/api/validate`, `/api/activate` (public), `/api/create` + `/admin` (protected by `SERVER_ADMIN_SECRET` header). Same SQLite schema as generate_key.py. `deploy_to_server.py` — reads `.env` credentials, uploads server_app.py to PythonAnywhere via REST API, triggers webapp reload. Supports `--upload`, `--reload`, `--dry-run` flags.) | ✅ Complete |
+| M76 | Enterprise License Features (`server_app.py` — HWID binding: `/api/validate` + `/api/activate` accept `hwid` field, bind on first activation, reject mismatch with 403. Payment webhooks: `/api/webhook/paddle` (HMAC-SHA256) + `/api/webhook/paymob` (HMAC-SHA512) with signature verification, auto-generate license on success. Rate limiting: Flask-Limiter with 10/min activate, 30/min validate, 5/min create. Structured logging: timestamp, endpoint, status, IP, user-agent to server.log + stdout. Error handlers: 404, 405, 429, 500 return JSON. `license_gate.py` — HWID sent in API requests, itsdangerous signed cache tokens with 7-day offline grace, device-bound signing key, clock-rollback protection.) | ✅ Complete |
+| M77 | Command Center Architecture (`hub.py` — unified local CLI orchestration script with 6 subcommands: `deploy` (Vercel CLI prod build + `--rollback`), `vercel-logs` (REST API: list deployments + optional raw build events, reads VERCEL_OIDC_TOKEN), `test-webhook` (fires mock JSON payloads for `paddle`/`lemonsqueezy` with 3 event templates each: subscription_created, payment_succeeded/order_created, subscription_cancelled; `--prod` flag routes to PythonAnywhere), `paddle-lookup` (queries Paddle Sandbox/Prod API for customer + subscriptions by email using PADDLE_API_KEY), `ls-lookup` (queries Lemon Squeezy API for orders + subscriptions by email), `validate-ui` (Playwright headless browser: 4-step test — page load, broken image scan, optional checkout flow simulation with screenshot-per-step, final snapshot). Auto-loads all credentials from `.env.local`.) | ✅ Complete |
 
 ---
 
-_This document reflects the architectural state as of 2026-07-16. The serialized unit-level tracking model is fully implemented: barcode generation, receiving loop, inventory grouping, selling, label printing, and sales reporting all operate on individual serialized boxes. The Receive Inventory tab now operates as a queue-based Purchase Order & Receiving Dashboard with cross-tab sync, vendor-filtered product combobox, and auto-fill of Unit Price + Mfg Barcode from vendor-specific templates (M38). All product additions and vendor-change edits now log to `receiving_log` for complete Shipment History coverage (M36). BulkAddModal now supports dual-path workflow (M45): "Submit & Save Directly" preserves the existing DB-write path, while "Save to Queue" stages items in the Pending PO queue for later atomic commit. Both paths support batch label printing via the "Print All Tags" checkbox. **M46:** License Gate client-side module (`license_gate.py`) added — hardware fingerprinting, 24h offline cache with clock-rollback protection, blocking startup window. Server-side (Phase 2) and landing page (Phase 3) pending._
+_This document reflects the architectural state as of 2026-07-29. **Phase 7 completed:** Command Center Architecture + Developer Tooling (M77). Phase 0 (M52) + Phase 1 (M53-M56) + Phase 2 (M57-M62) + Phase 3 (M63) + Phase 4 (M64-M66) + Phase 5 (M67-M70) + Phase 6 (M71-M76) + Phase 7 (M77) all complete. Remaining: cloud backup (F6), regulatory compliance (F7), and enterprise features (F8-F12). See execution roadmap in AGENTS.md._

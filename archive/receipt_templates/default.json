@@ -1,0 +1,98 @@
+{
+  "name": "Default",
+  "paper_width": 42,
+  "is_default": true,
+  "sections": [
+    {
+      "type": "separator",
+      "content": "",
+      "align": "left",
+      "font_bold": false,
+      "char": "="
+    },
+    {
+      "type": "header",
+      "content": "{{pharmacy_name}}",
+      "align": "center",
+      "font_bold": true,
+      "char": "="
+    },
+    {
+      "type": "separator",
+      "content": "",
+      "align": "left",
+      "font_bold": false,
+      "char": "="
+    },
+    {
+      "type": "text",
+      "content": "Receipt #: {{receipt_id}}",
+      "align": "left",
+      "font_bold": false,
+      "char": "="
+    },
+    {
+      "type": "text",
+      "content": "Date: {{date}}",
+      "align": "left",
+      "font_bold": false,
+      "char": "="
+    },
+    {
+      "type": "text",
+      "content": "Payment: {{payment_method}}",
+      "align": "left",
+      "font_bold": false,
+      "char": "="
+    },
+    {
+      "type": "separator",
+      "content": "",
+      "align": "left",
+      "font_bold": false,
+      "char": "-"
+    },
+    {
+      "type": "items_header",
+      "content": "Product  Qty  Price  Total",
+      "align": "left",
+      "font_bold": false,
+      "char": "="
+    },
+    {
+      "type": "items",
+      "content": "{{name:<16}}{{qty:>4}} {{price:>7.2f}} {{total:>8.2f}}",
+      "align": "left",
+      "font_bold": false,
+      "char": "="
+    },
+    {
+      "type": "separator",
+      "content": "",
+      "align": "left",
+      "font_bold": false,
+      "char": "-"
+    },
+    {
+      "type": "total",
+      "content": "TOTAL: {{grand_total}}",
+      "align": "left",
+      "font_bold": false,
+      "char": "="
+    },
+    {
+      "type": "text",
+      "content": "Thank you!",
+      "align": "center",
+      "font_bold": false,
+      "char": "="
+    },
+    {
+      "type": "separator",
+      "content": "",
+      "align": "left",
+      "font_bold": false,
+      "char": "="
+    }
+  ]
+}

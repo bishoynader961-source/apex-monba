@@ -1,0 +1,1039 @@
+2026-07-29 22:00:25,041 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 22:00:25,041 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 22:00:25,041 | INFO | Portal session signing active
+2026-07-29 22:01:35,621 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 22:01:35,621 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 22:01:35,621 | INFO | Portal session signing active
+2026-07-29 22:01:35,718 | INFO | ACTIVATED activate key=PHARM-AC*** device=device-a*** hwid=none
+2026-07-29 22:01:35,718 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:35,723 | WARNING | DEVICE_CONFLICT activate key=PHARM-AC*** device=device-b***
+2026-07-29 22:01:35,723 | INFO | POST /api/activate 409 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:35,782 | INFO | ACTIVATED activate key=PHARM-AC*** device=dev-actv*** hwid=hwid-actv
+2026-07-29 22:01:35,782 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:35,843 | WARNING | HWID_MISMATCH activate key=PHARM-AC*** hwid=hwid-differe***
+2026-07-29 22:01:35,843 | INFO | POST /api/activate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:35,885 | INFO | GET /admin/api/activity 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:35,932 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:35,988 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:36,030 | INFO | POST /api/create 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:36,072 | ERROR | Exception on /admin/api/licenses [GET]
+Traceback (most recent call last):
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "E:\my progam pharmacy\archive\server_app.py", line 313, in decorated
+    return f(*args, **kwargs)
+  File "E:\my progam pharmacy\archive\server_app.py", line 683, in admin_licenses
+    total = db.execute(
+            ~~~~~~~~~~^
+        f"SELECT COUNT(*) FROM licenses{where_sql}", params
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ).fetchone()[0]
+    ^
+sqlite3.OperationalError: near "AND": syntax error
+2026-07-29 22:01:36,073 | ERROR | Unhandled server error
+Traceback (most recent call last):
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "E:\my progam pharmacy\archive\server_app.py", line 313, in decorated
+    return f(*args, **kwargs)
+  File "E:\my progam pharmacy\archive\server_app.py", line 683, in admin_licenses
+    total = db.execute(
+            ~~~~~~~~~~^
+        f"SELECT COUNT(*) FROM licenses{where_sql}", params
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ).fetchone()[0]
+    ^
+sqlite3.OperationalError: near "AND": syntax error
+2026-07-29 22:01:36,118 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:36,160 | ERROR | Exception on /admin/api/licenses [GET]
+Traceback (most recent call last):
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "E:\my progam pharmacy\archive\server_app.py", line 313, in decorated
+    return f(*args, **kwargs)
+  File "E:\my progam pharmacy\archive\server_app.py", line 683, in admin_licenses
+    total = db.execute(
+            ~~~~~~~~~~^
+        f"SELECT COUNT(*) FROM licenses{where_sql}", params
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ).fetchone()[0]
+    ^
+sqlite3.OperationalError: near "AND": syntax error
+2026-07-29 22:01:36,161 | ERROR | Unhandled server error
+Traceback (most recent call last):
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "E:\my progam pharmacy\archive\server_app.py", line 313, in decorated
+    return f(*args, **kwargs)
+  File "E:\my progam pharmacy\archive\server_app.py", line 683, in admin_licenses
+    total = db.execute(
+            ~~~~~~~~~~^
+        f"SELECT COUNT(*) FROM licenses{where_sql}", params
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ).fetchone()[0]
+    ^
+sqlite3.OperationalError: near "AND": syntax error
+2026-07-29 22:01:36,204 | ERROR | Exception on /admin/api/licenses [GET]
+Traceback (most recent call last):
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "E:\my progam pharmacy\archive\server_app.py", line 313, in decorated
+    return f(*args, **kwargs)
+  File "E:\my progam pharmacy\archive\server_app.py", line 683, in admin_licenses
+    total = db.execute(
+            ~~~~~~~~~~^
+        f"SELECT COUNT(*) FROM licenses{where_sql}", params
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ).fetchone()[0]
+    ^
+sqlite3.OperationalError: near "AND": syntax error
+2026-07-29 22:01:36,205 | ERROR | Unhandled server error
+Traceback (most recent call last):
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "E:\my progam pharmacy\.venv\lib\python3.14\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "E:\my progam pharmacy\archive\server_app.py", line 313, in decorated
+    return f(*args, **kwargs)
+  File "E:\my progam pharmacy\archive\server_app.py", line 683, in admin_licenses
+    total = db.execute(
+            ~~~~~~~~~~^
+        f"SELECT COUNT(*) FROM licenses{where_sql}", params
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ).fetchone()[0]
+    ^
+sqlite3.OperationalError: near "AND": syntax error
+2026-07-29 22:01:36,252 | INFO | ADMIN_HWID_RESET key=PHARM-TEST-0002-BBBB
+2026-07-29 22:01:36,252 | INFO | POST /admin/api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:36,307 | INFO | POST /admin/api/reset-hwid 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:36,357 | INFO | HWID reset for license: PHARM-TEST-0002-BBBB
+2026-07-29 22:01:36,357 | INFO | POST /api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:36,403 | INFO | GET /admin/api/stats 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:36,493 | INFO | SMTP not configured — skipping license email to 
+2026-07-29 22:01:36,535 | INFO | SMTP not configured — skipping license email to not-an-email
+2026-07-29 22:01:36,577 | INFO | SMTP not configured — skipping license email to anyone@test.com
+2026-07-29 22:01:36,749 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-toke*** hwid=hwid-token
+2026-07-29 22:01:36,749 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:36,797 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:36,853 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:36,898 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:01:36,898 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:36,900 | INFO | GET /api/portal/details 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:36,941 | INFO | POST /api/portal/login 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:36,986 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:01:36,987 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,039 | INFO | POST /api/portal/login 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,081 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:01:37,082 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,090 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 22:01:37,090 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,096 | INFO | POST /api/portal/reset-hwid 429 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,138 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:01:37,138 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,147 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 22:01:37,147 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,221 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,279 | INFO | ACTIVATED validate key=PHARM-FR*** device=dev-fres*** hwid=hwid-fresh
+2026-07-29 22:01:37,279 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,325 | WARNING | HWID_MISMATCH validate key=PHARM-TE*** hwid=hwid-differe***
+2026-07-29 22:01:37,325 | INFO | POST /api/validate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,366 | INFO | POST /api/validate 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,407 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,458 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-001*** hwid=hwid-001
+2026-07-29 22:01:37,458 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,501 | INFO | TOKEN_INVALID ip=127.0.0.1
+2026-07-29 22:01:37,501 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,553 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-vt*** hwid=none
+2026-07-29 22:01:37,553 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,557 | INFO | TOKEN_VALID key=PHARM-TE***
+2026-07-29 22:01:37,557 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,600 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 22:01:37,600 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,644 | INFO | POST /api/webhook/lemonsqueezy 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,685 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 22:01:37,693 | INFO | SMTP not configured — skipping license email to ls-buyer@test.com
+2026-07-29 22:01:37,693 | INFO | Lemon Squeezy payment — license created: PHARM-689D-B1FD-AD78 for ls-buyer@test.com (email=skipped)
+2026-07-29 22:01:37,693 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,737 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 22:01:37,737 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,778 | INFO | POST /api/webhook/paddle 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:01:37,817 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 22:01:37,824 | INFO | SMTP not configured — skipping license email to paddle-buyer@test.com
+2026-07-29 22:01:37,825 | INFO | Paddle payment — license created: PHARM-F84E-3DB6-258B for paddle-buyer@test.com (email=skipped)
+2026-07-29 22:01:37,825 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:19,377 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 22:02:19,377 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 22:02:19,377 | INFO | Portal session signing active
+2026-07-29 22:02:19,475 | INFO | ACTIVATED activate key=PHARM-AC*** device=device-a*** hwid=none
+2026-07-29 22:02:19,475 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:19,481 | WARNING | DEVICE_CONFLICT activate key=PHARM-AC*** device=device-b***
+2026-07-29 22:02:19,481 | INFO | POST /api/activate 409 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:19,540 | INFO | ACTIVATED activate key=PHARM-AC*** device=dev-actv*** hwid=hwid-actv
+2026-07-29 22:02:19,540 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:19,605 | WARNING | HWID_MISMATCH activate key=PHARM-AC*** hwid=hwid-differe***
+2026-07-29 22:02:19,605 | INFO | POST /api/activate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:19,651 | INFO | GET /admin/api/activity 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:19,700 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:19,764 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:19,810 | INFO | POST /api/create 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:19,852 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:19,898 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:19,940 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:19,983 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,031 | INFO | ADMIN_HWID_RESET key=PHARM-TEST-0002-BBBB
+2026-07-29 22:02:20,031 | INFO | POST /admin/api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,080 | INFO | POST /admin/api/reset-hwid 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,133 | INFO | HWID reset for license: PHARM-TEST-0002-BBBB
+2026-07-29 22:02:20,134 | INFO | POST /api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,184 | INFO | GET /admin/api/stats 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,271 | INFO | SMTP not configured — skipping license email to 
+2026-07-29 22:02:20,314 | INFO | SMTP not configured — skipping license email to not-an-email
+2026-07-29 22:02:20,357 | INFO | SMTP not configured — skipping license email to anyone@test.com
+2026-07-29 22:02:20,531 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-toke*** hwid=hwid-token
+2026-07-29 22:02:20,531 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,574 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,613 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,655 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:02:20,655 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,657 | INFO | GET /api/portal/details 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,699 | INFO | POST /api/portal/login 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,753 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:02:20,753 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,797 | INFO | POST /api/portal/login 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,851 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:02:20,852 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,862 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 22:02:20,862 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,867 | INFO | POST /api/portal/reset-hwid 429 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,910 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:02:20,911 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,919 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 22:02:20,919 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:20,981 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:21,038 | INFO | ACTIVATED validate key=PHARM-FR*** device=dev-fres*** hwid=hwid-fresh
+2026-07-29 22:02:21,039 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:21,088 | WARNING | HWID_MISMATCH validate key=PHARM-TE*** hwid=hwid-differe***
+2026-07-29 22:02:21,089 | INFO | POST /api/validate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:21,128 | INFO | POST /api/validate 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:21,397 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:21,450 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-001*** hwid=hwid-001
+2026-07-29 22:02:21,450 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:21,497 | INFO | TOKEN_INVALID ip=127.0.0.1
+2026-07-29 22:02:21,497 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:21,550 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-vt*** hwid=none
+2026-07-29 22:02:21,551 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:21,556 | INFO | TOKEN_VALID key=PHARM-TE***
+2026-07-29 22:02:21,556 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:21,608 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 22:02:21,608 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:21,651 | INFO | POST /api/webhook/lemonsqueezy 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:21,692 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 22:02:21,699 | INFO | SMTP not configured — skipping license email to ls-buyer@test.com
+2026-07-29 22:02:21,699 | INFO | Lemon Squeezy payment — license created: PHARM-A8C0-D7FD-B074 for ls-buyer@test.com (email=skipped)
+2026-07-29 22:02:21,699 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:21,746 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 22:02:21,746 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:21,790 | INFO | POST /api/webhook/paddle 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:02:21,833 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 22:02:21,840 | INFO | SMTP not configured — skipping license email to paddle-buyer@test.com
+2026-07-29 22:02:21,840 | INFO | Paddle payment — license created: PHARM-D9D3-F6D5-6E3A for paddle-buyer@test.com (email=skipped)
+2026-07-29 22:02:21,840 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:07:09,372 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 22:07:09,373 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 22:07:09,373 | INFO | Portal session signing active
+2026-07-29 22:07:09,589 | INFO | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-07-29 22:07:09,590 | INFO | [33mPress CTRL+C to quit[0m
+2026-07-29 22:07:09,592 | INFO |  * Restarting with stat
+2026-07-29 22:07:09,812 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 22:07:09,812 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 22:07:09,813 | INFO | Portal session signing active
+2026-07-29 22:07:09,827 | WARNING |  * Debugger is active!
+2026-07-29 22:07:09,830 | INFO |  * Debugger PIN: 378-737-388
+2026-07-29 22:08:01,171 | INFO | 127.0.0.1 - - [29/Jul/2026 22:08:01] "[33mGET / HTTP/1.1[0m" 404 -
+2026-07-29 22:08:01,213 | INFO | 127.0.0.1 - - [29/Jul/2026 22:08:01] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-07-29 22:09:23,307 | INFO | GET /admin 401 127.0.0.1 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.
+2026-07-29 22:09:23,308 | INFO | 127.0.0.1 - - [29/Jul/2026 22:09:23] "[31m[1mGET /admin HTTP/1.1[0m" 401 -
+2026-07-29 22:09:39,124 | INFO | 127.0.0.1 - - [29/Jul/2026 22:09:39] "[33mGET /portal HTTP/1.1[0m" 404 -
+2026-07-29 22:12:23,273 | INFO |  * Detected change in 'E:\\my progam pharmacy\\archive\\server_app.py', reloading
+2026-07-29 22:12:23,326 | INFO |  * Restarting with stat
+2026-07-29 22:12:23,588 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 22:12:23,589 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 22:12:23,589 | INFO | Portal session signing active
+2026-07-29 22:12:23,610 | WARNING |  * Debugger is active!
+2026-07-29 22:12:23,613 | INFO |  * Debugger PIN: 378-737-388
+2026-07-29 22:12:47,864 | INFO |  * Detected change in 'E:\\my progam pharmacy\\archive\\server_app.py', reloading
+2026-07-29 22:12:47,924 | INFO |  * Restarting with stat
+2026-07-29 22:12:48,170 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 22:12:48,171 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 22:12:48,171 | INFO | Portal session signing active
+2026-07-29 22:12:48,191 | WARNING |  * Debugger is active!
+2026-07-29 22:12:48,194 | INFO |  * Debugger PIN: 378-737-388
+2026-07-29 22:13:30,259 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 22:13:30,260 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 22:13:30,260 | INFO | Portal session signing active
+2026-07-29 22:13:30,288 | INFO | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-07-29 22:13:30,288 | INFO | [33mPress CTRL+C to quit[0m
+2026-07-29 22:13:30,289 | INFO |  * Restarting with stat
+2026-07-29 22:13:30,495 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 22:13:30,495 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 22:13:30,495 | INFO | Portal session signing active
+2026-07-29 22:13:30,512 | WARNING |  * Debugger is active!
+2026-07-29 22:13:30,518 | INFO |  * Debugger PIN: 378-737-388
+2026-07-29 22:13:38,013 | INFO | 127.0.0.1 - - [29/Jul/2026 22:13:38] "GET /portal HTTP/1.1" 200 -
+2026-07-29 22:13:43,969 | INFO | 127.0.0.1 - - [29/Jul/2026 22:13:43] "GET /admin HTTP/1.1" 200 -
+2026-07-29 22:13:46,212 | INFO | 127.0.0.1 - - [29/Jul/2026 22:13:46] "GET / HTTP/1.1" 200 -
+2026-07-29 22:13:50,282 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 22:13:50,282 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 22:13:50,282 | INFO | Portal session signing active
+2026-07-29 22:13:50,380 | INFO | ACTIVATED activate key=PHARM-AC*** device=device-a*** hwid=none
+2026-07-29 22:13:50,380 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:50,385 | WARNING | DEVICE_CONFLICT activate key=PHARM-AC*** device=device-b***
+2026-07-29 22:13:50,385 | INFO | POST /api/activate 409 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:50,442 | INFO | ACTIVATED activate key=PHARM-AC*** device=dev-actv*** hwid=hwid-actv
+2026-07-29 22:13:50,443 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:50,508 | WARNING | HWID_MISMATCH activate key=PHARM-AC*** hwid=hwid-differe***
+2026-07-29 22:13:50,508 | INFO | POST /api/activate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:50,551 | INFO | GET /admin/api/activity 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:50,599 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:50,653 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:50,698 | INFO | POST /api/create 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:50,740 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:50,782 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:50,826 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:50,868 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:50,935 | INFO | ADMIN_HWID_RESET key=PHARM-TEST-0002-BBBB
+2026-07-29 22:13:50,935 | INFO | POST /admin/api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:50,992 | INFO | POST /admin/api/reset-hwid 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,049 | INFO | HWID reset for license: PHARM-TEST-0002-BBBB
+2026-07-29 22:13:51,049 | INFO | POST /api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,105 | INFO | GET /admin/api/stats 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,190 | INFO | SMTP not configured — skipping license email to 
+2026-07-29 22:13:51,245 | INFO | SMTP not configured — skipping license email to not-an-email
+2026-07-29 22:13:51,290 | INFO | SMTP not configured — skipping license email to anyone@test.com
+2026-07-29 22:13:51,459 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-toke*** hwid=hwid-token
+2026-07-29 22:13:51,460 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,499 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,536 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,578 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:13:51,579 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,580 | INFO | GET /api/portal/details 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,622 | INFO | POST /api/portal/login 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,670 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:13:51,670 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,721 | INFO | POST /api/portal/login 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,771 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:13:51,771 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,780 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 22:13:51,780 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,785 | INFO | POST /api/portal/reset-hwid 429 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,829 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:13:51,830 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,838 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 22:13:51,838 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,900 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:51,959 | INFO | ACTIVATED validate key=PHARM-FR*** device=dev-fres*** hwid=hwid-fresh
+2026-07-29 22:13:51,959 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:52,005 | WARNING | HWID_MISMATCH validate key=PHARM-TE*** hwid=hwid-differe***
+2026-07-29 22:13:52,005 | INFO | POST /api/validate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:52,046 | INFO | POST /api/validate 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:52,088 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:52,134 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-001*** hwid=hwid-001
+2026-07-29 22:13:52,134 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:52,176 | INFO | TOKEN_INVALID ip=127.0.0.1
+2026-07-29 22:13:52,177 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:52,236 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-vt*** hwid=none
+2026-07-29 22:13:52,237 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:52,241 | INFO | TOKEN_VALID key=PHARM-TE***
+2026-07-29 22:13:52,241 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:52,287 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 22:13:52,287 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:52,325 | INFO | POST /api/webhook/lemonsqueezy 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:52,368 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 22:13:52,375 | INFO | SMTP not configured — skipping license email to ls-buyer@test.com
+2026-07-29 22:13:52,376 | INFO | Lemon Squeezy payment — license created: PHARM-7211-E16F-329F for ls-buyer@test.com (email=skipped)
+2026-07-29 22:13:52,376 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:52,424 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 22:13:52,424 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:52,473 | INFO | POST /api/webhook/paddle 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:13:52,522 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 22:13:52,530 | INFO | SMTP not configured — skipping license email to paddle-buyer@test.com
+2026-07-29 22:13:52,530 | INFO | Paddle payment — license created: PHARM-0482-1016-48BB for paddle-buyer@test.com (email=skipped)
+2026-07-29 22:13:52,530 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:31,523 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 22:14:31,524 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 22:14:31,524 | INFO | Portal session signing active
+2026-07-29 22:14:31,622 | INFO | ACTIVATED activate key=PHARM-AC*** device=device-a*** hwid=none
+2026-07-29 22:14:31,622 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:31,627 | WARNING | DEVICE_CONFLICT activate key=PHARM-AC*** device=device-b***
+2026-07-29 22:14:31,627 | INFO | POST /api/activate 409 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:31,690 | INFO | ACTIVATED activate key=PHARM-AC*** device=dev-actv*** hwid=hwid-actv
+2026-07-29 22:14:31,691 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:31,754 | WARNING | HWID_MISMATCH activate key=PHARM-AC*** hwid=hwid-differe***
+2026-07-29 22:14:31,754 | INFO | POST /api/activate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:31,794 | INFO | GET /admin/api/activity 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:31,852 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:31,907 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:31,948 | INFO | POST /api/create 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:31,987 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:32,030 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:32,070 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:32,116 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:32,164 | INFO | ADMIN_HWID_RESET key=PHARM-TEST-0002-BBBB
+2026-07-29 22:14:32,164 | INFO | POST /admin/api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:32,221 | INFO | POST /admin/api/reset-hwid 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:32,273 | INFO | HWID reset for license: PHARM-TEST-0002-BBBB
+2026-07-29 22:14:32,273 | INFO | POST /api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:32,321 | INFO | GET /admin/api/stats 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:32,403 | INFO | SMTP not configured — skipping license email to 
+2026-07-29 22:14:32,448 | INFO | SMTP not configured — skipping license email to not-an-email
+2026-07-29 22:14:32,495 | INFO | SMTP not configured — skipping license email to anyone@test.com
+2026-07-29 22:14:32,860 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-toke*** hwid=hwid-token
+2026-07-29 22:14:32,860 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:32,904 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:32,952 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,009 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:14:33,010 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,012 | INFO | GET /api/portal/details 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,055 | INFO | POST /api/portal/login 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,109 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:14:33,109 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,154 | INFO | POST /api/portal/login 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,204 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:14:33,205 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,214 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 22:14:33,214 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,220 | INFO | POST /api/portal/reset-hwid 429 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,264 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:14:33,264 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,274 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 22:14:33,274 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,344 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,408 | INFO | ACTIVATED validate key=PHARM-FR*** device=dev-fres*** hwid=hwid-fresh
+2026-07-29 22:14:33,408 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,464 | WARNING | HWID_MISMATCH validate key=PHARM-TE*** hwid=hwid-differe***
+2026-07-29 22:14:33,465 | INFO | POST /api/validate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,510 | INFO | POST /api/validate 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,558 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,610 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-001*** hwid=hwid-001
+2026-07-29 22:14:33,610 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,661 | INFO | TOKEN_INVALID ip=127.0.0.1
+2026-07-29 22:14:33,661 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,716 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-vt*** hwid=none
+2026-07-29 22:14:33,716 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,721 | INFO | TOKEN_VALID key=PHARM-TE***
+2026-07-29 22:14:33,721 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,765 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 22:14:33,765 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,806 | INFO | POST /api/webhook/lemonsqueezy 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,855 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 22:14:33,864 | INFO | SMTP not configured — skipping license email to ls-buyer@test.com
+2026-07-29 22:14:33,864 | INFO | Lemon Squeezy payment — license created: PHARM-697A-08DA-DA80 for ls-buyer@test.com (email=skipped)
+2026-07-29 22:14:33,864 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,913 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 22:14:33,914 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,954 | INFO | POST /api/webhook/paddle 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:14:33,997 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 22:14:34,004 | INFO | SMTP not configured — skipping license email to paddle-buyer@test.com
+2026-07-29 22:14:34,004 | INFO | Paddle payment — license created: PHARM-22A6-2B8E-9DFE for paddle-buyer@test.com (email=skipped)
+2026-07-29 22:14:34,004 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:17:02,551 | INFO | 127.0.0.1 - - [29/Jul/2026 22:17:02] "[36mGET / HTTP/1.1[0m" 304 -
+2026-07-29 22:40:08,076 | INFO |  * Detected change in 'E:\\my progam pharmacy\\archive\\server_app.py', reloading
+2026-07-29 22:40:08,137 | INFO |  * Restarting with stat
+2026-07-29 22:40:08,377 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 22:40:08,378 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 22:40:08,378 | INFO | Portal session signing active
+2026-07-29 22:40:08,395 | WARNING |  * Debugger is active!
+2026-07-29 22:40:08,398 | INFO |  * Debugger PIN: 378-737-388
+2026-07-29 22:40:30,647 | INFO |  * Detected change in 'E:\\my progam pharmacy\\archive\\server_app.py', reloading
+2026-07-29 22:40:30,699 | INFO |  * Restarting with stat
+2026-07-29 22:40:30,955 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 22:40:30,955 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 22:40:30,956 | INFO | Portal session signing active
+2026-07-29 22:40:30,974 | WARNING |  * Debugger is active!
+2026-07-29 22:40:30,977 | INFO |  * Debugger PIN: 378-737-388
+2026-07-29 22:40:52,222 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 22:40:52,222 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 22:40:52,222 | INFO | Portal session signing active
+2026-07-29 22:40:52,331 | INFO | ACTIVATED activate key=PHARM-AC*** device=device-a*** hwid=none
+2026-07-29 22:40:52,332 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:52,338 | WARNING | DEVICE_CONFLICT activate key=PHARM-AC*** device=device-b***
+2026-07-29 22:40:52,338 | INFO | POST /api/activate 409 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:52,402 | INFO | ACTIVATED activate key=PHARM-AC*** device=dev-actv*** hwid=hwid-actv
+2026-07-29 22:40:52,402 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:52,459 | WARNING | HWID_MISMATCH activate key=PHARM-AC*** hwid=hwid-differe***
+2026-07-29 22:40:52,459 | INFO | POST /api/activate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:52,508 | INFO | GET /admin/api/activity 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:52,559 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:52,615 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:52,659 | INFO | POST /api/create 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:52,700 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:52,744 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:52,786 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:52,830 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:52,879 | INFO | ADMIN_HWID_RESET key=PHARM-TEST-0002-BBBB
+2026-07-29 22:40:52,880 | INFO | POST /admin/api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:52,927 | INFO | POST /admin/api/reset-hwid 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:52,975 | INFO | HWID reset for license: PHARM-TEST-0002-BBBB
+2026-07-29 22:40:52,976 | INFO | POST /api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,021 | INFO | GET /admin/api/stats 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,108 | INFO | SMTP not configured — skipping license email to 
+2026-07-29 22:40:53,147 | INFO | SMTP not configured — skipping license email to not-an-email
+2026-07-29 22:40:53,188 | INFO | SMTP not configured — skipping license email to anyone@test.com
+2026-07-29 22:40:53,520 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-toke*** hwid=hwid-token
+2026-07-29 22:40:53,520 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,563 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,608 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,652 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:40:53,652 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,655 | INFO | GET /api/portal/details 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,697 | INFO | POST /api/portal/login 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,740 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:40:53,740 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,784 | INFO | POST /api/portal/login 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,829 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:40:53,830 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,839 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 22:40:53,839 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,845 | INFO | POST /api/portal/reset-hwid 429 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,891 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 22:40:53,892 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,900 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 22:40:53,901 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:53,969 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:54,034 | INFO | ACTIVATED validate key=PHARM-FR*** device=dev-fres*** hwid=hwid-fresh
+2026-07-29 22:40:54,034 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:54,085 | WARNING | HWID_MISMATCH validate key=PHARM-TE*** hwid=hwid-differe***
+2026-07-29 22:40:54,085 | INFO | POST /api/validate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:54,127 | INFO | POST /api/validate 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:54,172 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:54,223 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-001*** hwid=hwid-001
+2026-07-29 22:40:54,224 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:54,271 | INFO | TOKEN_INVALID ip=127.0.0.1
+2026-07-29 22:40:54,271 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:54,325 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-vt*** hwid=none
+2026-07-29 22:40:54,325 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:54,329 | INFO | TOKEN_VALID key=PHARM-TE***
+2026-07-29 22:40:54,329 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:54,370 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 22:40:54,370 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:54,410 | INFO | POST /api/webhook/lemonsqueezy 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:54,451 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 22:40:54,459 | INFO | SMTP not configured — skipping license email to ls-buyer@test.com
+2026-07-29 22:40:54,459 | INFO | Lemon Squeezy payment — license created: PHARM-7D25-0802-982E for ls-buyer@test.com (email=skipped)
+2026-07-29 22:40:54,460 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:54,505 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 22:40:54,505 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:54,545 | INFO | POST /api/webhook/paddle 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 22:40:54,586 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 22:40:54,594 | INFO | SMTP not configured — skipping license email to paddle-buyer@test.com
+2026-07-29 22:40:54,595 | INFO | Paddle payment — license created: PHARM-10A6-A0FE-E5F9 for paddle-buyer@test.com (email=skipped)
+2026-07-29 22:40:54,595 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:03:56,793 | INFO |  * Detected change in 'E:\\my progam pharmacy\\archive\\server_app.py', reloading
+2026-07-29 23:03:56,846 | INFO |  * Restarting with stat
+2026-07-29 23:03:57,086 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 23:03:57,087 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 23:03:57,087 | INFO | Portal session signing active
+2026-07-29 23:03:57,105 | WARNING |  * Debugger is active!
+2026-07-29 23:03:57,108 | INFO |  * Debugger PIN: 378-737-388
+2026-07-29 23:04:10,242 | INFO |  * Detected change in 'E:\\my progam pharmacy\\archive\\server_app.py', reloading
+2026-07-29 23:04:10,293 | INFO |  * Restarting with stat
+2026-07-29 23:04:10,525 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 23:04:10,525 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 23:04:10,526 | INFO | Portal session signing active
+2026-07-29 23:04:10,544 | WARNING |  * Debugger is active!
+2026-07-29 23:04:10,547 | INFO |  * Debugger PIN: 378-737-388
+2026-07-29 23:04:58,076 | INFO |  * Detected change in 'E:\\my progam pharmacy\\archive\\server_app.py', reloading
+2026-07-29 23:04:58,124 | INFO |  * Restarting with stat
+2026-07-29 23:04:58,373 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 23:04:58,374 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 23:04:58,374 | INFO | Portal session signing active
+2026-07-29 23:04:58,395 | WARNING |  * Debugger is active!
+2026-07-29 23:04:58,398 | INFO |  * Debugger PIN: 378-737-388
+2026-07-29 23:07:16,644 | INFO | Flask-Limiter loaded — rate limiting active
+2026-07-29 23:07:16,644 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 23:07:16,645 | INFO | Portal session signing active
+2026-07-29 23:07:16,732 | INFO | ACTIVATED activate key=PHARM-AC*** device=device-a*** hwid=none
+2026-07-29 23:07:16,732 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:16,739 | WARNING | DEVICE_CONFLICT activate key=PHARM-AC*** device=device-b***
+2026-07-29 23:07:16,739 | INFO | POST /api/activate 409 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:16,817 | INFO | ACTIVATED activate key=PHARM-AC*** device=dev-actv*** hwid=hwid-actv
+2026-07-29 23:07:16,818 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:16,879 | WARNING | HWID_MISMATCH activate key=PHARM-AC*** hwid=hwid-differe***
+2026-07-29 23:07:16,880 | INFO | POST /api/activate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:16,927 | INFO | GET /admin/api/activity 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:16,976 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:17,033 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:17,077 | INFO | POST /api/create 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:17,119 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:17,167 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:17,213 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:17,257 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:17,306 | INFO | ADMIN_HWID_RESET key=PHARM-TEST-0002-BBBB
+2026-07-29 23:07:17,306 | INFO | POST /admin/api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:17,357 | INFO | POST /admin/api/reset-hwid 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:17,412 | INFO | HWID reset for license: PHARM-TEST-0002-BBBB
+2026-07-29 23:07:17,412 | INFO | POST /api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:17,472 | INFO | GET /admin/api/stats 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:17,571 | INFO | SMTP not configured — skipping license email to 
+2026-07-29 23:07:17,615 | INFO | SMTP not configured — skipping license email to not-an-email
+2026-07-29 23:07:17,657 | INFO | SMTP not configured — skipping license email to anyone@test.com
+2026-07-29 23:07:18,009 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-toke*** hwid=hwid-token
+2026-07-29 23:07:18,010 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,053 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,098 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,141 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:07:18,141 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,144 | INFO | GET /api/portal/details 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,189 | INFO | POST /api/portal/login 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,237 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:07:18,237 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,283 | INFO | POST /api/portal/login 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,330 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:07:18,330 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,340 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 23:07:18,340 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,346 | INFO | POST /api/portal/reset-hwid 429 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,393 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:07:18,393 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,401 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 23:07:18,401 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,462 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,531 | INFO | ACTIVATED validate key=PHARM-FR*** device=dev-fres*** hwid=hwid-fresh
+2026-07-29 23:07:18,531 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,588 | WARNING | HWID_MISMATCH validate key=PHARM-TE*** hwid=hwid-differe***
+2026-07-29 23:07:18,588 | INFO | POST /api/validate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,636 | INFO | POST /api/validate 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,679 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,741 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-001*** hwid=hwid-001
+2026-07-29 23:07:18,742 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,795 | INFO | TOKEN_INVALID ip=127.0.0.1
+2026-07-29 23:07:18,795 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,850 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-vt*** hwid=none
+2026-07-29 23:07:18,850 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,855 | INFO | TOKEN_VALID key=PHARM-TE***
+2026-07-29 23:07:18,855 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,905 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:07:18,907 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,950 | INFO | POST /api/webhook/lemonsqueezy 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:18,992 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:07:19,001 | INFO | SMTP not configured — skipping license email to ls-buyer@test.com
+2026-07-29 23:07:19,002 | INFO | Lemon Squeezy order_created — license created: PHARM-5BEC-E189-8921 for ls-buyer@test.com (sub=none, email=skipped)
+2026-07-29 23:07:19,002 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:19,059 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 23:07:19,060 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:19,352 | INFO | POST /api/webhook/paddle 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:07:19,418 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 23:07:19,436 | INFO | SMTP not configured — skipping license email to paddle-buyer@test.com
+2026-07-29 23:07:19,437 | INFO | Paddle payment — license created: PHARM-F433-0587-D930 for paddle-buyer@test.com (email=skipped)
+2026-07-29 23:07:19,437 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:43,461 | INFO | Flask-Limiter loaded — rate limiting active
+2026-07-29 23:08:43,461 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 23:08:43,461 | INFO | Portal session signing active
+2026-07-29 23:08:43,550 | INFO | ACTIVATED activate key=PHARM-AC*** device=device-a*** hwid=none
+2026-07-29 23:08:43,551 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:43,559 | WARNING | DEVICE_CONFLICT activate key=PHARM-AC*** device=device-b***
+2026-07-29 23:08:43,559 | INFO | POST /api/activate 409 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:43,625 | INFO | ACTIVATED activate key=PHARM-AC*** device=dev-actv*** hwid=hwid-actv
+2026-07-29 23:08:43,625 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:43,684 | WARNING | HWID_MISMATCH activate key=PHARM-AC*** hwid=hwid-differe***
+2026-07-29 23:08:43,685 | INFO | POST /api/activate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:43,731 | INFO | GET /admin/api/activity 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:43,782 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:43,839 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:43,887 | INFO | POST /api/create 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:43,932 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:43,978 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:44,024 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:44,071 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:44,123 | INFO | ADMIN_HWID_RESET key=PHARM-TEST-0002-BBBB
+2026-07-29 23:08:44,123 | INFO | POST /admin/api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:44,176 | INFO | POST /admin/api/reset-hwid 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:44,229 | INFO | HWID reset for license: PHARM-TEST-0002-BBBB
+2026-07-29 23:08:44,229 | INFO | POST /api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:44,281 | INFO | GET /admin/api/stats 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:44,376 | INFO | SMTP not configured — skipping license email to 
+2026-07-29 23:08:44,420 | INFO | SMTP not configured — skipping license email to not-an-email
+2026-07-29 23:08:44,463 | INFO | SMTP not configured — skipping license email to anyone@test.com
+2026-07-29 23:08:44,819 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-toke*** hwid=hwid-token
+2026-07-29 23:08:44,819 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:44,868 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:44,912 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:44,958 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:08:44,958 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:44,960 | INFO | GET /api/portal/details 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,005 | INFO | POST /api/portal/login 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,051 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:08:45,051 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,098 | INFO | POST /api/portal/login 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,145 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:08:45,145 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,153 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 23:08:45,153 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,161 | INFO | POST /api/portal/reset-hwid 429 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,209 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:08:45,209 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,218 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 23:08:45,218 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,283 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,348 | INFO | ACTIVATED validate key=PHARM-FR*** device=dev-fres*** hwid=hwid-fresh
+2026-07-29 23:08:45,348 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,401 | WARNING | HWID_MISMATCH validate key=PHARM-TE*** hwid=hwid-differe***
+2026-07-29 23:08:45,401 | INFO | POST /api/validate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,446 | INFO | POST /api/validate 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,491 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,547 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-001*** hwid=hwid-001
+2026-07-29 23:08:45,547 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,593 | INFO | TOKEN_INVALID ip=127.0.0.1
+2026-07-29 23:08:45,593 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,649 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-vt*** hwid=none
+2026-07-29 23:08:45,650 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,656 | INFO | TOKEN_VALID key=PHARM-TE***
+2026-07-29 23:08:45,656 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,714 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:45,716 | INFO | Lemon Squeezy order_created — duplicate subscription 99099, skipping
+2026-07-29 23:08:45,716 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,761 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:45,763 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,807 | INFO | POST /api/webhook/lemonsqueezy 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,851 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:45,859 | INFO | SMTP not configured — skipping license email to ls-buyer@test.com
+2026-07-29 23:08:45,859 | INFO | Lemon Squeezy order_created — license created: PHARM-BACF-F30D-050E for ls-buyer@test.com (sub=none, email=skipped)
+2026-07-29 23:08:45,859 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,911 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:45,919 | INFO | SMTP not configured — skipping license email to order-sub@test.com
+2026-07-29 23:08:45,919 | INFO | Lemon Squeezy order_created — license created: PHARM-E033-6522-8810 for order-sub@test.com (sub=99002, email=skipped)
+2026-07-29 23:08:45,919 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:45,984 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:45,993 | INFO | LS subscription_payment_success — key=PHARM-RENEW-PAST-01 extended to 2026-08-28 (sub=99400)
+2026-07-29 23:08:45,993 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:46,051 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:46,059 | INFO | LS subscription_cancelled — key=PHARM-CANCEL-0001 revoked (sub=99200)
+2026-07-29 23:08:46,059 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:46,107 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:46,109 | WARNING | LS subscription_cancelled — no license for sub 88888
+2026-07-29 23:08:46,109 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:46,152 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:46,160 | INFO | SMTP not configured — skipping license email to sub-created@test.com
+2026-07-29 23:08:46,160 | INFO | Lemon Squeezy subscription_created — license created: PHARM-A965-C571-C92B for sub-created@test.com (sub=99001, email=skipped)
+2026-07-29 23:08:46,160 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:46,220 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:46,229 | INFO | LS subscription_expired — key=PHARM-EXPIRE-0001 expired (sub=99300)
+2026-07-29 23:08:46,229 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:46,285 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:46,288 | WARNING | LS subscription_expired — no license for sub 77777
+2026-07-29 23:08:46,288 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:46,577 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:46,585 | INFO | LS subscription_payment_success — key=PHARM-RENEW-0001 extended to 2026-09-02 (sub=99100)
+2026-07-29 23:08:46,585 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:46,636 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:46,638 | WARNING | LS subscription_payment_success — no subscription_id
+2026-07-29 23:08:46,638 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:46,682 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:46,684 | WARNING | LS subscription_payment_success — no license for sub 99999
+2026-07-29 23:08:46,684 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:46,727 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:46,727 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:46,771 | INFO | POST /api/webhook/paddle 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:08:46,818 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 23:08:46,827 | INFO | SMTP not configured — skipping license email to paddle-buyer@test.com
+2026-07-29 23:08:46,827 | INFO | Paddle payment — license created: PHARM-F4E2-9E31-ED76 for paddle-buyer@test.com (email=skipped)
+2026-07-29 23:08:46,827 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:38:56,897 | INFO |  * Detected change in 'E:\\my progam pharmacy\\archive\\deploy_to_server.py', reloading
+2026-07-29 23:38:56,958 | INFO |  * Restarting with stat
+2026-07-29 23:38:57,228 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 23:38:57,229 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 23:38:57,229 | INFO | Portal session signing active
+2026-07-29 23:38:57,248 | WARNING |  * Debugger is active!
+2026-07-29 23:38:57,251 | INFO |  * Debugger PIN: 378-737-388
+2026-07-29 23:39:11,395 | INFO |  * Detected change in 'E:\\my progam pharmacy\\archive\\deploy_to_server.py', reloading
+2026-07-29 23:39:11,438 | INFO |  * Restarting with stat
+2026-07-29 23:39:11,696 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 23:39:11,697 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 23:39:11,697 | INFO | Portal session signing active
+2026-07-29 23:39:11,719 | WARNING |  * Debugger is active!
+2026-07-29 23:39:11,722 | INFO |  * Debugger PIN: 378-737-388
+2026-07-29 23:39:20,829 | INFO |  * Detected change in 'E:\\my progam pharmacy\\archive\\deploy_to_server.py', reloading
+2026-07-29 23:39:20,879 | INFO |  * Restarting with stat
+2026-07-29 23:39:21,120 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 23:39:21,121 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 23:39:21,121 | INFO | Portal session signing active
+2026-07-29 23:39:21,140 | WARNING |  * Debugger is active!
+2026-07-29 23:39:21,143 | INFO |  * Debugger PIN: 378-737-388
+2026-07-29 23:39:31,262 | INFO |  * Detected change in 'E:\\my progam pharmacy\\archive\\deploy_to_server.py', reloading
+2026-07-29 23:39:31,314 | INFO |  * Restarting with stat
+2026-07-29 23:39:31,596 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 23:39:31,596 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 23:39:31,596 | INFO | Portal session signing active
+2026-07-29 23:39:31,617 | WARNING |  * Debugger is active!
+2026-07-29 23:39:31,620 | INFO |  * Debugger PIN: 378-737-388
+2026-07-29 23:39:46,802 | INFO |  * Detected change in 'E:\\my progam pharmacy\\archive\\server_app.py', reloading
+2026-07-29 23:39:46,849 | INFO |  * Restarting with stat
+2026-07-29 23:39:47,088 | WARNING | Flask-Limiter not installed — rate limiting disabled
+2026-07-29 23:39:47,089 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 23:39:47,089 | INFO | Portal session signing active
+2026-07-29 23:40:58,459 | INFO | Flask-Limiter loaded — rate limiting active
+2026-07-29 23:40:58,459 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 23:40:58,459 | INFO | Portal session signing active
+2026-07-29 23:40:58,556 | INFO | ACTIVATED activate key=PHARM-AC*** device=device-a*** hwid=none
+2026-07-29 23:40:58,557 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:58,567 | WARNING | DEVICE_CONFLICT activate key=PHARM-AC*** device=device-b***
+2026-07-29 23:40:58,567 | INFO | POST /api/activate 409 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:58,644 | INFO | ACTIVATED activate key=PHARM-AC*** device=dev-actv*** hwid=hwid-actv
+2026-07-29 23:40:58,645 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:58,710 | WARNING | HWID_MISMATCH activate key=PHARM-AC*** hwid=hwid-differe***
+2026-07-29 23:40:58,710 | INFO | POST /api/activate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:58,763 | INFO | GET /admin/api/activity 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:58,823 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:58,893 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:58,949 | INFO | POST /api/create 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:59,002 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:59,059 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:59,111 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:59,167 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:59,235 | INFO | ADMIN_HWID_RESET key=PHARM-TEST-0002-BBBB
+2026-07-29 23:40:59,235 | INFO | POST /admin/api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:59,294 | INFO | POST /admin/api/reset-hwid 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:59,351 | INFO | HWID reset for license: PHARM-TEST-0002-BBBB
+2026-07-29 23:40:59,352 | INFO | POST /api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:59,410 | INFO | GET /admin/api/stats 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:40:59,506 | INFO | SMTP not configured — skipping license email to 
+2026-07-29 23:40:59,555 | INFO | SMTP not configured — skipping license email to not-an-email
+2026-07-29 23:40:59,600 | INFO | SMTP not configured — skipping license email to anyone@test.com
+2026-07-29 23:40:59,997 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-toke*** hwid=hwid-token
+2026-07-29 23:40:59,997 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,056 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,100 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,145 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:41:00,145 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,148 | INFO | GET /api/portal/details 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,192 | INFO | POST /api/portal/login 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,236 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:41:00,236 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,280 | INFO | POST /api/portal/login 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,325 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:41:00,325 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,334 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 23:41:00,334 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,340 | INFO | POST /api/portal/reset-hwid 429 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,386 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:41:00,386 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,394 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 23:41:00,395 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,455 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,517 | INFO | ACTIVATED validate key=PHARM-FR*** device=dev-fres*** hwid=hwid-fresh
+2026-07-29 23:41:00,517 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,569 | WARNING | HWID_MISMATCH validate key=PHARM-TE*** hwid=hwid-differe***
+2026-07-29 23:41:00,569 | INFO | POST /api/validate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,612 | INFO | POST /api/validate 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,656 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,706 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-001*** hwid=hwid-001
+2026-07-29 23:41:00,706 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,752 | INFO | TOKEN_INVALID ip=127.0.0.1
+2026-07-29 23:41:00,752 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,806 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-vt*** hwid=none
+2026-07-29 23:41:00,806 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:00,810 | INFO | TOKEN_VALID key=PHARM-TE***
+2026-07-29 23:41:00,810 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,035 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,037 | INFO | Lemon Squeezy order_created — duplicate subscription 99099, skipping
+2026-07-29 23:41:01,037 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,082 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,084 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,131 | INFO | POST /api/webhook/lemonsqueezy 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,176 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,185 | INFO | SMTP not configured — skipping license email to ls-buyer@test.com
+2026-07-29 23:41:01,185 | INFO | Lemon Squeezy order_created — license created: PHARM-0995-2FED-AB71 for ls-buyer@test.com (sub=none, email=skipped)
+2026-07-29 23:41:01,186 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,236 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,244 | INFO | SMTP not configured — skipping license email to order-sub@test.com
+2026-07-29 23:41:01,245 | INFO | Lemon Squeezy order_created — license created: PHARM-EBA7-AE5F-BA66 for order-sub@test.com (sub=99002, email=skipped)
+2026-07-29 23:41:01,245 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,309 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,318 | INFO | LS subscription_payment_success — key=PHARM-RENEW-PAST-01 extended to 2026-08-28 (sub=99400)
+2026-07-29 23:41:01,318 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,379 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,388 | INFO | LS subscription_cancelled — key=PHARM-CANCEL-0001 revoked (sub=99200)
+2026-07-29 23:41:01,388 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,439 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,441 | WARNING | LS subscription_cancelled — no license for sub 88888
+2026-07-29 23:41:01,442 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,486 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,495 | INFO | SMTP not configured — skipping license email to sub-created@test.com
+2026-07-29 23:41:01,495 | INFO | Lemon Squeezy subscription_created — license created: PHARM-F725-4E98-AB14 for sub-created@test.com (sub=99001, email=skipped)
+2026-07-29 23:41:01,495 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,555 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,563 | INFO | LS subscription_expired — key=PHARM-EXPIRE-0001 expired (sub=99300)
+2026-07-29 23:41:01,563 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,614 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,616 | WARNING | LS subscription_expired — no license for sub 77777
+2026-07-29 23:41:01,616 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,672 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,680 | INFO | LS subscription_payment_success — key=PHARM-RENEW-0001 extended to 2026-09-02 (sub=99100)
+2026-07-29 23:41:01,680 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,740 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,743 | WARNING | LS subscription_payment_success — no subscription_id
+2026-07-29 23:41:01,743 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,791 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,793 | WARNING | LS subscription_payment_success — no license for sub 99999
+2026-07-29 23:41:01,793 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,847 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,847 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,904 | INFO | POST /api/webhook/paddle 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:41:01,951 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 23:41:01,960 | INFO | SMTP not configured — skipping license email to paddle-buyer@test.com
+2026-07-29 23:41:01,960 | INFO | Paddle payment — license created: PHARM-CE03-954A-33BE for paddle-buyer@test.com (email=skipped)
+2026-07-29 23:41:01,960 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,132 | INFO | Flask-Limiter loaded — rate limiting active
+2026-07-29 23:42:07,132 | INFO | itsdangerous loaded — offline token signing active
+2026-07-29 23:42:07,133 | INFO | Portal session signing active
+2026-07-29 23:42:07,230 | INFO | ACTIVATED activate key=PHARM-AC*** device=device-a*** hwid=none
+2026-07-29 23:42:07,231 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,237 | WARNING | DEVICE_CONFLICT activate key=PHARM-AC*** device=device-b***
+2026-07-29 23:42:07,237 | INFO | POST /api/activate 409 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,312 | INFO | ACTIVATED activate key=PHARM-AC*** device=dev-actv*** hwid=hwid-actv
+2026-07-29 23:42:07,312 | INFO | POST /api/activate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,379 | WARNING | HWID_MISMATCH activate key=PHARM-AC*** hwid=hwid-differe***
+2026-07-29 23:42:07,379 | INFO | POST /api/activate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,429 | INFO | GET /admin/api/activity 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,484 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,542 | INFO | POST /api/create 201 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,590 | INFO | POST /api/create 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,641 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,688 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,734 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,784 | INFO | GET /admin/api/licenses 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,839 | INFO | ADMIN_HWID_RESET key=PHARM-TEST-0002-BBBB
+2026-07-29 23:42:07,839 | INFO | POST /admin/api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,891 | INFO | POST /admin/api/reset-hwid 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:07,950 | INFO | HWID reset for license: PHARM-TEST-0002-BBBB
+2026-07-29 23:42:07,950 | INFO | POST /api/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:08,003 | INFO | GET /admin/api/stats 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:08,103 | INFO | SMTP not configured — skipping license email to 
+2026-07-29 23:42:08,151 | INFO | SMTP not configured — skipping license email to not-an-email
+2026-07-29 23:42:08,193 | INFO | SMTP not configured — skipping license email to anyone@test.com
+2026-07-29 23:42:08,572 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-toke*** hwid=hwid-token
+2026-07-29 23:42:08,572 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:08,619 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:08,660 | INFO | GET /api/portal/details 401 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:08,706 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:42:08,706 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:08,708 | INFO | GET /api/portal/details 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:08,756 | INFO | POST /api/portal/login 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:08,802 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:42:08,802 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:08,849 | INFO | POST /api/portal/login 404 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:08,896 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:42:08,896 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:08,905 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 23:42:08,905 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:08,915 | INFO | POST /api/portal/reset-hwid 429 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:08,959 | INFO | PORTAL_LOGIN key=PHARM-TE***
+2026-07-29 23:42:08,959 | INFO | POST /api/portal/login 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:08,966 | INFO | PORTAL_HWID_RESET key=PHARM-TE***
+2026-07-29 23:42:08,966 | INFO | POST /api/portal/reset-hwid 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,026 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,100 | INFO | ACTIVATED validate key=PHARM-FR*** device=dev-fres*** hwid=hwid-fresh
+2026-07-29 23:42:09,100 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,155 | WARNING | HWID_MISMATCH validate key=PHARM-TE*** hwid=hwid-differe***
+2026-07-29 23:42:09,155 | INFO | POST /api/validate 403 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,200 | INFO | POST /api/validate 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,244 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,298 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-001*** hwid=hwid-001
+2026-07-29 23:42:09,298 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,348 | INFO | TOKEN_INVALID ip=127.0.0.1
+2026-07-29 23:42:09,349 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,408 | INFO | ACTIVATED validate key=PHARM-TE*** device=dev-vt*** hwid=none
+2026-07-29 23:42:09,408 | INFO | POST /api/validate 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,412 | INFO | TOKEN_VALID key=PHARM-TE***
+2026-07-29 23:42:09,412 | INFO | POST /api/verify-token 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,468 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:09,470 | INFO | Lemon Squeezy order_created — duplicate subscription 99099, skipping
+2026-07-29 23:42:09,470 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,513 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:09,515 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,561 | INFO | POST /api/webhook/lemonsqueezy 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,613 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:09,621 | INFO | SMTP not configured — skipping license email to ls-buyer@test.com
+2026-07-29 23:42:09,621 | INFO | Lemon Squeezy order_created — license created: PHARM-CA9F-FBF3-2210 for ls-buyer@test.com (sub=none, email=skipped)
+2026-07-29 23:42:09,621 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,671 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:09,679 | INFO | SMTP not configured — skipping license email to order-sub@test.com
+2026-07-29 23:42:09,679 | INFO | Lemon Squeezy order_created — license created: PHARM-2327-4B7D-BFE7 for order-sub@test.com (sub=99002, email=skipped)
+2026-07-29 23:42:09,679 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,738 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:09,746 | INFO | LS subscription_payment_success — key=PHARM-RENEW-PAST-01 extended to 2026-08-28 (sub=99400)
+2026-07-29 23:42:09,746 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,803 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:09,811 | INFO | LS subscription_cancelled — key=PHARM-CANCEL-0001 revoked (sub=99200)
+2026-07-29 23:42:09,811 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,865 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:09,868 | WARNING | LS subscription_cancelled — no license for sub 88888
+2026-07-29 23:42:09,868 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:09,930 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:09,941 | INFO | SMTP not configured — skipping license email to sub-created@test.com
+2026-07-29 23:42:09,942 | INFO | Lemon Squeezy subscription_created — license created: PHARM-B66E-4A9A-A0B2 for sub-created@test.com (sub=99001, email=skipped)
+2026-07-29 23:42:09,942 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:10,032 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:10,044 | INFO | LS subscription_expired — key=PHARM-EXPIRE-0001 expired (sub=99300)
+2026-07-29 23:42:10,044 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:10,109 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:10,115 | WARNING | LS subscription_expired — no license for sub 77777
+2026-07-29 23:42:10,115 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:10,192 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:10,201 | INFO | LS subscription_payment_success — key=PHARM-RENEW-0001 extended to 2026-09-02 (sub=99100)
+2026-07-29 23:42:10,201 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:10,257 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:10,260 | WARNING | LS subscription_payment_success — no subscription_id
+2026-07-29 23:42:10,260 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:10,310 | INFO | Lemon Squeezy webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:10,311 | WARNING | LS subscription_payment_success — no license for sub 99999
+2026-07-29 23:42:10,312 | INFO | POST /api/webhook/lemonsqueezy 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:10,359 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:10,359 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:10,411 | INFO | POST /api/webhook/paddle 400 127.0.0.1 Werkzeug/3.1.8
+2026-07-29 23:42:10,467 | INFO | Paddle webhook — TEST MODE: signature verification skipped
+2026-07-29 23:42:10,478 | INFO | SMTP not configured — skipping license email to paddle-buyer@test.com
+2026-07-29 23:42:10,479 | INFO | Paddle payment — license created: PHARM-DD94-598B-8DF5 for paddle-buyer@test.com (email=skipped)
+2026-07-29 23:42:10,479 | INFO | POST /api/webhook/paddle 200 127.0.0.1 Werkzeug/3.1.8

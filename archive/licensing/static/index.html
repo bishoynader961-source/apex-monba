@@ -1,0 +1,200 @@
+﻿<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PharmacyPro - Pharmacy Inventory and Label Suite</title>
+    <meta name="description" content="PharmacyPro: Complete pharmacy management software with inventory tracking, barcode generation, and custom label design.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50:'#eef7ff', 100:'#d9edff', 200:'#bce0ff', 300:'#8ecdff', 400:'#4fb1ff', 500:'#2490ff', 600:'#0a6eff', 700:'#0a58eb', 800:'#0e47be', 900:'#123d95', 950:'#11275a' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .ad-slot { min-height:90px; background:#f1f5f9; border:2px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:0.8rem; border-radius:0.5rem; }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 font-sans antialiased">
+
+    <!-- HEADER -->
+    <header class="fixed top-0 w-full z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
+        <nav class="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
+            <a href="#" class="text-xl font-bold text-brand-400 tracking-tight">PharmacyPro</a>
+            <div class="hidden md:flex items-center gap-8 text-sm text-gray-400">
+                <a href="#features" class="hover:text-white transition">Features</a>
+                <a href="#pricing" class="hover:text-white transition">Pricing</a>
+                <a href="#faq" class="hover:text-white transition">FAQ</a>
+                <a href="#buy" class="bg-brand-600 hover:bg-brand-500 text-white font-semibold px-5 py-2 rounded-lg transition">Buy Now</a>
+            </div>
+            <button id="mobile-menu-btn" class="md:hidden text-gray-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+        </nav>
+        <div id="mobile-menu" class="hidden md:hidden bg-gray-900 border-t border-gray-800 px-6 py-4">
+            <a href="#features" class="block py-2 text-gray-400 hover:text-white">Features</a>
+            <a href="#pricing" class="block py-2 text-gray-400 hover:text-white">Pricing</a>
+            <a href="#faq" class="block py-2 text-gray-400 hover:text-white">FAQ</a>
+            <a href="#buy" class="block mt-2 bg-brand-600 text-white text-center font-semibold py-2 rounded-lg">Buy Now</a>
+        </div>
+    </header>
+
+    <!-- AD SLOT: HEADER -->
+    <!-- <div class="pt-20"><div class="ad-slot max-w-6xl mx-auto">Advertisement 728x90</div></div> -->
+
+    <!-- HERO -->
+    <section class="pt-32 pb-20 px-6">
+        <div class="max-w-6xl mx-auto text-center">
+            <span class="inline-block bg-brand-900/40 text-brand-300 text-xs font-semibold px-4 py-1.5 rounded-full mb-6 border border-brand-800">Desktop Pharmacy Management Suite</span>
+            <h1 class="text-4xl md:text-6xl font-extrabold leading-tight mb-6">Run Your Pharmacy<br><span class="text-brand-400">Smarter, Faster, Safer</span></h1>
+            <p class="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">PharmacyPro is an all-in-one desktop application for inventory management, serialized unit-level tracking, barcode generation, and custom label design.</p>
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="#buy" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-8 py-3.5 rounded-xl text-lg transition shadow-lg shadow-brand-600/20">Buy Now - Lifetime License</a>
+                <a href="#features" class="text-gray-400 hover:text-white font-medium px-8 py-3.5 rounded-xl border border-gray-700 hover:border-gray-500 transition">See Features</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section id="features" class="py-20 px-6">
+        <div class="max-w-6xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-4">Everything You Need</h2>
+            <p class="text-gray-400 text-center mb-14 max-w-xl mx-auto">A complete pharmacy operations suite - from inventory to label printing.</p>
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 hover:border-brand-700 transition">
+                    <div class="w-10 h-10 bg-brand-900/50 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    </div>
+                    <h3 class="font-semibold text-lg mb-2">Serialized Inventory</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">Track every single box with a unique barcode. One row = one physical unit.</p>
+                </div>
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 hover:border-brand-700 transition">
+                    <div class="w-10 h-10 bg-brand-900/50 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+                    </div>
+                    <h3 class="font-semibold text-lg mb-2">Barcode and Label Engine</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">Generate Code128 barcodes, QR codes, and print 300 DPI custom labels with a drag-and-drop designer.</p>
+                </div>
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 hover:border-brand-700 transition">
+                    <div class="w-10 h-10 bg-brand-900/50 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    </div>
+                    <h3 class="font-semibold text-lg mb-2">Sales and Reports</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">Real-time revenue tracking, daily sales totals, date-range queries, and vendor payable calculations.</p>
+                </div>
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 hover:border-brand-700 transition">
+                    <div class="w-10 h-10 bg-brand-900/50 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    </div>
+                    <h3 class="font-semibold text-lg mb-2">Atomic Receiving</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">Receive shipments in a queue-based dashboard with transactional safety - rollback on any failure.</p>
+                </div>
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 hover:border-brand-700 transition">
+                    <div class="w-10 h-10 bg-brand-900/50 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                    </div>
+                    <h3 class="font-semibold text-lg mb-2">Vendor Traceability</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">Every box carries its vendor in the barcode prefix. Full audit trail from shipment to sale.</p>
+                </div>
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 hover:border-brand-700 transition">
+                    <div class="w-10 h-10 bg-brand-900/50 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                    </div>
+                    <h3 class="font-semibold text-lg mb-2">Secure Licensing</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">Device-bound license keys. One purchase, one machine. No subscription required.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- AD SLOT: INLINE -->
+    <!-- <div class="py-8 px-6"><div class="ad-slot max-w-4xl mx-auto">Advertisement 728x90</div></div> -->
+
+    <!-- PRICING -->
+    <section id="pricing" class="py-20 px-6">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-4">Simple, One-Time Pricing</h2>
+            <p class="text-gray-400 text-center mb-12">No subscriptions. No hidden fees. Lifetime license.</p>
+            <div id="buy" class="bg-gray-900 border border-gray-800 rounded-2xl p-8 md:p-12 text-center max-w-lg mx-auto">
+                <div class="bg-brand-900/30 text-brand-300 text-xs font-semibold px-4 py-1.5 rounded-full inline-block mb-6 border border-brand-800">Most Popular</div>
+                <h3 class="text-4xl font-extrabold mb-2">$49</h3>
+                <p class="text-gray-400 mb-8">Lifetime License - All Features Included</p>
+                <ul class="text-left text-gray-300 text-sm space-y-3 mb-8">
+                    <li class="flex items-start gap-3"><svg class="w-5 h-5 text-brand-400 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>Full inventory management with serialized tracking</li>
+                    <li class="flex items-start gap-3"><svg class="w-5 h-5 text-brand-400 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>Barcode and QR code label designer (300 DPI)</li>
+                    <li class="flex items-start gap-3"><svg class="w-5 h-5 text-brand-400 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>Sales reporting and vendor payables</li>
+                    <li class="flex items-start gap-3"><svg class="w-5 h-5 text-brand-400 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>Free updates for life</li>
+                </ul>
+                <a href="https://pharmacy-pro.lemonsqueezy.com/checkout/buy/924ce157-aeaa-4bda-b7dc-1b73dace014b" target="_blank" rel="noopener" class="block w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-4 rounded-xl text-lg transition shadow-lg shadow-brand-600/20">Buy Now</a>
+                <p class="text-gray-500 text-xs mt-4">Secure checkout powered by Lemon Squeezy</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" class="py-20 px-6">
+        <div class="max-w-2xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-12">Frequently Asked Questions</h2>
+            <div class="space-y-4">
+                <details class="bg-gray-900 border border-gray-800 rounded-xl group">
+                    <summary class="cursor-pointer px-6 py-4 font-medium flex items-center justify-between hover:text-brand-400 transition">
+                        How does device binding work?
+                        <svg class="w-5 h-5 text-gray-500 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </summary>
+                    <div class="px-6 pb-4 text-gray-400 text-sm leading-relaxed">Your license key is bound to the first computer where it is activated. This prevents unauthorized distribution while keeping activation simple.</div>
+                </details>
+                <details class="bg-gray-900 border border-gray-800 rounded-xl group">
+                    <summary class="cursor-pointer px-6 py-4 font-medium flex items-center justify-between hover:text-brand-400 transition">
+                        What if I need to move to a new computer?
+                        <svg class="w-5 h-5 text-gray-500 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </summary>
+                    <div class="px-6 pb-4 text-gray-400 text-sm leading-relaxed">Contact support with your order email and we will reset your device binding so you can activate on a new machine.</div>
+                </details>
+                <details class="bg-gray-900 border border-gray-800 rounded-xl group">
+                    <summary class="cursor-pointer px-6 py-4 font-medium flex items-center justify-between hover:text-brand-400 transition">
+                        Is there a free trial?
+                        <svg class="w-5 h-5 text-gray-500 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </summary>
+                    <div class="px-6 pb-4 text-gray-400 text-sm leading-relaxed">Not currently. The one-time $49 price includes lifetime access and all future updates.</div>
+                </details>
+            </div>
+        </div>
+    </section>
+
+    <!-- AD SLOT: FOOTER -->
+    <!-- <div class="py-8 px-6"><div class="ad-slot max-w-4xl mx-auto">Advertisement 728x90</div></div> -->
+
+    <!-- FOOTER -->
+    <footer class="border-t border-gray-800 py-10 px-6">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <p class="text-gray-500 text-sm">&copy; 2026 PharmacyPro. All rights reserved.</p>
+            <div class="flex gap-6 text-sm text-gray-500">
+                <a href="#" class="hover:text-white transition">Privacy Policy</a>
+                <a href="#" class="hover:text-white transition">Terms of Service</a>
+                <a href="mailto:support@pharmacypro.app" class="hover:text-white transition">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        document.getElementById('mobile-menu-btn').addEventListener('click', function() {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
+        });
+    </script>
+
+    <!-- ================================ -->
+    <!-- AD NETWORK SCRIPTS               -->
+    <!-- Paste Google AdSense or other ad -->
+    <!-- network javascript below this     -->
+    <!-- comment block.                    -->
+    <!-- ================================ -->
+    <!-- <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXX" crossorigin="anonymous"></script> -->
+
+</body>
+</html>

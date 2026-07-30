@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PharmacyPro — Secure Desktop Licensing</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        brand: { 50:'#eff6ff', 100:'#dbeafe', 200:'#bfdbfe', 300:'#93c5fd', 400:'#60a5fa', 500:'#3b82f6', 600:'#2563eb', 700:'#1d4ed8', 800:'#1e40af', 900:'#1e3a8a' },
+      }
+    }
+  }
+}
+</script>
+<style>
+  body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+  .hero-gradient { background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #3b82f6 100%); }
+  .fade-up { opacity: 0; transform: translateY(20px); transition: opacity .5s, transform .5s; }
+  .fade-up.visible { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body class="bg-white text-gray-800">
+
+<!-- ── Nav ─────────────────────────────────────────────────────────── -->
+<nav class="fixed top-0 w-full bg-white/80 backdrop-blur-lg border-b border-gray-100 z-50">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+      </div>
+      <span class="font-bold text-lg">PharmacyPro</span>
+    </div>
+    <div class="hidden sm:flex items-center gap-6 text-sm">
+      <a href="#features" class="text-gray-600 hover:text-brand-600 transition">Features</a>
+      <a href="#pricing" class="text-gray-600 hover:text-brand-600 transition">Pricing</a>
+      <a href="#quickstart" class="text-gray-600 hover:text-brand-600 transition">Quick Start</a>
+    </div>
+    <a href="#pricing" class="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition">
+      Buy Now
+    </a>
+  </div>
+</nav>
+
+<!-- ── Hero ────────────────────────────────────────────────────────── -->
+<section class="hero-gradient pt-32 pb-20 sm:pt-40 sm:pb-28 px-4">
+  <div class="max-w-4xl mx-auto text-center">
+    <div class="inline-block px-4 py-1.5 bg-white/15 rounded-full text-white/90 text-xs font-medium mb-6 tracking-wide">
+      Offline-ready desktop licensing
+    </div>
+    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
+      Secure Licensing<br class="hidden sm:inline"> for Your Workflow
+    </h1>
+    <p class="text-lg sm:text-xl text-blue-100 max-w-2xl mx-auto mb-10 leading-relaxed">
+      Hardware-bound license keys with automatic activation, 7-day offline grace periods,
+      and instant delivery — built for desktop applications that need real protection.
+    </p>
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+      <a href="#pricing" class="w-full sm:w-auto px-8 py-3.5 bg-white text-brand-700 font-bold rounded-xl hover:bg-blue-50 transition shadow-lg shadow-blue-900/30">
+        Get Your License
+      </a>
+      <a href="#quickstart" class="w-full sm:w-auto px-8 py-3.5 border-2 border-white/30 text-white font-medium rounded-xl hover:bg-white/10 transition">
+        See How It Works
+      </a>
+    </div>
+    <p class="text-blue-200 text-sm mt-6">One-time purchase &middot; No subscription &middot; Instant delivery</p>
+  </div>
+</section>
+
+<!-- ── Features ────────────────────────────────────────────────────── -->
+<section id="features" class="py-20 sm:py-28 px-4">
+  <div class="max-w-6xl mx-auto">
+    <div class="text-center mb-14">
+      <h2 class="text-3xl sm:text-4xl font-bold mb-4">Everything You Need</h2>
+      <p class="text-gray-500 max-w-xl mx-auto">Enterprise-grade licensing without the enterprise complexity.</p>
+    </div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Feature 1 -->
+      <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100 hover:shadow-md transition">
+        <div class="w-11 h-11 bg-blue-100 rounded-xl flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+        </div>
+        <h3 class="font-bold mb-2">Hardware Binding</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">Licenses are cryptographically tied to the machine's CPU, motherboard, and disk serial — one key per device.</p>
+      </div>
+      <!-- Feature 2 -->
+      <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100 hover:shadow-md transition">
+        <div class="w-11 h-11 bg-green-100 rounded-xl flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/>
+          </svg>
+        </div>
+        <h3 class="font-bold mb-2">7-Day Offline Grace</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">Works fully offline for 7 days after activation. Signed tokens ensure the clock can't be tampered with.</p>
+      </div>
+      <!-- Feature 3 -->
+      <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100 hover:shadow-md transition">
+        <div class="w-11 h-11 bg-purple-100 rounded-xl flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        <h3 class="font-bold mb-2">Instant Delivery</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">License key emailed instantly after purchase. One PowerShell command to install and activate.</p>
+      </div>
+      <!-- Feature 4 -->
+      <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100 hover:shadow-md transition">
+        <div class="w-11 h-11 bg-amber-100 rounded-xl flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+          </svg>
+        </div>
+        <h3 class="font-bold mb-2">Self-Service Portal</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">Customers can check their license status and reset device binding (once per 30 days) without support tickets.</p>
+      </div>
+      <!-- Feature 5 -->
+      <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100 hover:shadow-md transition">
+        <div class="w-11 h-11 bg-red-100 rounded-xl flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+          </svg>
+        </div>
+        <h3 class="font-bold mb-2">Tamper-Proof</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">HMAC-SHA256 webhook verification, signed offline tokens, and HWID fingerprinting prevent key sharing.</p>
+      </div>
+      <!-- Feature 6 -->
+      <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100 hover:shadow-md transition">
+        <div class="w-11 h-11 bg-cyan-100 rounded-xl flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+          </svg>
+        </div>
+        <h3 class="font-bold mb-2">Developer First</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">REST API, Rust-powered HWID client, CI/CD pipeline — everything you need to integrate in minutes.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── How It Works ────────────────────────────────────────────────── -->
+<section id="quickstart" class="py-20 sm:py-28 px-4 bg-gray-50 border-y border-gray-100">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-14">
+      <h2 class="text-3xl sm:text-4xl font-bold mb-4">Up and Running in 60 Seconds</h2>
+      <p class="text-gray-500 max-w-xl mx-auto">Purchase, install, activate — it's that simple.</p>
+    </div>
+    <div class="grid sm:grid-cols-3 gap-8">
+      <!-- Step 1 -->
+      <div class="text-center">
+        <div class="w-14 h-14 bg-brand-600 text-white rounded-2xl flex items-center justify-center text-xl font-bold mx-auto mb-4 shadow-lg shadow-brand-200">
+          1
+        </div>
+        <h3 class="font-bold text-lg mb-2">Purchase a License</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">Click "Buy Now" and complete checkout via Lemon Squeezy or Paddle. Your license key is emailed instantly.</p>
+      </div>
+      <!-- Step 2 -->
+      <div class="text-center">
+        <div class="w-14 h-14 bg-brand-600 text-white rounded-2xl flex items-center justify-center text-xl font-bold mx-auto mb-4 shadow-lg shadow-brand-200">
+          2
+        </div>
+        <h3 class="font-bold text-lg mb-2">Run the Installer</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">Copy the one-liner from your email and paste it into PowerShell. It handles everything automatically.</p>
+      </div>
+      <!-- Step 3 -->
+      <div class="text-center">
+        <div class="w-14 h-14 bg-brand-600 text-white rounded-2xl flex items-center justify-center text-xl font-bold mx-auto mb-4 shadow-lg shadow-brand-200">
+          3
+        </div>
+        <h3 class="font-bold text-lg mb-2">You're Activated</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">The script captures your hardware fingerprint, activates your license, and saves a 7-day offline token.</p>
+      </div>
+    </div>
+    <!-- Code block -->
+    <div class="mt-12 max-w-2xl mx-auto">
+      <div class="bg-gray-900 rounded-2xl p-6 shadow-xl">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-3 h-3 rounded-full bg-red-500"></div>
+          <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+          <div class="w-3 h-3 rounded-full bg-green-500"></div>
+          <span class="text-gray-500 text-xs ml-2">PowerShell</span>
+        </div>
+        <code class="text-green-400 text-sm font-mono leading-relaxed block">
+          <span class="text-gray-500"># After purchase, paste this into PowerShell:</span><br>
+          powershell -ExecutionPolicy Bypass \<br>
+          &nbsp;&nbsp;-File install-client.ps1 \<br>
+          &nbsp;&nbsp;-Key <span class="text-amber-400">"PHARM-XXXX-XXXX-XXXX"</span>
+        </code>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Pricing ─────────────────────────────────────────────────────── -->
+<section id="pricing" class="py-20 sm:py-28 px-4">
+  <div class="max-w-4xl mx-auto">
+    <div class="text-center mb-14">
+      <h2 class="text-3xl sm:text-4xl font-bold mb-4">Simple, One-Time Pricing</h2>
+      <p class="text-gray-500 max-w-xl mx-auto">No subscriptions. No hidden fees. Pay once, use forever.</p>
+    </div>
+    <div class="max-w-md mx-auto">
+      <div class="bg-white rounded-3xl shadow-xl border-2 border-brand-200 p-8 relative overflow-hidden">
+        <div class="absolute top-0 right-0 bg-brand-600 text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl">
+          MOST POPULAR
+        </div>
+        <div class="text-center mb-6">
+          <h3 class="text-xl font-bold mb-1">PharmacyPro License</h3>
+          <p class="text-sm text-gray-500">Single-device license key</p>
+        </div>
+        <div class="text-center mb-6">
+          <div class="text-5xl font-extrabold text-brand-700">$50</div>
+          <div class="text-sm text-gray-500 mt-1">one-time purchase</div>
+        </div>
+        <ul class="space-y-3 mb-8">
+          <li class="flex items-center gap-3 text-sm">
+            <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+            </svg>
+            Hardware-bound to one machine
+          </li>
+          <li class="flex items-center gap-3 text-sm">
+            <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+            </svg>
+            7-day offline grace period
+          </li>
+          <li class="flex items-center gap-3 text-sm">
+            <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+            </svg>
+            Instant email delivery
+          </li>
+          <li class="flex items-center gap-3 text-sm">
+            <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+            </svg>
+            Self-service device reset (30-day cooldown)
+          </li>
+          <li class="flex items-center gap-3 text-sm">
+            <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+            </svg>
+            Full admin dashboard access
+          </li>
+        </ul>
+        <a href="https://pharmacopro.lemonsqueezy.com/checkout/buy/YOUR_VARIANT_ID"
+           class="block w-full py-3.5 bg-brand-600 text-white text-center font-bold rounded-xl hover:bg-brand-700 transition shadow-lg shadow-brand-200 text-lg">
+          Buy Now
+        </a>
+        <p class="text-center text-xs text-gray-400 mt-4">Secure checkout via Lemon Squeezy</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ──────────────────────────────────────────────────────── -->
+<footer class="border-t border-gray-100 py-12 px-4">
+  <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div class="flex items-center gap-2 text-gray-400 text-sm">
+      <div class="w-6 h-6 bg-brand-100 rounded flex items-center justify-center">
+        <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+      </div>
+      PharmacyPro &copy; 2026
+    </div>
+    <div class="flex items-center gap-6 text-sm text-gray-400">
+      <a href="/portal" class="hover:text-brand-600 transition">License Portal</a>
+      <a href="/admin" class="hover:text-brand-600 transition">Admin</a>
+    </div>
+  </div>
+</footer>
+
+<!-- ── Scroll Animations ──────────────────────────────────────────── -->
+<script>
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>

@@ -7,3 +7,9 @@ dist/
 *.db
 .license_cache
 .env
+.env.local
+.vercel
+.env*
+dev_config.json
+hwid-client/target/
+.idea/

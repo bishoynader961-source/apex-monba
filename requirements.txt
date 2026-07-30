@@ -1,4 +1,4 @@
-customtkinter
-pillow
-python-barcode
-requests
+# Core dependency for license activation network calls
+requests>=2.31,<3.0
+# Signed cache tokens for offline license grace period
+itsdangerous>=2.1,<3.0

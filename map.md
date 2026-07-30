@@ -4,7 +4,7 @@
 
 > **Source of Truth:** [`PROJECT_MAP.md`](PROJECT_MAP.md) — full architectural details, schema blueprints, and component impact analysis.
 
-> **Last synced:** 2026-07-15
+> **Last synced:** 2026-07-19
 
 ---
 
@@ -31,8 +31,12 @@
 | M43 | Date Filter for Shipment History (date entry + Filter/Clear buttons) | Complete |
 | M44 | Bulk Add from Add Product Tab (BulkAddModal — serialize N boxes in one click) | Complete |
 | M45 | Bulk Print Tags + Save to Queue (BulkAddModal dual-path: direct save or queue; batch label printing) | Complete |
+| M46 | License Gate — Client-Side (hardware fingerprinting, 24h offline cache, blocking startup window) | Complete |
+| M47 | License Server — Backend (Vercel serverless, Upstash Redis, Lemon Squeezy webhook) | Complete |
+| M48 | Landing Page — GitHub Pages (dark-themed responsive site, Tailwind CSS, ad placeholders) | Complete |
+| M50 | Batch-Aware Selling (flat inventory, barcode-based stock deduction, cart dedup by batch) | Complete |
 
-**All milestones M1–M35 verified and complete.**
+**All milestones M1–M50 verified and complete.**
 
 ---
 
@@ -42,7 +46,7 @@
 
 - **Schema Guard:** `init_db()` creates all tables, runs `ALTER TABLE` migrations, validates column presence via `PRAGMA table_info` after migration.
 - **Serialization:** `add_product()` inserts one serialized row per box. `receive_inventory_atomically()` wraps N product inserts + 1 receiving_log entry in a single `BEGIN/COMMIT/ROLLBACK` transaction.
-- **Core queries:** `get_grouped_products()` uses `GROUP BY name` with `COUNT(*)` for box-level inventory display.
+- **Core queries:** `get_grouped_products()` uses `GROUP BY name` with `COUNT(*)` for box-level inventory display. `get_all_in_stock_batches()` returns flat batch-level rows for the inventory treeview. `search_all_batches()` provides fuzzy search across all batch fields.
 - **Cascade:** `update_product_full()` propagates vendor/name changes to `receiving_log` via `WHERE barcode = ?`.
 
 ### `migrate_data.py` — Migration Utility
@@ -63,7 +67,7 @@
 
 ---
 
-_No remaining TODO items. All planned features complete._
+_All planned features complete. Licensing system deployed to Vercel (backend) and GitHub Pages (landing page). Desktop activation gate ships with the app._
 
 ---
 

@@ -2,6 +2,5 @@
     "pharmacy_name": "My Pharmacy",
     "font_size": 20,
     "include_price": true,
-    "db_path": "pharmacy.db",
-    "license_key": ""
+    "db_path": "pharmacy.db"
 }

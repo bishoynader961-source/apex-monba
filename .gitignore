@@ -13,3 +13,6 @@ dist/
 dev_config.json
 hwid-client/target/
 .idea/
+.next/
+node_modules/
+labels/

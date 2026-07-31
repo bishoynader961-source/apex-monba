@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PharmacyPro — Admin Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+  .fade-in { animation: fadeIn .2s ease-in; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  #login-box { max-width: 380px; }
+  #dashboard { display: none; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+
+<!-- ── Login Screen ─────────────────────────────────────────────── -->
+<div id="login-box" class="mx-auto mt-32 p-8 bg-white rounded-xl shadow-lg border border-gray-200">
+  <h1 class="text-2xl font-bold text-center mb-1">PharmacyPro</h1>
+  <p class="text-gray-500 text-center text-sm mb-6">Admin Dashboard</p>
+  <label class="block text-sm font-medium text-gray-700 mb-1">Admin Secret</label>
+  <input id="secret-input" type="password" placeholder="Enter admin secret"
+         class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none mb-4">
+  <button id="login-btn" onclick="login()"
+          class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-medium transition">
+    Sign In
+  </button>
+  <p id="login-error" class="text-red-600 text-sm mt-3 hidden text-center"></p>
+</div>
+
+<!-- ── Dashboard ────────────────────────────────────────────────── -->
+<div id="dashboard" class="max-w-7xl mx-auto px-4 py-8">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="text-2xl font-bold">License Dashboard</h1>
+      <p class="text-gray-500 text-sm" id="server-url"></p>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="refreshAll()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition">
+        Refresh
+      </button>
+      <button onclick="logout()" class="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition">
+        Sign Out
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div id="stats-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8"></div>
+
+  <!-- Search & Filters -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+    <div class="flex flex-col sm:flex-row gap-3">
+      <input id="search-input" type="text" placeholder="Search by key or email..."
+             class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+             onkeyup="if(event.key==='Enter')loadLicenses()">
+      <select id="status-filter" class="px-4 py-2 border rounded-lg text-sm bg-white"
+              onchange="loadLicenses()">
+        <option value="all">All Status</option>
+        <option value="active">Active</option>
+        <option value="expired">Expired</option>
+        <option value="revoked">Revoked</option>
+      </select>
+      <button onclick="loadLicenses()" class="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition">
+        Search
+      </button>
+    </div>
+  </div>
+
+  <!-- Licenses Table -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+    <div class="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
+      <h2 class="font-semibold text-sm" id="table-title">Licenses</h2>
+      <span class="text-xs text-gray-500" id="table-count"></span>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b text-left">
+          <tr>
+            <th class="px-4 py-3 font-medium text-gray-600">License Key</th>
+            <th class="px-4 py-3 font-medium text-gray-600">Email</th>
+            <th class="px-4 py-3 font-medium text-gray-600">HWID</th>
+            <th class="px-4 py-3 font-medium text-gray-600">Status</th>
+            <th class="px-4 py-3 font-medium text-gray-600">Created</th>
+            <th class="px-4 py-3 font-medium text-gray-600">Expires</th>
+            <th class="px-4 py-3 font-medium text-gray-600 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="licenses-body" class="divide-y divide-gray-100">
+          <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- Pagination -->
+    <div class="px-4 py-3 border-t bg-gray-50 flex items-center justify-between">
+      <button id="prev-btn" onclick="prevPage()" disabled
+              class="px-3 py-1 text-sm rounded border bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+        Previous
+      </button>
+      <span class="text-sm text-gray-600" id="page-info"></span>
+      <button id="next-btn" onclick="nextPage()" disabled
+              class="px-3 py-1 text-sm rounded border bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+        Next
+      </button>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="px-4 py-3 border-b bg-gray-50">
+      <h2 class="font-semibold text-sm">Recent Activity</h2>
+    </div>
+    <div id="activity-list" class="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+      <div class="px-4 py-6 text-center text-gray-400 text-sm">Loading...</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Reset HWID Modal ─────────────────────────────────────────── -->
+<div id="reset-modal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 hidden">
+  <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4 fade-in">
+    <h3 class="text-lg font-bold mb-2">Reset HWID Binding</h3>
+    <p class="text-sm text-gray-600 mb-1">License:</p>
+    <p class="font-mono text-sm bg-gray-100 px-3 py-2 rounded mb-4" id="modal-key"></p>
+    <p class="text-sm text-gray-600 mb-4">This will unbind the license from the current machine. The customer will need to reactivate.</p>
+    <div class="flex gap-3 justify-end">
+      <button onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg border hover:bg-gray-50 transition">Cancel</button>
+      <button id="confirm-reset-btn" onclick="confirmReset()" class="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 font-medium transition">
+        Reset HWID
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ────────────────────────────────────────────────────── -->
+<div id="toast" class="fixed bottom-6 right-6 px-5 py-3 rounded-xl shadow-lg text-sm font-medium hidden fade-in z-50"></div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────
+const API = "https://inventory1app1nn.pythonanywhere.com";
+let SECRET = "";
+let currentPage = 1;
+let totalPages = 1;
+let resetTarget = "";
+
+// ── Auth ──────────────────────────────────────────────────────────────
+function login() {
+  SECRET = document.getElementById("secret-input").value.trim();
+  if (!SECRET) return;
+  fetchStats().then(ok => {
+    if (ok) {
+      document.getElementById("login-box").style.display = "none";
+      document.getElementById("dashboard").style.display = "block";
+      document.getElementById("server-url").textContent = API;
+      refreshAll();
+    } else {
+      const el = document.getElementById("login-error");
+      el.textContent = "Invalid secret or server unreachable.";
+      el.classList.remove("hidden");
+    }
+  });
+}
+
+function logout() {
+  SECRET = "";
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("login-box").style.display = "block";
+  document.getElementById("secret-input").value = "";
+  document.getElementById("login-error").classList.add("hidden");
+}
+
+// ── API Helpers ───────────────────────────────────────────────────────
+function headers() { return { "X-Admin-Secret": SECRET, "Content-Type": "application/json" }; }
+
+async function apiFetch(path) {
+  try {
+    const r = await fetch(`${API}${path}`, { headers: headers() });
+    if (r.status === 401) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+async function apiPost(path, body) {
+  try {
+    const r = await fetch(`${API}${path}`, { method: "POST", headers: headers(), body: JSON.stringify(body) });
+    return await r.json();
+  } catch { return null; }
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────
+async function fetchStats() {
+  const d = await apiFetch("/admin/api/stats");
+  if (!d) return false;
+  const grid = document.getElementById("stats-grid");
+  const cards = [
+    { label: "Total", value: d.total, color: "bg-gray-100 text-gray-800" },
+    { label: "Active", value: d.active, color: "bg-green-50 text-green-700" },
+    { label: "Bound", value: d.bound, color: "bg-blue-50 text-blue-700" },
+    { label: "Expired", value: d.expired, color: "bg-amber-50 text-amber-700" },
+    { label: "Last 7d", value: d.last_7_days, color: "bg-purple-50 text-purple-700" },
+    { label: "Last 24h", value: d.last_24_hours, color: "bg-cyan-50 text-cyan-700" },
+  ];
+  grid.innerHTML = cards.map(c => `
+    <div class="${c.color} rounded-xl p-4 text-center">
+      <div class="text-2xl font-bold">${c.value}</div>
+      <div class="text-xs font-medium mt-1 opacity-75">${c.label}</div>
+    </div>`).join("");
+  return true;
+}
+
+// ── Licenses ──────────────────────────────────────────────────────────
+async function loadLicenses(page) {
+  if (page !== undefined) currentPage = page;
+  const q = document.getElementById("search-input").value;
+  const s = document.getElementById("status-filter").value;
+  const params = new URLSearchParams({ page: currentPage, per_page: 20, status: s });
+  if (q) params.set("q", q);
+  const d = await apiFetch(`/admin/api/licenses?${params}`);
+  if (!d) return;
+  totalPages = d.pages;
+  document.getElementById("table-count").textContent = `${d.total} total`;
+  document.getElementById("page-info").textContent = `Page ${d.page} of ${d.pages}`;
+  document.getElementById("prev-btn").disabled = d.page <= 1;
+  document.getElementById("next-btn").disabled = d.page >= d.pages;
+  const tbody = document.getElementById("licenses-body");
+  if (!d.licenses.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No licenses found</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = d.licenses.map(r => {
+    const hwidShort = r.hwid ? r.hwid.substring(0, 16) + "..." : "—";
+    const statusBadge = r.status === "active"
+      ? (isExpired(r.expires_at) ? badge("expired") : badge("active"))
+      : badge(r.status);
+    const created = fmtDate(r.created_at);
+    const expires = fmtDate(r.expires_at);
+    return `<tr class="hover:bg-gray-50 transition">
+      <td class="px-4 py-3 font-mono text-xs">${esc(r.license_key)}</td>
+      <td class="px-4 py-3 text-sm">${esc(r.email || "—")}</td>
+      <td class="px-4 py-3 font-mono text-xs" title="${esc(r.hwid || '')}">${hwidShort}</td>
+      <td class="px-4 py-3">${statusBadge}</td>
+      <td class="px-4 py-3 text-xs text-gray-500">${created}</td>
+      <td class="px-4 py-3 text-xs text-gray-500">${expires}</td>
+      <td class="px-4 py-3 text-right">
+        <button onclick="openReset('${esc(r.license_key)}')"
+                class="text-xs px-3 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition font-medium">
+          Reset HWID
+        </button>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+function prevPage() { if (currentPage > 1) loadLicenses(currentPage - 1); }
+function nextPage() { if (currentPage < totalPages) loadLicenses(currentPage + 1); }
+
+// ── Activity ──────────────────────────────────────────────────────────
+async function loadActivity() {
+  const d = await apiFetch("/admin/api/activity");
+  if (!d) return;
+  const el = document.getElementById("activity-list");
+  if (!d.activity.length) {
+    el.innerHTML = `<div class="px-4 py-6 text-center text-gray-400 text-sm">No activity yet</div>`;
+    return;
+  }
+  el.innerHTML = d.activity.map(r => {
+    const action = r.hwid ? "bound" : (r.activated_at ? "activated" : "created");
+    const actionColor = { bound: "text-blue-600", activated: "text-green-600", created: "text-gray-500" }[action];
+    return `<div class="px-4 py-3 flex items-center gap-3 hover:bg-gray-50">
+      <span class="w-2 h-2 rounded-full ${actionColor.replace('text-','bg-')} flex-shrink-0"></span>
+      <div class="flex-1 min-w-0">
+        <span class="font-mono text-xs">${esc(r.license_key)}</span>
+        <span class="text-gray-400 mx-1">·</span>
+        <span class="text-sm">${esc(r.email || "—")}</span>
+      </div>
+      <span class="text-xs ${actionColor} font-medium flex-shrink-0">${action}</span>
+      <span class="text-xs text-gray-400 flex-shrink-0">${fmtDate(r.created_at)}</span>
+    </div>`;
+  }).join("");
+}
+
+// ── HWID Reset ────────────────────────────────────────────────────────
+function openReset(key) {
+  resetTarget = key;
+  document.getElementById("modal-key").textContent = key;
+  document.getElementById("reset-modal").classList.remove("hidden");
+}
+
+function closeModal() {
+  document.getElementById("reset-modal").classList.add("hidden");
+  resetTarget = "";
+}
+
+async function confirmReset() {
+  const btn = document.getElementById("confirm-reset-btn");
+  btn.disabled = true;
+  btn.textContent = "Resetting...";
+  const r = await apiPost("/admin/api/reset-hwid", { license_key: resetTarget });
+  btn.disabled = false;
+  btn.textContent = "Reset HWID";
+  closeModal();
+  if (r && r.status === "ok") {
+    toast("HWID reset for " + resetTarget, "green");
+    refreshAll();
+  } else {
+    toast(r?.error || "Reset failed", "red");
+  }
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────
+function refreshAll() { fetchStats(); loadLicenses(1); loadActivity(); }
+function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+function fmtDate(iso) { if (!iso) return "—"; const d = new Date(iso); return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
+function isExpired(iso) { return iso && new Date(iso) < new Date(); }
+function badge(status) {
+  const colors = { active: "bg-green-100 text-green-700", expired: "bg-amber-100 text-amber-700", revoked: "bg-red-100 text-red-700" };
+  return `<span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] || 'bg-gray-100 text-gray-600'}">${status}</span>`;
+}
+function toast(msg, color) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = `fixed bottom-6 right-6 px-5 py-3 rounded-xl shadow-lg text-sm font-medium z-50 fade-in ${
+    color === "green" ? "bg-green-600 text-white" : "bg-red-600 text-white"}`;
+  el.classList.remove("hidden");
+  setTimeout(() => el.classList.add("hidden"), 3000);
+}
+
+// Enter key on login
+document.getElementById("secret-input").addEventListener("keydown", e => { if (e.key === "Enter") login(); });
+</script>
+</body>
+</html>

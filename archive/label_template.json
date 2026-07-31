@@ -1,0 +1,75 @@
+{
+  "canvas_width": 400,
+  "canvas_height": 100,
+  "elements": [
+    {
+      "id": "a1297aa5",
+      "type": "barcode",
+      "x": 199.0,
+      "y": 13.0,
+      "width": 173,
+      "height": 53,
+      "props": {
+        "data": "{{BARCODE}}",
+        "show_text": true,
+        "barcode_type": "code128"
+      }
+    },
+    {
+      "id": "73d55fee",
+      "type": "text",
+      "x": 0,
+      "y": 4.0,
+      "width": 111,
+      "height": 30,
+      "props": {
+        "text": "{{NAME}}",
+        "font": "Arial",
+        "font_size": 16,
+        "color": "#000000"
+      }
+    },
+    {
+      "id": "b2a9a54a",
+      "type": "text",
+      "x": 129.0,
+      "y": 6.0,
+      "width": 65,
+      "height": 30,
+      "props": {
+        "text": "{{PRICE}}",
+        "font": "Arial",
+        "font_size": 14,
+        "color": "#000000"
+      }
+    },
+    {
+      "id": "2d0cd876",
+      "type": "text",
+      "x": 126.0,
+      "y": 69.0,
+      "width": 116,
+      "height": 30,
+      "props": {
+        "text": "Exp: {{EXPIRY}}",
+        "font": "Arial",
+        "font_size": 11,
+        "color": "#666666"
+      }
+    },
+    {
+      "id": "4e8f1c92",
+      "type": "text",
+      "x": 9.0,
+      "y": 70,
+      "width": 112,
+      "height": 30,
+      "props": {
+        "text": "Mfg: {{MFG_DATE}}",
+        "font": "Arial",
+        "font_size": 11,
+        "color": "#666666"
+      }
+    }
+  ]
+}

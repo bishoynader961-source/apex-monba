@@ -1,0 +1,15 @@
+{
+    "pharmacy_name": "My Pharmacy",
+    "font_size": 20,
+    "include_price": true,
+    "db_path": "pharmacy.db",
+    "license_key": "",
+    "expiry_alarm_days": 50,
+    "expiry_ignore_list": [
+        "paracetamol"
+    ],
+    "address": "",
+    "phone": "",
+    "tax_rate": 0.0,
+    "low_stock_threshold": 5
+}

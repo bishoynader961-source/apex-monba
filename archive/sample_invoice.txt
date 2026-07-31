@@ -1,0 +1,32 @@
+INVOICE #99824
+Supplier: Apex Medical & Dental Wholesalers
+Date: 2026-07-31
+
+Items Received:
+1. Amoxicillin 500mg Capsules
+   Active Ingredient: Amoxicillin Trihydrate
+   Dosage: 500 mg
+   Qty: 100 boxes
+   Batch: AMX-2026-X8
+   Expiry: 2028-12-01
+
+2. Lidocaine HCl 2% with Epinephrine 1:100,000
+   Active Ingredient: Lidocaine Hydrochloride / Epinephrine
+   Dosage: 20 mg/mL
+   Qty: 50 cartridge boxes
+   Batch: LIDO-88A-2026
+   Expiry: 2027-06-15
+
+3. Paracetamol Extra 500/65mg
+   Active Ingredient: Paracetamol / Caffeine
+   Dosage: 500mg + 65mg
+   Qty: 250 packs
+   Batch: PCM-40912
+   Expiry: 2029-01-30
+
+4. Metformin HCl 850mg Tablets
+   Active Ingredient: Metformin Hydrochloride
+   Dosage: 850 mg film-coated tablets
+   Qty: 200 bottles
+   Batch: MET-7712-Q
+   Expiry: 2028-03-15

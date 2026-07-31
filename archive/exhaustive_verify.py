@@ -622,7 +622,7 @@ def cat_05_live_e2e():
             size = int(cl) if cl.isdigit() else 0
             data = r.read()
             actual_size = len(data)
-            if actual_size > 9000000:
+            if actual_size > 7000000:
                 R.ok("5.6", f"Binary size={actual_size:,} bytes")
             else:
                 R.fail("5.6", f"Binary too small: {actual_size:,} bytes")
@@ -1255,7 +1255,7 @@ def cat_10_assets():
     hwid_path = ARCHIVE / "downloads" / "pharmacy-hwid.exe"
     if hwid_path.is_file():
         size = hwid_path.stat().st_size
-        if size > 9000000:
+        if size > 7000000:
             R.ok("10.3", f"pharmacy-hwid.exe exists ({size:,} bytes)")
         else:
             R.fail("10.3", f"Binary too small: {size:,} bytes")

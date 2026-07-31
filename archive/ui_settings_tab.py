@@ -6,6 +6,7 @@ import json
 import database
 import barcode_logic
 import audit_log
+import i18n
 from ui_helpers import apply_treeview_style
 import backup
 
@@ -85,62 +86,131 @@ class AuditLogViewer(ctk.CTkToplevel):
 def setup_settings_tab(self):
     self.tab_settings.grid_columnconfigure((0, 1), weight=1)
 
-    title_label = ctk.CTkLabel(self.tab_settings, text="Application Settings", font=ctk.CTkFont(size=24, weight="bold"))
+    title_label = ctk.CTkLabel(self.tab_settings, text=i18n.t("settings"), font=ctk.CTkFont(size=24, weight="bold"))
     title_label.grid(row=0, column=0, columnspan=3, padx=20, pady=(20, 30))
 
     config = barcode_logic.load_config()
 
-    name_label = ctk.CTkLabel(self.tab_settings, text="Pharmacy Name:", anchor="w")
+    name_label = ctk.CTkLabel(self.tab_settings, text=i18n.t("pharmacy_name") + ":", anchor="w")
     name_label.grid(row=1, column=0, padx=(100, 10), pady=10, sticky="w")
     self.set_name_entry = ctk.CTkEntry(self.tab_settings, width=300)
     self.set_name_entry.insert(0, config.get("pharmacy_name", "My Pharmacy"))
     self.set_name_entry.grid(row=1, column=1, padx=(10, 100), pady=10, sticky="w")
 
-    addr_label = ctk.CTkLabel(self.tab_settings, text="Address:", anchor="w")
+    addr_label = ctk.CTkLabel(self.tab_settings, text=i18n.t("supplier_address") + ":", anchor="w")
     addr_label.grid(row=2, column=0, padx=(100, 10), pady=10, sticky="w")
     self.set_address_entry = ctk.CTkEntry(self.tab_settings, width=300)
     self.set_address_entry.insert(0, config.get("address", ""))
     self.set_address_entry.grid(row=2, column=1, padx=(10, 100), pady=10, sticky="w")
 
-    phone_label = ctk.CTkLabel(self.tab_settings, text="Phone Number:", anchor="w")
+    phone_label = ctk.CTkLabel(self.tab_settings, text=i18n.t("contact_phone") + ":", anchor="w")
     phone_label.grid(row=3, column=0, padx=(100, 10), pady=10, sticky="w")
     self.set_phone_entry = ctk.CTkEntry(self.tab_settings, width=300)
     self.set_phone_entry.insert(0, config.get("phone", ""))
     self.set_phone_entry.grid(row=3, column=1, padx=(10, 100), pady=10, sticky="w")
 
-    tax_label = ctk.CTkLabel(self.tab_settings, text="Default Tax Rate (%):", anchor="w")
+    tax_label = ctk.CTkLabel(self.tab_settings, text=i18n.t("tax") + " (%):", anchor="w")
     tax_label.grid(row=4, column=0, padx=(100, 10), pady=10, sticky="w")
     self.set_tax_entry = ctk.CTkEntry(self.tab_settings, width=300)
     self.set_tax_entry.insert(0, str(config.get("tax_rate", 0.0)))
     self.set_tax_entry.grid(row=4, column=1, padx=(10, 100), pady=10, sticky="w")
 
-    font_label = ctk.CTkLabel(self.tab_settings, text="Pharmacy Name Font Size:", anchor="w")
+    font_label = ctk.CTkLabel(self.tab_settings, text=i18n.t("pharmacy_name") + " " + i18n.t("font_size") + ":", anchor="w")
     font_label.grid(row=5, column=0, padx=(100, 10), pady=10, sticky="w")
     self.set_font_entry = ctk.CTkEntry(self.tab_settings, width=300)
     self.set_font_entry.insert(0, str(config.get("font_size", 20)))
     self.set_font_entry.grid(row=5, column=1, padx=(10, 100), pady=10, sticky="w")
 
     self.set_price_var = ctk.BooleanVar(value=config.get("include_price", True))
-    self.set_price_check = ctk.CTkCheckBox(self.tab_settings, text="Include Price on Label", variable=self.set_price_var)
+    self.set_price_check = ctk.CTkCheckBox(self.tab_settings, text=i18n.t("include_price_on_label"), variable=self.set_price_var)
     self.set_price_check.grid(row=6, column=0, columnspan=3, pady=20)
 
-    db_label = ctk.CTkLabel(self.tab_settings, text="Database Path:", anchor="w")
+    db_label = ctk.CTkLabel(self.tab_settings, text=i18n.t("database_path") + ":", anchor="w")
     db_label.grid(row=7, column=0, padx=(100, 10), pady=10, sticky="w")
     self.set_db_entry = ctk.CTkEntry(self.tab_settings, width=300)
     self.set_db_entry.insert(0, config.get("db_path", "pharmacy.db"))
     self.set_db_entry.grid(row=7, column=1, padx=(10, 10), pady=10, sticky="w")
 
-    browse_btn = ctk.CTkButton(self.tab_settings, text="Browse...", width=100, command=self.browse_db_path)
+    browse_btn = ctk.CTkButton(self.tab_settings, text=i18n.t("browse"), width=100, command=self.browse_db_path)
     browse_btn.grid(row=7, column=2, padx=(0, 100), sticky="w")
 
-    expiry_alarm_label = ctk.CTkLabel(self.tab_settings, text="Expiry Alarm Threshold (days):", anchor="w")
+    # ── PostgreSQL Multi-PC Section ────────────────────────────────────
+    pg_header = ctk.CTkFrame(self.tab_settings, fg_color="#1a1a2e", corner_radius=8)
+    pg_header.grid(row=11, column=0, columnspan=3, padx=100, pady=(15, 5), sticky="ew")
+
+    ctk.CTkLabel(pg_header, text="  POSTGRESQL MULTI-PC SYNC",
+                 font=ctk.CTkFont(size=11, weight="bold"),
+                 text_color="#a78bfa", anchor="w").pack(fill="x", padx=10, pady=6)
+
+    pg_frame = ctk.CTkFrame(self.tab_settings, fg_color="transparent")
+    pg_frame.grid(row=12, column=0, columnspan=3, padx=100, pady=(0, 10), sticky="ew")
+    pg_frame.grid_columnconfigure(1, weight=1)
+
+    ctk.CTkLabel(pg_frame, text="Database URL:", anchor="w", width=120).grid(
+        row=0, column=0, padx=(0, 8), pady=4, sticky="w")
+    self.set_db_url_entry = ctk.CTkEntry(pg_frame, width=400,
+                                         placeholder_text="postgresql://user:pass@host:5432/pharmacy")
+    self.set_db_url_entry.grid(row=0, column=1, columnspan=2, pady=4, sticky="ew")
+
+    ctk.CTkLabel(pg_frame, text="Host:", anchor="w", width=120).grid(
+        row=1, column=0, padx=(0, 8), pady=4, sticky="w")
+    self.set_pg_host = ctk.CTkEntry(pg_frame, width=200, placeholder_text="localhost")
+    self.set_pg_host.grid(row=1, column=1, pady=4, sticky="ew")
+
+    ctk.CTkLabel(pg_frame, text="Port:", anchor="w", width=120).grid(
+        row=2, column=0, padx=(0, 8), pady=4, sticky="w")
+    self.set_pg_port = ctk.CTkEntry(pg_frame, width=100, placeholder_text="5432")
+    self.set_pg_port.grid(row=2, column=1, pady=4, sticky="w")
+
+    ctk.CTkLabel(pg_frame, text="Database:", anchor="w", width=120).grid(
+        row=3, column=0, padx=(0, 8), pady=4, sticky="w")
+    self.set_pg_dbname = ctk.CTkEntry(pg_frame, width=200, placeholder_text="pharmacy")
+    self.set_pg_dbname.grid(row=3, column=1, pady=4, sticky="ew")
+
+    ctk.CTkLabel(pg_frame, text="User:", anchor="w", width=120).grid(
+        row=4, column=0, padx=(0, 8), pady=4, sticky="w")
+    self.set_pg_user = ctk.CTkEntry(pg_frame, width=200, placeholder_text="postgres")
+    self.set_pg_user.grid(row=4, column=1, pady=4, sticky="ew")
+
+    ctk.CTkLabel(pg_frame, text="Password:", anchor="w", width=120).grid(
+        row=5, column=0, padx=(0, 8), pady=4, sticky="w")
+    self.set_pg_pass = ctk.CTkEntry(pg_frame, width=200, show="*",
+                                    placeholder_text="(leave blank for no password)")
+    self.set_pg_pass.grid(row=5, column=1, pady=4, sticky="ew")
+
+    ctk.CTkLabel(pg_frame, text="SSL Mode:", anchor="w", width=120).grid(
+        row=6, column=0, padx=(0, 8), pady=4, sticky="w")
+    self.set_pg_ssl = ctk.CTkComboBox(pg_frame, width=200, state="normal",
+                                       values=["prefer", "require", "disable", "verify-full"])
+    self.set_pg_ssl.grid(row=6, column=1, pady=4, sticky="w")
+    self.set_pg_ssl.set("prefer")
+
+    pg_btn_row = ctk.CTkFrame(pg_frame, fg_color="transparent")
+    pg_btn_row.grid(row=7, column=0, columnspan=3, pady=(8, 0), sticky="w")
+
+    ctk.CTkButton(pg_btn_row, text="Test Connection", width=140,
+                  fg_color="#059669", hover_color="#047857",
+                  command=self._test_pg_connection).pack(side="left", padx=(0, 8))
+    ctk.CTkButton(pg_btn_row, text="Build URL from Fields", width=160,
+                  fg_color="#6366f1", hover_color="#4f46e5",
+                  command=self._build_pg_url).pack(side="left", padx=(0, 8))
+
+    self._pg_status_label = ctk.CTkLabel(pg_btn_row, text="",
+                                          font=ctk.CTkFont(size=11),
+                                          text_color="#94a3b8")
+    self._pg_status_label.pack(side="left")
+
+    # Load saved PostgreSQL fields from config
+    self._load_pg_config()
+
+    expiry_alarm_label = ctk.CTkLabel(self.tab_settings, text=i18n.t("expiry_alarm_threshold"), anchor="w")
     expiry_alarm_label.grid(row=8, column=0, padx=(100, 10), pady=10, sticky="w")
     self.set_expiry_alarm_var = ctk.StringVar(value=str(config.get("expiry_alarm_days", 50)))
     self.set_expiry_alarm_entry = ctk.CTkEntry(self.tab_settings, width=300,
                                                textvariable=self.set_expiry_alarm_var)
     self.set_expiry_alarm_entry.grid(row=8, column=1, padx=(10, 100), pady=10, sticky="w")
 
-    exclude_label = ctk.CTkLabel(self.tab_settings, text="Exclude from Expiry Alerts:", anchor="w")
+    exclude_label = ctk.CTkLabel(self.tab_settings, text=i18n.t("exclude_from_expiry_alerts"), anchor="w")
     exclude_label.grid(row=9, column=0, padx=(100, 10), pady=(10, 0), sticky="w")
     self.set_ignore_combo = ctk.CTkComboBox(self.tab_settings, width=300,
                                              state="normal",
@@ -172,26 +242,51 @@ def setup_settings_tab(self):
 
     self._refresh_ignore_list()
 
-    save_btn = ctk.CTkButton(self.tab_settings, text="Save Settings", command=self.save_settings, height=40, font=ctk.CTkFont(size=16))
-    save_btn.grid(row=11, column=0, columnspan=3, pady=20)
+    save_btn = ctk.CTkButton(self.tab_settings, text=i18n.t("save_settings"), command=self.save_settings, height=40, font=ctk.CTkFont(size=16))
+    save_btn.grid(row=17, column=0, columnspan=3, pady=20)
 
-    backup_btn = ctk.CTkButton(self.tab_settings, text="Backup Database Now", command=self.backup_database_gui, height=40, font=ctk.CTkFont(size=16), fg_color="#17a2b8", hover_color="#138496")
-    backup_btn.grid(row=12, column=0, columnspan=3, pady=10)
+    backup_btn = ctk.CTkButton(self.tab_settings, text=i18n.t("backup_database"), command=self.backup_database_gui, height=40, font=ctk.CTkFont(size=16), fg_color="#17a2b8", hover_color="#138496")
+    backup_btn.grid(row=18, column=0, columnspan=3, pady=10)
 
     audit_btn = ctk.CTkButton(self.tab_settings, text="View Audit Logs", command=self._open_audit_log_viewer, height=40, font=ctk.CTkFont(size=16), fg_color="#7c3aed", hover_color="#6d28d9")
-    audit_btn.grid(row=13, column=0, columnspan=3, pady=10)
+    audit_btn.grid(row=19, column=0, columnspan=3, pady=10)
 
-    role_label = ctk.CTkLabel(self.tab_settings, text="User Role:", anchor="w")
+    role_label = ctk.CTkLabel(self.tab_settings, text=i18n.t("user_role") + ":", anchor="w")
     role_label.grid(row=14, column=0, padx=(100, 10), pady=10, sticky="w")
-    self.role_var = ctk.StringVar(value="Admin")
+    self.role_var = ctk.StringVar(value=i18n.t("admin"))
     self.role_segmented = ctk.CTkSegmentedButton(
-        self.tab_settings, values=["Admin", "User"], variable=self.role_var,
+        self.tab_settings, values=[i18n.t("admin"), i18n.t("user")], variable=self.role_var,
         command=self._on_role_change
     )
     self.role_segmented.grid(row=14, column=1, padx=(10, 100), pady=10, sticky="w")
 
-    self.user_role = "Admin"
+    self.user_role = i18n.t("admin")
     self._update_role_controls()
+
+    lang_label = ctk.CTkLabel(self.tab_settings, text=i18n.t("language") + ":", anchor="w")
+    lang_label.grid(row=15, column=0, padx=(100, 10), pady=10, sticky="w")
+    available_langs = i18n.get_available_languages()
+    lang_display = [name for _, name in available_langs]
+    self._lang_codes = [code for code, _ in available_langs]
+    current_lang_name = dict(available_langs).get(i18n.get_language(), "English")
+    self.lang_var = ctk.StringVar(value=current_lang_name)
+    self.lang_dropdown = ctk.CTkOptionMenu(
+        self.tab_settings, variable=self.lang_var, values=lang_display,
+        command=self._on_language_change, width=200
+    )
+    self.lang_dropdown.grid(row=15, column=1, padx=(10, 100), pady=10, sticky="w")
+
+
+def _on_language_change(self, choice):
+    available = i18n.get_available_languages()
+    code_map = {name: code for code, name in available}
+    new_code = code_map.get(choice)
+    if new_code and new_code != i18n.get_language():
+        i18n.set_language(new_code)
+        messagebox.showinfo(
+            i18n.t("language_changed"),
+            i18n.t("restart_required")
+        )
 
 
 def browse_db_path(self):
@@ -208,7 +303,7 @@ def _on_role_change(self, value):
 
 
 def _update_role_controls(self):
-    is_admin = self.user_role == "Admin"
+    is_admin = self.user_role == i18n.t("admin")
     try:
         if hasattr(self, 'btn_sell'):
             self.btn_sell.configure(state="normal" if is_admin else "disabled")
@@ -283,6 +378,60 @@ def _refresh_ignore_list(self):
         self.set_ignore_combo.configure(values=current_names)
 
 
+def _load_pg_config(self):
+    """Load saved PostgreSQL connection fields from config.json."""
+    config = barcode_logic.load_config()
+    self.set_db_url_entry.delete(0, "end")
+    self.set_db_url_entry.insert(0, config.get("database_url", ""))
+    self.set_pg_host.delete(0, "end")
+    self.set_pg_host.insert(0, config.get("pg_host", "localhost"))
+    self.set_pg_port.delete(0, "end")
+    self.set_pg_port.insert(0, config.get("pg_port", "5432"))
+    self.set_pg_dbname.delete(0, "end")
+    self.set_pg_dbname.insert(0, config.get("pg_dbname", "pharmacy"))
+    self.set_pg_user.delete(0, "end")
+    self.set_pg_user.insert(0, config.get("pg_user", "postgres"))
+    self.set_pg_pass.delete(0, "end")
+    self.set_pg_pass.insert(0, config.get("pg_password", ""))
+    ssl_val = config.get("pg_ssl", "prefer")
+    self.set_pg_ssl.set(ssl_val)
+
+
+def _build_pg_url(self):
+    """Construct a PostgreSQL URL from the individual fields."""
+    host = self.set_pg_host.get().strip() or "localhost"
+    port = self.set_pg_port.get().strip() or "5432"
+    dbname = self.set_pg_dbname.get().strip() or "pharmacy"
+    user = self.set_pg_user.get().strip() or "postgres"
+    password = self.set_pg_pass.get().strip()
+    ssl = self.set_pg_ssl.get().strip() or "prefer"
+
+    if password:
+        url = f"postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode={ssl}"
+    else:
+        url = f"postgresql://{user}@{host}:{port}/{dbname}?sslmode={ssl}"
+
+    self.set_db_url_entry.delete(0, "end")
+    self.set_db_url_entry.insert(0, url)
+    self._pg_status_label.configure(text="URL built from fields.", text_color="#22c55e")
+
+
+def _test_pg_connection(self):
+    """Test the PostgreSQL connection using the current URL field."""
+    import db as _db
+    url = self.set_db_url_entry.get().strip()
+    if not url:
+        self._pg_status_label.configure(text="Enter a Database URL first.", text_color="#ef4444")
+        return
+    result = _db.test_connection(url)
+    if result["ok"]:
+        self._pg_status_label.configure(
+            text=f"Connected to {result['backend']}!", text_color="#22c55e")
+    else:
+        self._pg_status_label.configure(
+            text=f"Failed: {result['error'][:60]}", text_color="#ef4444")
+
+
 def save_settings(self):
     new_name = self.set_name_entry.get().strip()
     new_address = self.set_address_entry.get().strip()
@@ -330,12 +479,25 @@ def save_settings(self):
         "include_price": include_price,
         "db_path": new_db_path or "pharmacy.db",
         "expiry_alarm_days": new_alarm_days,
-        "expiry_ignore_list": config.get("expiry_ignore_list", [])
+        "expiry_ignore_list": config.get("expiry_ignore_list", []),
+        "database_url": self.set_db_url_entry.get().strip(),
+        "pg_host": self.set_pg_host.get().strip(),
+        "pg_port": self.set_pg_port.get().strip(),
+        "pg_dbname": self.set_pg_dbname.get().strip(),
+        "pg_user": self.set_pg_user.get().strip(),
+        "pg_password": self.set_pg_pass.get().strip(),
+        "pg_ssl": self.set_pg_ssl.get().strip(),
     }
 
     try:
         with open(barcode_logic.CONFIG_FILE, "w") as f:
             json.dump(new_config, f, indent=4)
+
+        # Reconnect to database (switches to PostgreSQL if URL was set)
+        db_url = new_config.get("database_url", "")
+        if db_url:
+            import db as _db
+            _db.reconnect_db(db_url)
 
         database.init_db()
 

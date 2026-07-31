@@ -93,7 +93,7 @@ def build(debug: bool = False, icon_path: str | None = None):
     """Run PyInstaller with the correct configuration."""
     archive_dir = os.path.dirname(os.path.abspath(__file__))
     entry_point = os.path.join(archive_dir, "main_app.py")
-    output_name = "PharmacyManagementSystem"
+    output_name = "PharmacyPro_Enterprise"
     pyinstaller = _find_pyinstaller()
 
     if not os.path.isfile(entry_point):
@@ -159,6 +159,11 @@ def build(debug: bool = False, icon_path: str | None = None):
         "excel_handler",
         "pos_engine",
         "receipt_template",
+        "smart_parser",
+        "auto_extract",
+        "i18n",
+        "db",
+        "barcode_listener",
     ]
     for h in hidden:
         cmd.extend(["--hidden-import", h])
@@ -173,6 +178,16 @@ def build(debug: bool = False, icon_path: str | None = None):
             else:
                 sep = ":"
             data_files.append(f"--add-data={fpath}{sep}.")
+
+    # Bundle i18n locale files
+    locales_dir = os.path.join(archive_dir, "locales")
+    if os.path.isdir(locales_dir):
+        if sys.platform == "win32":
+            sep = ";"
+        else:
+            sep = ":"
+        data_files.append(f"--add-data={locales_dir}{sep}locales")
+
     cmd.extend(data_files)
 
     print(f"[BUILD] Running: {' '.join(cmd)}")

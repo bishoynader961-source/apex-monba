@@ -1,0 +1,251 @@
+name: AI Debug Agent
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+  contents: write
+
+jobs:
+  ai-debug:
+    if: github.event.label.name == 'automated-crash'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch issue details
+        id: issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const body = issue.body || '';
+
+            // Extract fields from the crash report body
+            const extract = (label) => {
+              const match = body.match(new RegExp(`\\*\\*${label}:\\*\\s*\`?(.+?)\`?\\s*\\n`));
+              return match ? match[1].trim() : '';
+            };
+
+            const traceback = body.match(/### Stack Trace\n\n```\n([\s\S]+?)\n```/);
+            const trace = traceback ? traceback[1] : '';
+
+            core.setOutput('title', issue.title);
+            core.setOutput('error_type', extract('Error Type'));
+            core.setOutput('error_message', extract('Error Message'));
+            core.setOutput('crash_frame', extract('Crash Frame'));
+            core.setOutput('traceback', trace);
+            core.setOutput('app_version', extract('App Version'));
+            core.setOutput('os', extract('OS'));
+            core.setOutput('issue_number', issue.number);
+
+      - name: Analyze crash with LLM
+        id: analysis
+        uses: actions/github-script@v7
+        env:
+          CRASH_TRACEBACK: ${{ steps.issue.outputs.traceback }}
+          CRASH_ERROR_TYPE: ${{ steps.issue.outputs.error_type }}
+          CRASH_ERROR_MSG: ${{ steps.issue.outputs.error_message }}
+          CRASH_FRAME: ${{ steps.issue.outputs.crash_frame }}
+          CRASH_OS: ${{ steps.issue.outputs.os }}
+          CRASH_VERSION: ${{ steps.issue.outputs.app_version }}
+        with:
+          script: |
+            const traceback = process.env.CRASH_TRACEBACK;
+            const errorType = process.env.CRASH_ERROR_TYPE;
+            const errorMsg = process.env.CRASH_ERROR_MSG;
+            const frame = process.env.CRASH_FRAME;
+            const osInfo = process.env.CRASH_OS;
+            const version = process.env.CRASH_VERSION;
+
+            // Search codebase for the crash location
+            const { execSync } = require('child_process');
+            let fileContent = '';
+            let fileMatch = '';
+
+            if (frame) {
+              // Try to extract file path from frame like "archive/main.py:42 in main"
+              const pathMatch = frame.match(/^(.+?):\d+ in /);
+              if (pathMatch) {
+                fileMatch = pathMatch[1];
+                try {
+                  // Try reading the file from repo
+                  const content = execSync(`cat "${fileMatch}" 2>/dev/null || echo "FILE_NOT_FOUND"`, { encoding: 'utf-8' });
+                  if (content !== 'FILE_NOT_FOUND') {
+                    fileContent = content.substring(0, 3000);
+                  }
+                } catch (e) {
+                  // File not found in repo
+                }
+
+                // Also try without leading directory if it has one
+                if (!fileContent && fileMatch.includes('/')) {
+                  const baseName = fileMatch.split('/').pop();
+                  try {
+                    const findResult = execSync(`find . -name "${baseName}" -type f 2>/dev/null | head -3`, { encoding: 'utf-8' });
+                    for (const found of findResult.trim().split('\n')) {
+                      if (found) {
+                        try {
+                          const content = execSync(`cat "${found}" 2>/dev/null`, { encoding: 'utf-8' });
+                          if (content && content.length > 100) {
+                            fileContent = content.substring(0, 3000);
+                            fileMatch = found;
+                            break;
+                          }
+                        } catch (e) {}
+                      }
+                    }
+                  } catch (e) {}
+                }
+              }
+            }
+
+            // Search for similar error patterns
+            let similarFiles = '';
+            if (errorType) {
+              try {
+                const search = execSync(`grep -rn "${errorType}" --include="*.py" . 2>/dev/null | head -20`, { encoding: 'utf-8' });
+                similarFiles = search.substring(0, 2000);
+              } catch (e) {}
+            }
+
+            // Build analysis prompt
+            let analysis = '';
+            const isKnownModuleError = /module.*not.*found|import.*error/i.test(errorType + errorMsg);
+            const isKnownFileError = /file.*not.*found|no.*such.*file/i.test(errorType + errorMsg);
+            const isPermissionError = /permission.*denied|access.*denied/i.test(errorType + errorMsg);
+
+            if (isKnownModuleError) {
+              const moduleName = errorMsg.match(/No module named '(.+?)'/);
+              const name = moduleName ? moduleName[1] : 'unknown';
+              analysis = `**Root Cause:** Python module \`${name}\` is not installed.\n\n` +
+                `**Fix:** Add \`pip install ${name}\` to the build process, or check if it's a conditional import that should be wrapped in try/except.\n\n` +
+                `**Severity:** Low — missing dependency in frozen build.\n\n` +
+                `**Affected Area:** ${fileMatch || 'Build configuration'}`;
+            } else if (isKnownFileError) {
+              const fileMatch2 = errorMsg.match(/No such file or directory: '(.+?)'/);
+              const missing = fileMatch2 ? fileMatch2[1] : 'unknown';
+              analysis = `**Root Cause:** Expected file \`${missing}\` not found at runtime.\n\n` +
+                `**Fix:** Ensure the file is included in PyInstaller spec, or check path_utils.get_resource_path() resolution.\n\n` +
+                `**Severity:** Medium — runtime path resolution failure.\n\n` +
+                `**Affected Area:** ${fileMatch || 'File I/O'}`;
+            } else if (isPermissionError) {
+              analysis = `**Root Cause:** Insufficient OS permissions for the operation.\n\n` +
+                `**Fix:** Check file permissions, or run as admin if writing to system directories.\n\n` +
+                `**Severity:** Medium — user environment issue.`;
+            } else if (traceback) {
+              // Extract the last meaningful frame from traceback
+              const frames = traceback.split('\n').filter(l => l.includes('File "')'));
+              const lastFrame = frames.length > 1 ? frames[frames.length - 1] : frames[0] || '';
+
+              analysis = `**Stack Trace Analysis:**\n\n` +
+                `The crash occurs at: \`${lastFrame.trim()}\`\n\n` +
+                (fileContent ?
+                  `**Relevant Source Code** (from \`${fileMatch}\`):\n\`\`\`python\n${fileContent.substring(0, 1500)}\n\`\`\`\n\n` : '') +
+                (similarFiles ?
+                  `**Similar Patterns Found:**\n\`\`\`\n${similarFiles.substring(0, 500)}\n\`\`\`\n\n` : '') +
+                `**Recommended Investigation:**\n` +
+                `1. Check if the error is reproducible on other machines\n` +
+                `2. Review the traceback above for null pointer / type errors\n` +
+                `3. Verify database state if DB-related\n` +
+                `4. Check for race conditions if multi-threaded`;
+            } else {
+              analysis = `**Insufficient Data:** Stack trace is missing or empty.\n\n` +
+                `**Error Type:** \`${errorType}\`\n**Message:** ${errorMsg}\n\n` +
+                `**Action Required:** Request a full log dump from the affected user.`;
+            }
+
+            core.setOutput('analysis', analysis);
+            core.setOutput('file_path', fileMatch);
+
+      - name: Post analysis comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = parseInt('${{ steps.issue.outputs.issue_number }}');
+            const analysis = '${{ steps.analysis.outputs.analysis }}';
+            const version = '${{ steps.issue.outputs.app_version }}';
+            const errorType = '${{ steps.issue.outputs.error_type }}';
+
+            const body = [
+              '## 🤖 AI Debug Agent Analysis',
+              '',
+              `**Error Type:** \`${errorType}\``,
+              `**App Version:** ${version}`,
+              `**Analyzed:** ${new Date().toISOString()}`,
+              '',
+              analysis,
+              '',
+              '---',
+              '*This analysis was generated automatically. Verify the findings before applying fixes.*',
+              '*Once verified, remove the `automated-crash` label to close this workflow.*',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: body,
+            });
+
+            // Auto-assign for review
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              labels: ['needs-review'],
+            });
+
+      - name: Create fix PR if applicable
+        if: steps.analysis.outputs.file_path != ''
+        uses: actions/github-script@v7
+        env:
+          FILE_PATH: ${{ steps.analysis.outputs.file_path }}
+        with:
+          script: |
+            const filePath = process.env.FILE_PATH;
+            if (!filePath) return;
+
+            // Only attempt auto-fix for known simple cases
+            const errorType = '${{ steps.issue.outputs.error_type }}';
+
+            if (/ModuleNotFoundError|ImportError/.test(errorType)) {
+              // Extract module name from the error message
+              const msg = '${{ steps.issue.outputs.error_message }}';
+              const match = msg.match(/No module named '(.+?)'/);
+              if (!match) return;
+
+              const moduleName = match[1];
+              const { execSync } = require('child_process');
+
+              // Find where this module might be imported
+              try {
+                const result = execSync(`grep -rn "import ${moduleName}" --include="*.py" archive/ 2>/dev/null | head -5`, { encoding: 'utf-8' });
+                if (!result.trim()) return;
+
+                // Check if it's a known optional dependency
+                const optionalDeps = ['smtplib', 'subprocess', 'win32api', 'win32com'];
+                if (optionalDeps.includes(moduleName)) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: ${{ steps.issue.outputs.issue_number }},
+                    body: `⚠️ **Auto-fix not applied:** \`${moduleName}\` is a platform-specific or optional dependency. The import should be wrapped in try/except with a fallback.\n\nSuggested fix:\n\`\`\`python\ntry:\n    import ${moduleName}\nexcept ImportError:\n    ${moduleName} = None  # Graceful degradation\n\`\`\``,
+                  });
+                  return;
+                }
+
+                // For non-optional deps, suggest adding to requirements
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: ${{ steps.issue.outputs.issue_number }},
+                  body: `📦 **Missing Dependency Detected:** \`${moduleName}\`\n\nSuggested fix:\n1. Add to requirements: \`pip install ${moduleName}\`\n2. Add to PyInstaller hidden imports in \`build_exe.py\`\n\n**Affected files:**\n${result.trim()}`,
+                });
+              } catch (e) {
+                core.warning(`Could not analyze import: ${e.message}`);
+              }
+            }

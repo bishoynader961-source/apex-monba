@@ -255,11 +255,11 @@ tailwind.config = {
             Full admin dashboard access
           </li>
         </ul>
-        <a href="/portal"
+        <a href="/portal" id="buy-now-btn"
            class="block w-full py-3.5 bg-brand-600 text-white text-center font-bold rounded-xl hover:bg-brand-700 transition shadow-lg shadow-brand-200 text-lg">
           Buy Now
         </a>
-        <p class="text-center text-xs text-gray-400 mt-4">Secure checkout via the customer portal</p>
+        <p class="text-center text-xs text-gray-400 mt-4">Secure checkout via Paddle</p>
       </div>
     </div>
   </div>
@@ -279,6 +279,10 @@ tailwind.config = {
     <div class="flex items-center gap-6 text-sm text-gray-400">
       <a href="/portal" class="hover:text-brand-600 transition">License Portal</a>
       <a href="/admin" class="hover:text-brand-600 transition">Admin</a>
+      <span class="text-gray-200">|</span>
+      <a href="/terms" class="hover:text-brand-600 transition">Terms of Service</a>
+      <a href="/privacy" class="hover:text-brand-600 transition">Privacy Policy</a>
+      <a href="/refund" class="hover:text-brand-600 transition">Refund Policy</a>
     </div>
   </div>
 </footer>
@@ -289,6 +293,47 @@ const observer = new IntersectionObserver((entries) => {
   entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
 }, { threshold: 0.1 });
 document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+</script>
+
+<!-- ── Paddle.js Overlay Checkout ─────────────────────────────────── -->
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script>
+(function() {
+  const PADDLE_CLIENT_TOKEN = '***REMOVED_PADDLE_CLIENT_TOKEN***';
+  const PADDLE_PRICE_ID = 'pri_01kyweg4y7hjxvv4ppg33x422y';
+  const PADDLE_ENV = 'production';
+
+  var btn = document.getElementById('buy-now-btn');
+  if (!btn) return;
+
+  function initPaddle() {
+    if (typeof Paddle === 'undefined') {
+      setTimeout(initPaddle, 200);
+      return;
+    }
+    Paddle.Initialize({
+      token: PADDLE_CLIENT_TOKEN,
+      environment: PADDLE_ENV,
+      eventCallback: function(event) {
+        if (event.name === 'checkout.completed') {
+          window.location.href = '/portal';
+        }
+      }
+    });
+  }
+
+  btn.addEventListener('click', function(e) {
+    if (typeof Paddle !== 'undefined' && PADDLE_CLIENT_TOKEN !== 'YOUR_CLIENT_SIDE_TOKEN') {
+      e.preventDefault();
+      Paddle.Checkout.open({
+        items: [{ priceId: PADDLE_PRICE_ID, quantity: 1 }]
+      });
+    }
+    // Fallback: let the link navigate to /portal if Paddle isn't initialized
+  });
+
+  initPaddle();
+})();
 </script>
 
 </body>

@@ -59,7 +59,10 @@ _ENV_KEYS_TO_UPLOAD = [
     # Core
     "SERVER_ADMIN_SECRET",
     "PORTAL_SECRET",
-    # Payment gateway
+    # Payment gateway (Paddle only)
+    "PADDLE_API_KEY",
+    "PADDLE_CLIENT_TOKEN",
+    "PADDLE_PRICE_ID",
     "PADDLE_WEBHOOK_SECRET",
     # Webhook test mode (MUST be 0 in production)
     "WEBHOOK_TEST_MODE",
@@ -71,6 +74,15 @@ _ENV_KEYS_TO_UPLOAD = [
     "SENDER_EMAIL",
     # Download URL
     "DOWNLOAD_URL",
+    # Alerts
+    "ALERT_WEBHOOK_URL",
+    # Sentry
+    "SENTRY_DSN",
+    # Cron
+    "CRON_SECRET",
+    # GitHub (Crash Reporter)
+    "GITHUB_TOKEN",
+    "GITHUB_REPO",
 ]
 
 # ── Static HTML pages to upload ────────────────────────────────────────
@@ -79,6 +91,9 @@ _ENV_KEYS_TO_UPLOAD = [
 # HTML pages must be uploaded to match: /home/{username}/{landing,admin,customer}/
 _HTML_PAGES = [
     ("archive/landing/index.html",  "landing/index.html"),
+    ("archive/landing/terms.html",  "landing/terms.html"),
+    ("archive/landing/privacy.html", "landing/privacy.html"),
+    ("archive/landing/refund.html", "landing/refund.html"),
     ("archive/admin/index.html",    "admin/index.html"),
     ("archive/customer/index.html", "customer/index.html"),
 ]

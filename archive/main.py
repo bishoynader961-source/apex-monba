@@ -10,10 +10,13 @@ from path_utils import ensure_runtime_directories
 from license_gate import LicenseGate, is_dev_mode, is_dev_mac, get_device_mac
 from updater import check_for_updates
 from ui import PharmacyApp
+from crash_reporter import install_crash_reporter
 
 UPDATE_API_URL = "https://inventory1app1NN.pythonanywhere.com/api/check-update"
 
 def main():
+    # ── Install crash reporter FIRST (before anything that can crash) ──
+    install_crash_reporter()
     ensure_runtime_directories()
 
     # ── Initialize i18n (load locale files, restore saved language) ──

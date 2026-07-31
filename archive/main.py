@@ -5,6 +5,7 @@ import barcode_logic
 import audit_log
 import backup
 import alert_engine
+import i18n
 from path_utils import ensure_runtime_directories
 from license_gate import LicenseGate, is_dev_mode, is_dev_mac, get_device_mac
 from updater import check_for_updates
@@ -14,6 +15,9 @@ UPDATE_API_URL = "https://inventory1app1NN.pythonanywhere.com/api/check-update"
 
 def main():
     ensure_runtime_directories()
+
+    # ── Initialize i18n (load locale files, restore saved language) ──
+    i18n.init()
 
     # ── Dev bypass: skip license gate entirely if dev_config.json present ──
     if is_dev_mode():

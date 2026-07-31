@@ -82,6 +82,13 @@
         <h3 class="font-semibold text-sm text-gray-500 uppercase tracking-wide mb-3">Quick Install</h3>
         <p class="text-sm text-gray-600 mb-3">Copy this command into PowerShell on your new machine:</p>
         <div class="bg-gray-900 rounded-xl p-4 font-mono text-xs text-gray-300 break-all" id="install-cmd"></div>
+        <a id="download-btn" href="#"
+           class="mt-4 flex items-center justify-center gap-2 w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Download Installer
+        </a>
       </div>
 
       <!-- Actions -->
@@ -254,6 +261,10 @@ function renderDashboard() {
   // Install command
   document.getElementById("install-cmd").textContent =
     `powershell -ExecutionPolicy Bypass -File install-client.ps1 -Key "${d.license_key}"`;
+
+  // Gated download URL
+  document.getElementById("download-btn").href =
+    API + "/api/download-installer?key=" + encodeURIComponent(d.license_key);
 }
 
 // ── HWID Reset ────────────────────────────────────────────────────────

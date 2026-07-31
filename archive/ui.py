@@ -8,6 +8,10 @@ from datetime import datetime, date, timedelta
 from PIL import Image, ImageTk
 import tempfile
 from collections import defaultdict
+import i18n
+import database
+import barcode_logic
+from barcode_listener import BarcodeListener
 
 import database
 import barcode_logic
@@ -88,7 +92,7 @@ class PharmacyApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Pharmacy Inventory System")
+        self.title(i18n.t("app_title"))
         self.geometry("1000x700")
 
         self._set_window_icon()
@@ -103,16 +107,16 @@ class PharmacyApp(ctk.CTk):
 
         self.tab_view.configure(command=self.on_tab_change)
 
-        self.tab_dashboard = self.tab_view.add("Dashboard")
-        self.tab_add = self.tab_view.add("Add Product")
-        self.tab_inventory = self.tab_view.add("Inventory")
-        self.tab_expiring = self.tab_view.add("Expiring Soon")
-        self.tab_report = self.tab_view.add("Sales Report")
-        self.tab_receive = self.tab_view.add("Receive Inventory")
-        self.tab_checkout = self.tab_view.add("Checkout")
-        self.tab_templates = self.tab_view.add("Templates")
-        self.tab_patients = self.tab_view.add("Patients")
-        self.tab_settings = self.tab_view.add("Settings")
+        self.tab_dashboard = self.tab_view.add(i18n.t("dashboard"))
+        self.tab_add = self.tab_view.add(i18n.t("add_product"))
+        self.tab_inventory = self.tab_view.add(i18n.t("inventory"))
+        self.tab_expiring = self.tab_view.add(i18n.t("expiring_soon"))
+        self.tab_report = self.tab_view.add(i18n.t("sales_report"))
+        self.tab_receive = self.tab_view.add(i18n.t("receive_inventory"))
+        self.tab_checkout = self.tab_view.add(i18n.t("checkout"))
+        self.tab_templates = self.tab_view.add(i18n.t("templates"))
+        self.tab_patients = self.tab_view.add(i18n.t("patients"))
+        self.tab_settings = self.tab_view.add(i18n.t("settings"))
 
         self.templates_list = []
         self.receiving_session = {}
@@ -133,6 +137,10 @@ class PharmacyApp(ctk.CTk):
 
         self.after(500, self._check_startup_expiry)
         self.after(300, self._update_tab_badges)
+
+        # ── Global barcode scanner listener ──────────────────────────
+        self._barcode_listener = BarcodeListener(self, on_scan=self._handle_global_scan)
+        self._barcode_listener.start()
 
     def _calculate_alert_counts(self):
         """Calculate low-stock and expiring alert counts."""
@@ -163,15 +171,18 @@ class PharmacyApp(ctk.CTk):
         total_alerts = low_stock_count + expiring_count
 
         try:
-            self.tab_view.tab("Inventory").configure(
-                text=f"Inventory  [{total_alerts} Alerts]" if total_alerts > 0 else "Inventory"
+            inv_label = i18n.t("inventory")
+            alerts_label = i18n.t("critical").lower()
+            self.tab_view.tab(inv_label).configure(
+                text=f"{inv_label}  [{total_alerts} {alerts_label}]" if total_alerts > 0 else inv_label
             )
         except Exception:
             pass
 
         try:
-            self.tab_view.tab("Expiring Soon").configure(
-                text=f"Expiring Soon  [{expiring_count}]" if expiring_count > 0 else "Expiring Soon"
+            exp_label = i18n.t("expiring_soon")
+            self.tab_view.tab(exp_label).configure(
+                text=f"{exp_label}  [{expiring_count}]" if expiring_count > 0 else exp_label
             )
         except Exception:
             pass
@@ -244,28 +255,66 @@ class PharmacyApp(ctk.CTk):
 
     def on_tab_change(self):
         current_tab = self.tab_view.get()
-        if current_tab == "Dashboard":
+        if current_tab == i18n.t("dashboard"):
             self.load_dashboard()
-        elif current_tab == "Add Product":
+        elif current_tab == i18n.t("add_product"):
             self.refresh_add_tab_templates()
-        elif current_tab == "Inventory":
+        elif current_tab == i18n.t("inventory"):
             self.load_inventory()
-        elif current_tab == "Expiring Soon":
+        elif current_tab == i18n.t("expiring_soon"):
             self.load_expiring_items()
-        elif current_tab == "Sales Report":
+        elif current_tab == i18n.t("sales_report"):
             self.load_sales_report()
-        elif current_tab == "Receive Inventory":
+        elif current_tab == i18n.t("receive_inventory"):
             self.load_receiving_log()
             self.refresh_product_list()
-        elif current_tab == "Checkout":
+        elif current_tab == i18n.t("checkout"):
             self._refresh_checkout_stock_dropdown()
             self._refresh_receipts_history()
-        elif current_tab == "Templates":
+        elif current_tab == i18n.t("templates"):
             self.load_templates_grid()
-        elif current_tab == "Patients":
+        elif current_tab == i18n.t("patients"):
             pass  # patients tab auto-refreshes on load
-        elif current_tab == "Settings":
+        elif current_tab == i18n.t("settings"):
             self._refresh_ignore_list()
+
+    def _handle_global_scan(self, barcode: str) -> None:
+        """Route a scanned barcode to the appropriate tab handler."""
+        active_tab = self.tab_view.get()
+
+        if active_tab == i18n.t("checkout"):
+            # Checkout/POS: add item to cart
+            from ui_checkout_tab import _pos_scan_barcode
+            _pos_scan_barcode(self, barcode)
+
+        elif active_tab == i18n.t("inventory"):
+            # Inventory: populate search field and filter
+            if hasattr(self, "search_entry"):
+                self.search_entry.delete(0, "end")
+                self.search_entry.insert(0, barcode)
+                self.perform_search()
+
+        elif active_tab == i18n.t("receive_inventory"):
+            # Receiving: auto-fill vendor from scanned product
+            product = database.get_product_by_internal_barcode(barcode)
+            if not product:
+                product = database.get_product_by_barcode(barcode)
+            if product and hasattr(self, "vendor_entry"):
+                vendor_name = product[5] if len(product) > 5 else ""
+                if vendor_name and vendor_name != "N/A":
+                    self.vendor_entry.delete(0, "end")
+                    self.vendor_entry.insert(0, vendor_name)
+
+        else:
+            # Default: search inventory regardless of active tab
+            product = database.get_product_by_internal_barcode(barcode)
+            if not product:
+                product = database.get_product_by_barcode(barcode)
+            if product:
+                messagebox.showinfo(
+                    i18n.t("info"),
+                    f"{product[1]}\nBarcode: {product[3]}\nPrice: ${product[2]:.2f}"
+                )
 
     def _check_startup_expiry(self):
         from datetime import date, timedelta
@@ -397,6 +446,12 @@ PharmacyApp._sort_history_by_date = _sort_history_by_date
 PharmacyApp.load_receiving_log = load_receiving_log
 PharmacyApp.calculate_vendor_owed = calculate_vendor_owed
 PharmacyApp._print_all_selected_tags = _print_all_selected_tags
+PharmacyApp._run_ai_extract = _run_ai_extract
+PharmacyApp._ai_populate_review = _ai_populate_review
+PharmacyApp._ai_handle_error = _ai_handle_error
+PharmacyApp._ai_add_selected_to_queue = _ai_add_selected_to_queue
+PharmacyApp._ai_add_all_to_queue = _ai_add_all_to_queue
+PharmacyApp._ai_clear_review = _ai_clear_review
 
 PharmacyApp.setup_checkout_tab = setup_checkout_tab
 PharmacyApp._refresh_checkout_patients = _refresh_checkout_patients
@@ -431,3 +486,4 @@ PharmacyApp._remove_ignore_product = _remove_ignore_product
 PharmacyApp._refresh_ignore_list = _refresh_ignore_list
 PharmacyApp.save_settings = save_settings
 PharmacyApp._open_audit_log_viewer = _open_audit_log_viewer
+PharmacyApp._on_language_change = _on_language_change

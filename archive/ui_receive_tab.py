@@ -243,6 +243,78 @@ def setup_receive_tab(self):
                                              text_color="#28a745", wraplength=500)
     self.commit_status_label.grid(row=1, column=0, columnspan=5, pady=(2, 0), sticky="w")
 
+    # ── AI Document Extractor ────────────────────────────────────────
+    ai_frame = ctk.CTkFrame(self.recv_right_frame, fg_color="#1a1a2e", corner_radius=10)
+    ai_frame.grid(row=2, column=0, columnspan=2, pady=(0, 10), padx=15, sticky="ew")
+    ai_frame.grid_columnconfigure(1, weight=1)
+
+    ai_hdr = ctk.CTkFrame(ai_frame, fg_color="transparent")
+    ai_hdr.pack(fill="x", padx=12, pady=(10, 4))
+    ctk.CTkFrame(ai_hdr, width=3, fg_color="#8b5cf6",
+                 corner_radius=1).pack(side="left", fill="y", padx=(0, 8))
+    ctk.CTkLabel(ai_hdr, text="AI DOCUMENT PARSER",
+                 font=ctk.CTkFont(size=10, weight="bold"),
+                 text_color="#a78bfa", anchor="w").pack(side="left")
+
+    ai_btn_row = ctk.CTkFrame(ai_frame, fg_color="transparent")
+    ai_btn_row.pack(fill="x", padx=12, pady=(0, 10))
+
+    self._ai_extract_btn = ctk.CTkButton(
+        ai_btn_row, text="Process Supplier Invoice (AI)", width=220, height=36,
+        fg_color="#7c3aed", hover_color="#6d28d9",
+        font=ctk.CTkFont(size=13, weight="bold"),
+        command=self._run_ai_extract,
+    )
+    self._ai_extract_btn.pack(side="left", padx=(0, 10))
+
+    self._smart_extract_btn = ctk.CTkButton(
+        ai_btn_row, text="Smart Parse (Offline)", width=180, height=36,
+        fg_color="#059669", hover_color="#047857",
+        font=ctk.CTkFont(size=13, weight="bold"),
+        command=self._run_smart_parse,
+    )
+    self._smart_extract_btn.pack(side="left", padx=(0, 10))
+
+    self._ai_status_label = ctk.CTkLabel(ai_btn_row, text="",
+                                          font=ctk.CTkFont(size=11),
+                                          text_color="#a78bfa")
+    self._ai_status_label.pack(side="left")
+
+    # Review table for AI-extracted items
+    review_columns = ("product_name", "active_ingredient", "dosage",
+                      "qty", "batch", "expiry")
+    self._ai_review_tree = ttk.Treeview(
+        ai_frame, columns=review_columns, show="headings", height=5
+    )
+    self._ai_review_tree.heading("product_name", text="Product Name")
+    self._ai_review_tree.heading("active_ingredient", text="Active Ingredient")
+    self._ai_review_tree.heading("dosage", text="Dosage/Concentration")
+    self._ai_review_tree.heading("qty", text="Qty")
+    self._ai_review_tree.heading("batch", text="Batch #")
+    self._ai_review_tree.heading("expiry", text="Expiry")
+    self._ai_review_tree.column("product_name", width=180)
+    self._ai_review_tree.column("active_ingredient", width=130)
+    self._ai_review_tree.column("dosage", width=120)
+    self._ai_review_tree.column("qty", width=50, anchor="center")
+    self._ai_review_tree.column("batch", width=100)
+    self._ai_review_tree.column("expiry", width=90, anchor="center")
+    self._ai_review_tree.pack(fill="x", padx=12, pady=(0, 6))
+
+    ai_action_row = ctk.CTkFrame(ai_frame, fg_color="transparent")
+    ai_action_row.pack(fill="x", padx=12, pady=(0, 10))
+
+    ctk.CTkButton(ai_action_row, text="Add Selected to Queue", width=160,
+                  fg_color="#10b981", hover_color="#059669",
+                  command=self._ai_add_selected_to_queue).pack(side="left", padx=(0, 6))
+    ctk.CTkButton(ai_action_row, text="Add All to Queue", width=140,
+                  fg_color="#3b82f6", hover_color="#2563eb",
+                  command=self._ai_add_all_to_queue).pack(side="left", padx=(0, 6))
+    ctk.CTkButton(ai_action_row, text="Clear", width=70,
+                  fg_color="#6c757d", hover_color="#5a6268",
+                  command=self._ai_clear_review).pack(side="left")
+
+    self._ai_extracted_items: list[dict] = []
+
     payables_frame = ctk.CTkFrame(self.recv_right_frame, fg_color="transparent")
     payables_frame.grid(row=3, column=0, columnspan=2, pady=(0, 10), padx=15, sticky="ew")
     payables_frame.grid_columnconfigure(1, weight=1)
@@ -659,3 +731,174 @@ def calculate_vendor_owed(self):
         return
     total = database.get_vendor_total_owed(vendor)
     self.vendor_owed_label.configure(text=f"Total Owed to {vendor}: ${total:.2f}")
+
+
+# ── AI Document Extractor Methods ──────────────────────────────────────
+
+def _run_ai_extract(self):
+    """Open file dialog and run AI extraction on selected document."""
+    from tkinter import filedialog
+    from auto_extract import extract_from_file, check_ollama_status
+
+    status = check_ollama_status()
+    if not status["running"]:
+        messagebox.showerror(
+            "Ollama Not Running",
+            f"Cannot connect to Ollama at localhost:11434\n\n{status['error'] or 'Start Ollama and try again.'}"
+        )
+        return
+
+    file_path = filedialog.askopenfilename(
+        title="Select Supplier Invoice / Delivery Note",
+        filetypes=[
+            ("Text files", "*.txt"),
+            ("PDF files", "*.pdf"),
+            ("All files", "*.*"),
+        ],
+    )
+    if not file_path:
+        return
+
+    self._ai_extract_btn.configure(state="disabled", text="Processing...")
+    self._ai_status_label.configure(text="Sending document to AI model...")
+    self._ai_clear_review()
+
+    def on_result(items: list[dict]):
+        self.after(0, lambda: self._ai_populate_review(items))
+
+    def on_error(exc: Exception):
+        self.after(0, lambda: self._ai_handle_error(exc))
+
+    extract_from_file(file_path, on_result=on_result, on_error=on_error)
+
+
+def _ai_populate_review(self, items: list[dict]):
+    """Fill the review treeview with AI-extracted items."""
+    self._ai_extracted_items = items
+    self._ai_review_tree.delete(*self._ai_review_tree.get_children())
+
+    for item in items:
+        self._ai_review_tree.insert("", "end", values=(
+            item.get("product_name", ""),
+            item.get("active_ingredient", ""),
+            item.get("dosage_concentration", ""),
+            item.get("quantity_received", ""),
+            item.get("batch_number", ""),
+            item.get("expiration_date", ""),
+        ))
+
+    self._ai_extract_btn.configure(state="normal", text="Process Supplier Invoice (AI)")
+    self._ai_status_label.configure(text=f"Extracted {len(items)} item(s) — review and add to queue.")
+
+
+def _ai_handle_error(self, exc: Exception):
+    """Handle AI extraction failure."""
+    self._ai_extract_btn.configure(state="normal", text="Process Supplier Invoice (AI)")
+    self._ai_status_label.configure(text=f"Error: {exc}")
+    messagebox.showerror("AI Extraction Failed", str(exc))
+
+
+def _ai_add_selected_to_queue(self):
+    """Add selected AI-extracted items to the purchase order queue."""
+    selected = self._ai_review_tree.selection()
+    if not selected:
+        messagebox.showwarning("No Selection", "Select items from the review table first.")
+        return
+    vendor = self.vendor_entry.get().strip()
+    if not vendor:
+        messagebox.showwarning("Missing Vendor", "Enter a vendor name before adding items.")
+        return
+
+    if vendor not in self.receiving_session:
+        self.receiving_session[vendor] = {
+            "total_quantity": 0,
+            "vendor_asking_price": 0.0,
+            "items": [],
+        }
+
+    recv_date = date.today().strftime("%Y-%m-%d")
+    added = 0
+
+    for iid in selected:
+        vals = self._ai_review_tree.item(iid, "values")
+        product_name = vals[0]
+        try:
+            qty = int(vals[3]) if vals[3] else 1
+        except (ValueError, IndexError):
+            qty = 1
+        batch = vals[4] if len(vals) > 4 else ""
+        expiry = vals[5] if len(vals) > 5 else ""
+
+        template = database.get_product_template(product_name, vendor_name=vendor)
+        tpl_price = template[1] if template else 0.0
+        tpl_mfg_barcode = template[2] if template else ""
+        tpl_mfg_date = template[4] if template else ""
+
+        self.receiving_session[vendor]["total_quantity"] += qty
+        self.receiving_session[vendor]["items"].append({
+            "name": product_name,
+            "qty": qty,
+            "price": tpl_price,
+            "cost": tpl_price * qty,
+            "mfg_barcode": tpl_mfg_barcode,
+            "internal_barcode": "",
+            "mfg_date": tpl_mfg_date or "",
+            "exp_date": expiry or tpl_mfg_date or "",
+            "date_received": recv_date,
+        })
+        added += 1
+
+    self._refresh_po_treeview()
+    self._ai_status_label.configure(text=f"Added {added} item(s) to queue.")
+
+
+def _ai_add_all_to_queue(self):
+    """Add all AI-extracted items to the purchase order queue."""
+    children = self._ai_review_tree.get_children()
+    if not children:
+        messagebox.showinfo("Empty", "No extracted items to add.")
+        return
+
+    # Select all and delegate
+    self._ai_review_tree.selection_set(children)
+    self._ai_add_selected_to_queue()
+
+
+def _ai_clear_review(self):
+    """Clear the AI review table."""
+    self._ai_review_tree.delete(*self._ai_review_tree.get_children())
+    self._ai_extracted_items = []
+
+
+# ── Smart Parse (Offline) Methods ──────────────────────────────────────
+
+def _run_smart_parse(self):
+    """Open file dialog and run offline smart parsing on selected document."""
+    from tkinter import filedialog
+    from smart_parser import parse_invoice_file
+
+    file_path = filedialog.askopenfilename(
+        title="Select Supplier Invoice / Delivery Note",
+        filetypes=[
+            ("Text files", "*.txt"),
+            ("All files", "*.*"),
+        ],
+    )
+    if not file_path:
+        return
+
+    self._smart_extract_btn.configure(state="disabled", text="Parsing...")
+    self._ai_status_label.configure(text="Running offline parser...")
+    self._ai_clear_review()
+
+    try:
+        items = parse_invoice_file(file_path)
+        self._ai_populate_review(items)
+        self._ai_status_label.configure(
+            text=f"Smart-parsed {len(items)} item(s) — review and add to queue."
+        )
+    except Exception as exc:
+        self._ai_status_label.configure(text=f"Error: {exc}")
+        messagebox.showerror("Smart Parse Failed", str(exc))
+    finally:
+        self._smart_extract_btn.configure(state="normal", text="Smart Parse (Offline)")

@@ -10,6 +10,7 @@ export function PricingCard() {
   const [paddle, setPaddle] = useState<Paddle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paddleReady, setPaddleReady] = useState(false);
+  const [testingMode, setTestingMode] = useState(false);
   const mountedRef = useRef(true);
   const checkoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -27,7 +28,7 @@ export function PricingCard() {
     const env = process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT;
 
     if (!token) {
-      setError("Paddle configuration missing. Please check environment variables.");
+      if (!cancelled) setTestingMode(true);
       return;
     }
 
@@ -96,40 +97,64 @@ export function PricingCard() {
     }
   }, [paddle]);
 
-  const buttonDisabled = loading || !paddle;
+  const buttonDisabled = loading || (!testingMode && !paddle);
 
-  let buttonText = "Buy Now — $29/mo";
+  let buttonText = "Buy Now — $50 one-time";
   if (loading) buttonText = "Processing...";
+  if (testingMode) buttonText = "Buy Now — $50 one-time";
 
   return (
     <div className="max-w-sm rounded-2xl border bg-card p-8 text-card-foreground shadow-sm">
-      <h3 className="text-2xl font-bold">Pro Plan</h3>
-      <p className="mt-2 text-muted-foreground">Full access to all features.</p>
+      <div className="flex items-center justify-between">
+        <h3 className="text-2xl font-bold">PharmacyPro License</h3>
+        {testingMode && (
+          <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 border border-yellow-200">
+            Testing Mode
+          </span>
+        )}
+      </div>
+      <p className="mt-2 text-muted-foreground">Hardware-bound desktop license. One device.</p>
 
       <div className="mt-6">
-        <span className="text-4xl font-extrabold">$29</span>
-        <span className="text-muted-foreground"> / month</span>
+        <span className="text-4xl font-extrabold">$50</span>
+        <span className="text-muted-foreground"> one-time</span>
       </div>
 
       {error && (
         <p className="mt-4 text-sm text-red-500">{error}</p>
       )}
 
-      {!paddleReady && !error && (
+      {!paddleReady && !testingMode && !error && (
         <p className="mt-4 text-sm text-yellow-500">Loading payment system...</p>
       )}
 
-      <button
-        onClick={handleCheckout}
-        disabled={buttonDisabled}
-        className="mt-8 w-full rounded-lg bg-primary py-3 text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {buttonText}
-      </button>
+      {testingMode ? (
+        <a
+          href="/portal"
+          className="mt-8 block w-full rounded-lg bg-primary py-3 text-primary-foreground font-medium hover:bg-primary/90 transition-colors text-center"
+        >
+          {buttonText}
+        </a>
+      ) : (
+        <button
+          onClick={handleCheckout}
+          disabled={buttonDisabled}
+          className="mt-8 w-full rounded-lg bg-primary py-3 text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {buttonText}
+        </button>
+      )}
 
       <p className="mt-4 text-center text-xs text-muted-foreground">
-        Secure payment via Paddle
+        {testingMode ? "Sandbox checkout — no real charges" : "Secure payment via Paddle"}
       </p>
+
+      <a
+        href="/portal"
+        className="mt-3 block w-full text-center py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-accent transition"
+      >
+        Download App
+      </a>
     </div>
   );
 }

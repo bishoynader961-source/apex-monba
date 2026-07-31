@@ -8,9 +8,8 @@ Endpoints:
     POST /api/activate          — bind a license to a device (public)
     POST /api/create            — create a new license key (admin only)
     GET  /admin                 — admin dashboard (admin only)
-    POST /api/webhook/paddle        — Paddle payment webhook
-    POST /api/webhook/lemonsqueezy  — Lemon Squeezy payment webhook
-    GET  /api/health                — health check
+    POST /api/webhook/paddle    — Paddle Billing payment webhook
+    GET  /api/health            — health check
 """
 import hashlib
 import hmac
@@ -27,10 +26,26 @@ from email.mime.text import MIMEText
 from functools import wraps
 from pathlib import Path
 
-from flask import Flask, g, jsonify, request, send_file
+import urllib.request
+
+from flask import Flask, g, jsonify, request, send_file, send_from_directory
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# ── Sentry Error Tracking ─────────────────────────────────────────────
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if SENTRY_DSN:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            integrations=[FlaskIntegration()],
+            traces_sample_rate=0.1,
+        )
+    except ImportError:
+        pass
 
 # ── Logging ────────────────────────────────────────────────────────────
 LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.log")
@@ -91,9 +106,12 @@ def _rate_limit_string(route: str) -> str | None:
 DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "licenses.db")
 ADMIN_SECRET = os.environ.get("SERVER_ADMIN_SECRET", "")
 PADDLE_WEBHOOK_SECRET = os.environ.get("PADDLE_WEBHOOK_SECRET", "")
-LEMONSQUEEZY_WEBHOOK_SECRET = os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET", "")
 OFFLINE_GRACE_DAYS = 7
 TOKEN_SIGNING_KEY = os.environ.get("SERVER_ADMIN_SECRET", "fallback-dev-key")
+
+# ── Real-Time Sale Alerts ────────────────────────────────────────────
+ALERT_WEBHOOK_URL = os.environ.get("ALERT_WEBHOOK_URL", "")
+OWNER_EMAIL = os.environ.get("OWNER_EMAIL", "")
 
 # ── Webhook Test Mode ──────────────────────────────────────────────────
 # Set WEBHOOK_TEST_MODE=1 in .env to skip webhook signature verification.
@@ -175,17 +193,23 @@ def send_license_email(to_email: str, license_key: str) -> bool:
     """Email the license key and install instructions to the customer.
 
     Returns True on success, False on failure (never raises).
-    Logs errors but does not propagate — callers always get a 200.
+    Logs errors but does not propagate -- callers always get a 200.
     """
     if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD, SENDER_EMAIL]):
-        logger.info("SMTP not configured — skipping license email to %s", to_email)
+        logger.info("SMTP not configured -- skipping license email to %s", to_email)
         return False
 
     if not to_email or "@" not in to_email:
-        logger.warning("Invalid recipient email — skipping: %r", to_email)
+        logger.warning("Invalid recipient email -- skipping: %r", to_email)
         return False
 
     install_cmd = INSTALL_ONE_LINER.format(key=license_key)
+
+    # License-gated download URL -- only works with a valid key
+    gated_download_url = (
+        f"https://inventory1app1nn.pythonanywhere.com"
+        f"/api/download-installer?key={license_key}"
+    )
 
     html = f"""\
 <html>
@@ -198,24 +222,24 @@ def send_license_email(to_email: str, license_key: str) -> bool:
     {license_key}
   </div>
 
-  <!-- ── Method 1: Direct Download ──────────────────────────────── -->
-  <h3 style="margin-top:28px;">Option 1 &mdash; Download &amp; Activate (Recommended)</h3>
+  <!-- Option 1: Download & Activate -->
+  <h3 style="margin-top:28px;">Option 1 -- Download &amp; Activate (Recommended)</h3>
   <p>Download the desktop application, open it, and enter your license key on the first-run screen.</p>
-  <a href="{DOWNLOAD_URL}"
+  <a href="{gated_download_url}"
      style="display:inline-block; background:#0d6efd; color:#fff; text-decoration:none;
             padding:12px 28px; border-radius:8px; font-weight:bold; margin:12px 0;">
-    Download PharmacyPro (.exe)
+    Download PharmacyPro Installer
   </a>
   <ol style="color:#555; font-size:14px; line-height:1.7; margin-top:14px;">
-    <li>Run the downloaded <strong>PharmacyPro-Setup.exe</strong>.</li>
+    <li>Run the downloaded <strong>pharmacy-hwid.exe</strong>.</li>
     <li>On the first-run activation screen, paste your license key above.</li>
-    <li>Click <strong>Activate</strong> &mdash; you're ready to go.</li>
+    <li>Click <strong>Activate</strong> -- you're ready to go.</li>
   </ol>
 
   <hr style="border:none; border-top:1px solid #e5e7eb; margin:28px 0;">
 
-  <!-- ── Method 2: PowerShell Script ────────────────────────────── -->
-  <h3>Option 2 &mdash; Quick Install via PowerShell</h3>
+  <!-- Option 2: PowerShell Script -->
+  <h3>Option 2 -- Quick Install via PowerShell</h3>
   <p>For command-line users, copy and paste this one-liner into PowerShell:</p>
   <div style="background:#1e1e1e; color:#d4d4d4; padding:14px 20px; border-radius:6px;
               font-family:monospace; font-size:13px; word-break:break-all; margin:12px 0;">
@@ -224,11 +248,21 @@ def send_license_email(to_email: str, license_key: str) -> bool:
   <p style="color:#555; font-size:13px;">
     This installs <code>pharmacy-hwid.exe</code> to <code>~\\AppData\\Local\\PharmacyPro</code>,
     captures your hardware fingerprint, and activates your license automatically.
-    A 7-day offline token is saved &mdash; no internet required after activation.
+    A 7-day offline token is saved -- no internet required after activation.
   </p>
 
+  <!-- Customer Portal -->
+  <hr style="border:none; border-top:1px solid #e5e7eb; margin:28px 0;">
+  <h3>Manage Your License</h3>
+  <p>Check your license status, view device binding, or switch computers anytime:</p>
+  <a href="https://inventory1app1nn.pythonanywhere.com/portal"
+     style="display:inline-block; background:#fff; color:#0d6efd; text-decoration:none;
+            padding:10px 24px; border-radius:8px; font-weight:bold; border:1px solid #0d6efd; margin:8px 0;">
+    Open License Portal
+  </a>
+
   <p style="color:#666; font-size:12px; margin-top:30px;">
-    PharmacyPro &mdash; Automated License Delivery
+    PharmacyPro -- Automated License Delivery
   </p>
 </body>
 </html>
@@ -237,18 +271,21 @@ def send_license_email(to_email: str, license_key: str) -> bool:
     plain = (
         f"Your PharmacyPro License Key: {license_key}\n"
         f"{'=' * 50}\n\n"
-        f"OPTION 1 — Download & Activate (Recommended)\n"
+        f"OPTION 1 -- Download & Activate (Recommended)\n"
         f"{'-' * 50}\n"
-        f"Download: {DOWNLOAD_URL}\n\n"
-        f"1. Run the downloaded PharmacyPro-Setup.exe.\n"
+        f"Download: {gated_download_url}\n\n"
+        f"1. Run the downloaded pharmacy-hwid.exe.\n"
         f"2. On the first-run activation screen, paste your license key.\n"
-        f"3. Click Activate — you're ready to go.\n\n"
-        f"OPTION 2 — Quick Install via PowerShell\n"
+        f"3. Click Activate -- you're ready to go.\n\n"
+        f"OPTION 2 -- Quick Install via PowerShell\n"
         f"{'-' * 50}\n"
         f"Copy and paste this command into PowerShell:\n\n"
         f"  {install_cmd}\n\n"
         f"This installs the CLI client, captures your hardware fingerprint,\n"
-        f"and activates your license automatically.\n"
+        f"and activates your license automatically.\n\n"
+        f"MANAGE YOUR LICENSE\n"
+        f"{'-' * 50}\n"
+        f"Portal: https://inventory1app1nn.pythonanywhere.com/portal\n"
     )
 
     msg = MIMEMultipart("alternative")
@@ -270,6 +307,37 @@ def send_license_email(to_email: str, license_key: str) -> bool:
     except Exception:
         logger.exception("Failed to send license email to %s", to_email)
         return False
+
+
+def send_sale_alert(email: str, amount: str, gateway: str, license_key: str = ""):
+    """POST a sale notification to ALERT_WEBHOOK_URL (Discord/Telegram).
+
+    Non-blocking — failures are logged but never raised.
+    """
+    if not ALERT_WEBHOOK_URL:
+        return
+
+    payload = json.dumps({
+        "content": (
+            f"**New Sale — ${amount}**\n"
+            f"Gateway: {gateway}\n"
+            f"Buyer: {email}\n"
+            f"License: {license_key or 'N/A'}"
+        ),
+        "username": "PharmacyPro Bot",
+    }).encode()
+
+    try:
+        req = urllib.request.Request(
+            ALERT_WEBHOOK_URL,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=10)
+        logger.info("Sale alert sent — %s $%s via %s", email, amount, gateway)
+    except Exception:
+        logger.exception("Failed to send sale alert for %s", email)
 
 
 # ── Schema ─────────────────────────────────────────────────────────────
@@ -304,23 +372,18 @@ def _get_db() -> sqlite3.Connection:
         g.db = sqlite3.connect(DATABASE, timeout=10.0)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA journal_mode=WAL")
-        g.db.executescript(_SCHEMA)
-        # Migration: add hwid column if it doesn't exist
+        # Apply schema — skip errors on existing DBs
         try:
-            g.db.execute(_MIGRATE_HWID)
-            g.db.commit()
+            g.db.executescript(_SCHEMA)
         except sqlite3.OperationalError:
-            pass  # column already exists
-        try:
-            g.db.execute(_MIGRATE_HWID_RESET_AT)
-            g.db.commit()
-        except sqlite3.OperationalError:
-            pass  # column already exists
-        try:
-            g.db.execute(_MIGRATE_SUBSCRIPTION_ID)
-            g.db.commit()
-        except sqlite3.OperationalError:
-            pass  # column already exists
+            pass  # table/index already exists
+        # Migration: add columns if missing
+        for migrate_sql in (_MIGRATE_HWID, _MIGRATE_HWID_RESET_AT, _MIGRATE_SUBSCRIPTION_ID):
+            try:
+                g.db.execute(migrate_sql)
+                g.db.commit()
+            except sqlite3.OperationalError:
+                pass  # column already exists
     return g.db
 
 
@@ -1001,13 +1064,20 @@ def portal_reset_hwid():
     })
 
 
-# ── Webhook: Paddle ────────────────────────────────────────────────────
+# ── Webhook: Paddle Billing ─────────────────────────────────────────────
 @app.route("/api/webhook/paddle", methods=["POST"])
 def webhook_paddle():
-    """Handle Paddle payment webhook.
+    """Handle Paddle Billing webhook.
 
     Verifies HMAC-SHA256 signature using PADDLE_WEBHOOK_SECRET.
-    On successful payment, creates a license key for the customer.
+
+    Supported Paddle events:
+        transaction.completed  → create license (30-day, one-time)
+        subscription.created   → create license (30-day, recurring)
+        subscription.updated   → extend license by 30 days
+        subscription.cancelled → revoke license
+        subscription.paused    → revoke license
+        subscription.resumed   → reactivate license
 
     Test mode: Set WEBHOOK_TEST_MODE=1 in .env to skip signature verification.
     """
@@ -1016,7 +1086,6 @@ def webhook_paddle():
         _log_request("/api/webhook/paddle", 500)
         return jsonify({"error": "Webhook not configured"}), 500
 
-    # Paddle sends form-encoded data with a signature header
     raw_body = request.get_data(as_text=True)
     signature = request.headers.get("paddle-signature", "")
 
@@ -1037,109 +1106,65 @@ def webhook_paddle():
             _log_request("/api/webhook/paddle", 403)
             return jsonify({"error": "Invalid signature"}), 403
 
-    # Parse the alert
-    try:
-        form = request.form
-        alert_name = form.get("alert_name", "")
-        alert_status = form.get("alert_status", "")
-
-        if alert_name == "payment_success" and alert_status == "active":
-            email = form.get("email", "")
-            license_key = _generate_key("PHARM")
-            now = datetime.now(timezone.utc)
-            expires_at = now + timedelta(days=30)
-
-            db = _get_db()
-            db.execute(
-                "INSERT INTO licenses (license_key, email, status, created_at, expires_at) "
-                "VALUES (?, ?, 'active', ?, ?)",
-                (license_key, email, now.isoformat(), expires_at.isoformat()),
-            )
-            db.commit()
-
-            # ── Send license email (non-blocking on failure) ──────────
-            email_sent = send_license_email(email, license_key)
-
-            logger.info("Paddle payment — license created: %s for %s (email=%s)",
-                        license_key, email, "sent" if email_sent else "skipped")
-            _log_request("/api/webhook/paddle", 200)
-            return jsonify({"status": "ok", "license_key": license_key})
-
-        _log_request("/api/webhook/paddle", 200)
-        return jsonify({"status": "ignored", "alert": alert_name})
-
-    except Exception as exc:
-        logger.exception("Paddle webhook processing error")
-        _log_request("/api/webhook/paddle", 500)
-        return jsonify({"error": "Webhook processing failed"}), 500
-
-
-# ── Webhook: Lemon Squeezy ─────────────────────────────────────────────
-@app.route("/api/webhook/lemonsqueezy", methods=["POST"])
-def webhook_lemonsqueezy():
-    """Handle Lemon Squeezy payment webhook.
-
-    Verifies HMAC-SHA256 signature using LEMONSQUEEZY_WEBHOOK_SECRET.
-    Supports recurring subscription lifecycle:
-
-        order_created            → create license (30-day window)
-        subscription_created     → create license (30-day window)
-        subscription_payment_success → extend license by 30 days
-        subscription_cancelled   → deactivate license
-        subscription_expired     → deactivate license
-
-    Test mode: Set WEBHOOK_TEST_MODE=1 in .env to skip signature verification.
-    """
-    if not LEMONSQUEEZY_WEBHOOK_SECRET and not WEBHOOK_TEST_MODE:
-        logger.warning("Lemon Squeezy webhook received but LEMONSQUEEZY_WEBHOOK_SECRET not configured")
-        _log_request("/api/webhook/lemonsqueezy", 500)
-        return jsonify({"error": "Webhook not configured"}), 500
-
-    raw_body = request.get_data(as_text=True)
-    signature = request.headers.get("x-signature", "")
-
-    if not signature and not WEBHOOK_TEST_MODE:
-        _log_request("/api/webhook/lemonsqueezy", 400)
-        return jsonify({"error": "Missing x-signature header"}), 400
-
-    # Verify HMAC-SHA256 (skipped in test mode)
-    if WEBHOOK_TEST_MODE:
-        logger.info("Lemon Squeezy webhook — TEST MODE: signature verification skipped")
-    else:
-        expected = hmac.new(
-            LEMONSQUEEZY_WEBHOOK_SECRET.encode(), raw_body.encode(), hashlib.sha256
-        ).hexdigest()
-
-        if not hmac.compare_digest(expected, signature):
-            logger.warning("Lemon Squeezy webhook signature mismatch")
-            _log_request("/api/webhook/lemonsqueezy", 403)
-            return jsonify({"error": "Invalid signature"}), 403
-
     try:
         payload = json.loads(raw_body) if raw_body.strip().startswith("{") else {}
-        event_name = payload.get("meta", {}).get("event_name", "")
-        attrs = payload.get("data", {}).get("attributes", {})
+        event_type = payload.get("event_type", "")
+        data = payload.get("data", {})
 
         db = _get_db()
         now = datetime.now(timezone.utc)
 
-        # ── order_created / subscription_created → new license ──────
-        if event_name in ("order_created", "subscription_created"):
-            email = attrs.get("user_email", "")
-            subscription_id = str(attrs.get("subscription_id", "") or "")
+        # ── transaction.completed → new license ──────────────────────
+        if event_type == "transaction.completed":
+            customer = data.get("custom_data", {})
+            email = customer.get("email", "") or data.get("billing", {}).get("email", "")
+            subscription_id = data.get("subscription_id", "")
+            amount = str(data.get("total", {}).get("amount", "5000"))
 
-            # Avoid duplicate key on webhook retries
-            existing = None
+            # Avoid duplicate on webhook retries
             if subscription_id:
                 existing = db.execute(
                     "SELECT license_key FROM licenses WHERE subscription_id = ?",
-                    (subscription_id,),
+                    (str(subscription_id),),
                 ).fetchone()
+                if existing:
+                    logger.info("Paddle transaction.completed — duplicate sub %s, skipping", subscription_id)
+                    _log_request("/api/webhook/paddle", 200)
+                    return jsonify({"status": "ok", "license_key": existing["license_key"],
+                                    "note": "already_exists"})
 
+            license_key = _generate_key("PHARM")
+            expires_at = now + timedelta(days=30)
+
+            db.execute(
+                "INSERT INTO licenses (license_key, email, status, created_at, expires_at, subscription_id) "
+                "VALUES (?, ?, 'active', ?, ?, ?)",
+                (license_key, email, now.isoformat(), expires_at.isoformat(),
+                 str(subscription_id) if subscription_id else None),
+            )
+            db.commit()
+
+            email_sent = send_license_email(email, license_key)
+            send_sale_alert(email, amount, "paddle", license_key)
+
+            logger.info("Paddle transaction.completed — license created: %s for %s (email=%s)",
+                        license_key, email, "sent" if email_sent else "skipped")
+            _log_request("/api/webhook/paddle", 200)
+            return jsonify({"status": "ok", "license_key": license_key})
+
+        # ── subscription.created → new license ───────────────────────
+        if event_type == "subscription.created":
+            customer = data.get("custom_data", {})
+            email = customer.get("email", "") or data.get("billing", {}).get("email", "")
+            subscription_id = str(data.get("id", ""))
+
+            existing = db.execute(
+                "SELECT license_key FROM licenses WHERE subscription_id = ?",
+                (subscription_id,),
+            ).fetchone()
             if existing:
-                logger.info("Lemon Squeezy %s — duplicate subscription %s, skipping",
-                            event_name, subscription_id)
-                _log_request("/api/webhook/lemonsqueezy", 200)
+                logger.info("Paddle subscription.created — duplicate sub %s, skipping", subscription_id)
+                _log_request("/api/webhook/paddle", 200)
                 return jsonify({"status": "ok", "license_key": existing["license_key"],
                                 "note": "already_exists"})
 
@@ -1149,38 +1174,34 @@ def webhook_lemonsqueezy():
             db.execute(
                 "INSERT INTO licenses (license_key, email, status, created_at, expires_at, subscription_id) "
                 "VALUES (?, ?, 'active', ?, ?, ?)",
-                (license_key, email, now.isoformat(), expires_at.isoformat(),
-                 subscription_id or None),
+                (license_key, email, now.isoformat(), expires_at.isoformat(), subscription_id),
             )
             db.commit()
 
             email_sent = send_license_email(email, license_key)
+            send_sale_alert(email, "50.00", "paddle", license_key)
 
-            logger.info("Lemon Squeezy %s — license created: %s for %s (sub=%s, email=%s)",
-                        event_name, license_key, email, subscription_id or "none",
-                        "sent" if email_sent else "skipped")
-            _log_request("/api/webhook/lemonsqueezy", 200)
+            logger.info("Paddle subscription.created — license: %s for %s (sub=%s)",
+                        license_key, email, subscription_id)
+            _log_request("/api/webhook/paddle", 200)
             return jsonify({"status": "ok", "license_key": license_key})
 
-        # ── subscription_payment_success → extend by 30 days ───────
-        if event_name == "subscription_payment_success":
-            subscription_id = str(attrs.get("subscription_id", "") or "")
+        # ── subscription.updated → extend by 30 days ─────────────────
+        if event_type == "subscription.updated":
+            subscription_id = str(data.get("id", ""))
             if not subscription_id:
-                logger.warning("LS subscription_payment_success — no subscription_id")
-                _log_request("/api/webhook/lemonsqueezy", 200)
+                _log_request("/api/webhook/paddle", 200)
                 return jsonify({"status": "ignored", "reason": "no_subscription_id"})
 
             row = db.execute(
                 "SELECT license_key, expires_at FROM licenses WHERE subscription_id = ?",
                 (subscription_id,),
             ).fetchone()
-
             if not row:
-                logger.warning("LS subscription_payment_success — no license for sub %s", subscription_id)
-                _log_request("/api/webhook/lemonsqueezy", 200)
+                logger.warning("Paddle subscription.updated — no license for sub %s", subscription_id)
+                _log_request("/api/webhook/paddle", 200)
                 return jsonify({"status": "ignored", "reason": "license_not_found"})
 
-            # Extend from current expiry or now, whichever is later
             current_expiry = _parse_expiry(row["expires_at"])
             base = max(current_expiry, now)
             new_expiry = base + timedelta(days=30)
@@ -1191,27 +1212,26 @@ def webhook_lemonsqueezy():
             )
             db.commit()
 
-            logger.info("LS subscription_payment_success — key=%s extended to %s (sub=%s)",
+            logger.info("Paddle subscription.updated — key=%s extended to %s (sub=%s)",
                         row["license_key"], new_expiry.date(), subscription_id)
-            _log_request("/api/webhook/lemonsqueezy", 200)
+            _log_request("/api/webhook/paddle", 200)
             return jsonify({"status": "ok", "license_key": row["license_key"],
                             "expires_at": new_expiry.isoformat()})
 
-        # ── subscription_cancelled → deactivate ────────────────────
-        if event_name == "subscription_cancelled":
-            subscription_id = str(attrs.get("subscription_id", "") or "")
+        # ── subscription.cancelled / subscription.paused → revoke ────
+        if event_type in ("subscription.cancelled", "subscription.paused"):
+            subscription_id = str(data.get("id", ""))
             if not subscription_id:
-                _log_request("/api/webhook/lemonsqueezy", 200)
+                _log_request("/api/webhook/paddle", 200)
                 return jsonify({"status": "ignored", "reason": "no_subscription_id"})
 
             row = db.execute(
                 "SELECT license_key FROM licenses WHERE subscription_id = ?",
                 (subscription_id,),
             ).fetchone()
-
             if not row:
-                logger.warning("LS subscription_cancelled — no license for sub %s", subscription_id)
-                _log_request("/api/webhook/lemonsqueezy", 200)
+                logger.warning("Paddle %s — no license for sub %s", event_type, subscription_id)
+                _log_request("/api/webhook/paddle", 200)
                 return jsonify({"status": "ignored", "reason": "license_not_found"})
 
             db.execute(
@@ -1220,48 +1240,47 @@ def webhook_lemonsqueezy():
             )
             db.commit()
 
-            logger.info("LS subscription_cancelled — key=%s revoked (sub=%s)",
-                        row["license_key"], subscription_id)
-            _log_request("/api/webhook/lemonsqueezy", 200)
+            logger.info("Paddle %s — key=%s revoked (sub=%s)",
+                        event_type, row["license_key"], subscription_id)
+            _log_request("/api/webhook/paddle", 200)
             return jsonify({"status": "ok", "license_key": row["license_key"],
                             "status": "revoked"})
 
-        # ── subscription_expired → mark expired ────────────────────
-        if event_name == "subscription_expired":
-            subscription_id = str(attrs.get("subscription_id", "") or "")
+        # ── subscription.resumed → reactivate ────────────────────────
+        if event_type == "subscription.resumed":
+            subscription_id = str(data.get("id", ""))
             if not subscription_id:
-                _log_request("/api/webhook/lemonsqueezy", 200)
+                _log_request("/api/webhook/paddle", 200)
                 return jsonify({"status": "ignored", "reason": "no_subscription_id"})
 
             row = db.execute(
                 "SELECT license_key FROM licenses WHERE subscription_id = ?",
                 (subscription_id,),
             ).fetchone()
-
             if not row:
-                logger.warning("LS subscription_expired — no license for sub %s", subscription_id)
-                _log_request("/api/webhook/lemonsqueezy", 200)
+                _log_request("/api/webhook/paddle", 200)
                 return jsonify({"status": "ignored", "reason": "license_not_found"})
 
             db.execute(
-                "UPDATE licenses SET status = 'expired' WHERE license_key = ?",
+                "UPDATE licenses SET status = 'active' WHERE license_key = ?",
                 (row["license_key"],),
             )
             db.commit()
 
-            logger.info("LS subscription_expired — key=%s expired (sub=%s)",
+            logger.info("Paddle subscription.resumed — key=%s reactivated (sub=%s)",
                         row["license_key"], subscription_id)
-            _log_request("/api/webhook/lemonsqueezy", 200)
+            _log_request("/api/webhook/paddle", 200)
             return jsonify({"status": "ok", "license_key": row["license_key"],
-                            "status": "expired"})
+                            "status": "active"})
 
-        # ── Unhandled event ────────────────────────────────────────
-        _log_request("/api/webhook/lemonsqueezy", 200)
-        return jsonify({"status": "ignored", "event": event_name})
+        # ── Unhandled event ──────────────────────────────────────────
+        logger.info("Paddle webhook — unhandled event: %s", event_type)
+        _log_request("/api/webhook/paddle", 200)
+        return jsonify({"status": "ignored", "event": event_type})
 
     except Exception as exc:
-        logger.exception("Lemon Squeezy webhook processing error")
-        _log_request("/api/webhook/lemonsqueezy", 500)
+        logger.exception("Paddle webhook processing error")
+        _log_request("/api/webhook/paddle", 500)
         return jsonify({"error": "Webhook processing failed"}), 500
 
 
@@ -1272,6 +1291,96 @@ def _generate_key(prefix: str = "PHARM") -> str:
     part2 = secrets.token_hex(2).upper()
     part3 = secrets.token_hex(2).upper()
     return f"{prefix}-{part1}-{part2}-{part3}"
+
+
+# ── License-Gated Installer Download ──────────────────────────────────
+DOWNLOADS_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "downloads"
+)
+
+
+@app.route("/api/download-installer", methods=["GET"])
+def api_download_installer():
+    """Serve pharmacy-hwid.exe only to active license holders.
+
+    Query param: key=PHARM-XXXX-XXXX-XXXX
+    Returns 200: binary file attachment
+    Returns 403: invalid or missing key
+    """
+    license_key = request.args.get("key", "").strip()
+
+    if not license_key:
+        _log_request("/api/download-installer", 403)
+        return jsonify({"error": "Unauthorized: Valid license key required"}), 403
+
+    db = _get_db()
+    try:
+        row = db.execute(
+            "SELECT status, expires_at FROM licenses WHERE license_key = ?",
+            (license_key,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        row = db.execute(
+            "SELECT * FROM licenses WHERE license_key = ?",
+            (license_key,),
+        ).fetchone()
+
+    if not row:
+        logger.warning("DOWNLOAD_DENIED key_not_found ip=%s key=%s", request.remote_addr, license_key[:8] + "***")
+        _log_request("/api/download-installer", 403)
+        return jsonify({"error": "Unauthorized: Valid license key required"}), 403
+
+    if row["status"] != "active":
+        logger.warning("DOWNLOAD_DENIED key_not_active ip=%s key=%s status=%s",
+                       request.remote_addr, license_key[:8] + "***", row["status"])
+        _log_request("/api/download-installer", 403)
+        return jsonify({"error": "Unauthorized: Valid license key required"}), 403
+
+    # Check expiry
+    expires_at = _parse_expiry(row["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        logger.warning("DOWNLOAD_DENIED key_expired ip=%s key=%s", request.remote_addr, license_key[:8] + "***")
+        _log_request("/api/download-installer", 403)
+        return jsonify({"error": "Unauthorized: Valid license key required"}), 403
+
+    exe_path = os.path.join(DOWNLOADS_DIR, "pharmacy-hwid.exe")
+    if not os.path.isfile(exe_path):
+        logger.error("DOWNLOAD_FILE_MISSING path=%s", exe_path)
+        _log_request("/api/download-installer", 500)
+        return jsonify({"error": "Installer not available"}), 500
+
+    logger.info("DOWNLOAD_GRANTED key=%s ip=%s", license_key[:8] + "***", request.remote_addr)
+    _log_request("/api/download-installer", 200)
+    return send_from_directory(DOWNLOADS_DIR, "pharmacy-hwid.exe", as_attachment=True)
+
+
+# ── Trigger Daily Sales Report (cron-secured) ─────────────────────────
+CRON_SECRET = os.environ.get("CRON_SECRET", "")
+
+@app.route("/api/trigger-report", methods=["GET"])
+def api_trigger_report():
+    """Trigger the daily sales report email. Secured by ?secret= query param."""
+    secret = request.args.get("secret", "")
+    if not secret or secret != CRON_SECRET:
+        logger.warning("REPORT_TRIGGER_REJECTED ip=%s", request.remote_addr)
+        return jsonify({"error": "forbidden"}), 403
+
+    try:
+        _dir = os.path.dirname(os.path.abspath(__file__))
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        from daily_sales_report import send_report
+
+        ok = send_report(dry_run=False)
+        if ok:
+            logger.info("REPORT_TRIGGERED_OK ip=%s", request.remote_addr)
+            return jsonify({"status": "ok", "message": "Report sent."})
+        else:
+            logger.error("REPORT_TRIGGER_FAILED ip=%s", request.remote_addr)
+            return jsonify({"error": "Report generation failed. Check .env SMTP config."}), 500
+    except Exception as exc:
+        logger.exception("REPORT_TRIGGER_ERROR")
+        return jsonify({"error": str(exc)}), 500
 
 
 # ── Health check ───────────────────────────────────────────────────────

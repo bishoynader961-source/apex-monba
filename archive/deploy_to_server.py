@@ -59,9 +59,8 @@ _ENV_KEYS_TO_UPLOAD = [
     # Core
     "SERVER_ADMIN_SECRET",
     "PORTAL_SECRET",
-    # Payment gateways
+    # Payment gateway
     "PADDLE_WEBHOOK_SECRET",
-    "LEMONSQUEEZY_WEBHOOK_SECRET",
     # Webhook test mode (MUST be 0 in production)
     "WEBHOOK_TEST_MODE",
     # SMTP
@@ -126,7 +125,7 @@ def _build_env_content() -> str:
     return "\n".join(lines)
 
 
-def _upload_file(remote_path: str, content: bytes, label: str, dry_run: bool) -> bool:
+def _upload_file(remote_path: str, content: bytes, label: str, dry_run: bool, timeout: int = 30) -> bool:
     """Upload a single file to PythonAnywhere via the REST API."""
     if not USERNAME or not API_TOKEN:
         print(f"[ERROR] PYTHONANYWHERE_USERNAME or PYTHONANYWHERE_API_TOKEN not set")
@@ -147,7 +146,7 @@ def _upload_file(remote_path: str, content: bytes, label: str, dry_run: bool) ->
             url,
             headers=_headers(),
             files={"content": (remote_path.split("/")[-1], content, "text/plain")},
-            timeout=30,
+            timeout=timeout,
         )
         if resp.status_code in (200, 201):
             action = "updated" if resp.status_code == 200 else "created"
@@ -187,6 +186,21 @@ def upload_html_pages(dry_run: bool = False) -> bool:
             print(f"[WARNING] HTML page not found, skipping: {local_path}")
             continue
         ok = _upload_file(remote_path, local_path.read_bytes(), f"HTML: {remote_rel}", dry_run) and ok
+    return ok
+
+
+def upload_downloads(dry_run: bool = False) -> bool:
+    """Upload the downloads/ directory (pharmacy-hwid.exe) to PythonAnywhere."""
+    downloads_dir = Path(__file__).resolve().parent / "downloads"
+    if not downloads_dir.is_dir():
+        print(f"[WARNING] downloads/ directory not found, skipping: {downloads_dir}")
+        return True
+
+    ok = True
+    for exe_file in downloads_dir.glob("*.exe"):
+        remote_path = f"/home/{USERNAME}/downloads/{exe_file.name}"
+        print(f"[UPLOAD] Binary: {exe_file.name} ({exe_file.stat().st_size:,} bytes)")
+        ok = _upload_file(remote_path, exe_file.read_bytes(), f"Binary: {exe_file.name}", dry_run, timeout=180) and ok
     return ok
 
 
@@ -243,6 +257,7 @@ def main():
         ok = upload_server(dry_run=args.dry_run) and ok
         ok = upload_env(dry_run=args.dry_run) and ok
         ok = upload_html_pages(dry_run=args.dry_run) and ok
+        ok = upload_downloads(dry_run=args.dry_run) and ok
 
     if do_reload and ok:
         ok = reload_webapp(dry_run=args.dry_run) and ok

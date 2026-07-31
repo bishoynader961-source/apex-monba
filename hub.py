@@ -6,18 +6,21 @@ Dependencies: requests, python-dotenv
 Commands:
   python hub.py deploy
   python hub.py test-webhook --gateway paddle
-  python hub.py test-webhook --gateway lemonsqueezy
   python hub.py test-webhook --gateway paddle --url http://custom-host/api/webhook/paddle
   python hub.py gen-hwid
   python hub.py test-hwid --key PHARM-XXXX --hwid <hwid>
   python hub.py reset-hwid --key PHARM-XXXX
   python hub.py verify-token --token <offline_token>
+  python hub.py test-daily-report [--dry-run]
+  python hub.py test-sentry
+  python hub.py test-sale-alert
 """
 
 import argparse
 import hashlib
 import hmac
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -65,36 +68,20 @@ def cmd_deploy(args):
 
 # Default endpoint per gateway
 _DEFAULT_URLS = {
-    "paddle":       "http://127.0.0.1:5000/api/webhook/paddle",
-    "lemonsqueezy": "http://127.0.0.1:5000/api/webhook/lemonsqueezy",
+    "paddle": "http://127.0.0.1:5000/api/webhook/paddle",
 }
 
 # Mock payloads
 _PAYLOADS = {
     "paddle": {
-        "alert_name": "payment_success",
-        "alert_status": "active",
-        "email": "test@example.com",
-        "transaction_id": "txn_test_001",
-        "status": "active",
-    },
-    "lemonsqueezy": {
-        "meta": {
-            "event_name": "order_created",
-            "test_mode": True,
-        },
+        "event_type": "transaction.completed",
         "data": {
-            "id": "ord_test_001",
-            "type": "orders",
-            "attributes": {
-                "status": "paid",
-                "user_email": "test@example.com",
-                "user_name": "Test User",
-                "total": 4900,
-                "total_formatted": "$49.00",
-                "currency": "USD",
-                "identifier": "TEST-ORDER-001",
-            },
+            "id": "txn_test_001",
+            "subscription_id": "",
+            "custom_data": {"email": "test@example.com"},
+            "billing": {"email": "test@example.com"},
+            "total": {"amount": "5000"},
+            "status": "completed",
         },
     },
 }
@@ -105,24 +92,13 @@ def _sign_paddle(payload_str: str, secret: str) -> str:
     return hmac.new(secret.encode(), payload_str.encode(), hashlib.sha256).hexdigest()
 
 
-def _sign_lemonsqueezy(payload_str: str, secret: str) -> str:
-    """Compute HMAC-SHA256 signature for Lemon Squeezy."""
-    return hmac.new(secret.encode(), payload_str.encode(), hashlib.sha256).hexdigest()
-
-
 def cmd_test_webhook(args):
     """Fire a signed mock webhook payload at the target Flask server."""
-    import os
     gateway = args.gateway
     url = args.url or _DEFAULT_URLS[gateway]
     payload = _PAYLOADS[gateway]
 
-    # Resolve signing secret
-    secret_env = {
-        "paddle": "PADDLE_WEBHOOK_SECRET",
-        "lemonsqueezy": "LEMONSQUEEZY_WEBHOOK_SECRET",
-    }
-    secret = os.environ.get(secret_env[gateway], "")
+    secret = os.environ.get("PADDLE_WEBHOOK_SECRET", "")
 
     print(f"[test-webhook] Gateway  : {gateway}")
     print(f"[test-webhook] Target   : {url}")
@@ -131,28 +107,17 @@ def cmd_test_webhook(args):
     print()
 
     if not secret:
-        print(f"[test-webhook] ERROR: {secret_env[gateway]} not set in archive/.env")
+        print("[test-webhook] ERROR: PADDLE_WEBHOOK_SECRET not set in archive/.env")
         sys.exit(1)
 
-    # Serialize payload and sign
-    if gateway == "paddle":
-        # Paddle sends form-encoded data
-        from urllib.parse import urlencode
-        payload_str = urlencode(payload)
-        sig = _sign_paddle(payload_str, secret)
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "paddle-signature": sig,
-        }
-        send_data = payload_str
-    else:
-        payload_str = json.dumps(payload, separators=(",", ":"))
-        sig = _sign_lemonsqueezy(payload_str, secret)
-        headers = {
-            "Content-Type": "application/json",
-            "X-Signature": sig,
-        }
-        send_data = payload_str
+    # Serialize payload and sign (Paddle Billing uses JSON with paddle-signature)
+    payload_str = json.dumps(payload, separators=(",", ":"))
+    sig = _sign_paddle(payload_str, secret)
+    headers = {
+        "Content-Type": "application/json",
+        "paddle-signature": sig,
+    }
+    send_data = payload_str
 
     print(f"[test-webhook] Signature: {sig}")
     print()
@@ -276,6 +241,82 @@ def cmd_verify_token(args):
         print(f"[verify-token] ERROR: {exc}")
 
 
+# ---------------------------------------------------------------------------
+# 4. TEST COMMANDS (Analytics & Monitoring)
+# ---------------------------------------------------------------------------
+
+def cmd_test_daily_report(args):
+    """Run the daily sales report locally."""
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent / "archive"))
+    from daily_sales_report import send_report
+
+    ok = send_report(dry_run=args.dry_run)
+    if ok:
+        print("[test-daily-report] Report sent successfully.")
+    else:
+        print("[test-daily-report] FAILED — check .env configuration.")
+
+
+def cmd_test_sentry(args):
+    """Trigger a test exception to verify Sentry integration."""
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent / "archive"))
+
+    sentry_dsn = os.environ.get("SENTRY_DSN", "")
+    if not sentry_dsn:
+        print("[test-sentry] ERROR: SENTRY_DSN not set in archive/.env")
+        print("[test-sentry] Add SENTRY_DSN=https://xxx@sentry.io/xxx to archive/.env")
+        sys.exit(1)
+
+    try:
+        import sentry_sdk
+        sentry_sdk.init(dsn=sentry_dsn, traces_sample_rate=1.0)
+        print("[test-sentry] Sentry initialized. Raising test exception...")
+        raise RuntimeError("Test exception from PharmacyPro hub.py — this is expected!")
+    except RuntimeError as exc:
+        sentry_sdk.capture_exception(exc)
+        sentry_sdk.flush(timeout=5)
+        print(f"[test-sentry] Exception sent to Sentry: {exc}")
+        print("[test-sentry] Check your Sentry dashboard for the event.")
+
+
+def cmd_test_sale_alert(args):
+    """Send a test sale alert to ALERT_WEBHOOK_URL."""
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent / "archive"))
+
+    alert_url = os.environ.get("ALERT_WEBHOOK_URL", "")
+    if not alert_url:
+        print("[test-sale-alert] ERROR: ALERT_WEBHOOK_URL not set in archive/.env")
+        print("[test-sale-alert] Set ALERT_WEBHOOK_URL to your Discord/Telegram webhook URL.")
+        sys.exit(1)
+
+    payload = json.dumps({
+        "content": (
+            "**New Sale — $50.00**\n"
+            "Gateway: paddle\n"
+            "Buyer: test@example.com\n"
+            "License: PHARM-TEST-0000-0000"
+        ),
+        "username": "PharmacyPro Bot",
+    }).encode()
+
+    print(f"[test-sale-alert] Target: {alert_url[:40]}...")
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            alert_url,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=10)
+        print("[test-sale-alert] Alert sent successfully! Check your Discord/Telegram.")
+    except Exception as exc:
+        print(f"[test-sale-alert] ERROR: {exc}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="hub.py",
@@ -296,7 +337,7 @@ def main():
     )
     wh.add_argument(
         "--gateway",
-        choices=["paddle", "lemonsqueezy"],
+        choices=["paddle"],
         default="paddle",
         help="Payment gateway to simulate (default: paddle).",
     )
@@ -337,6 +378,29 @@ def main():
     vt.add_argument("--token", required=True, help="Offline token string from server response.")
     vt.add_argument("--url", default=None, help="Override verify-token endpoint URL.")
 
+    # test-daily-report
+    dr = sub.add_parser(
+        "test-daily-report",
+        help="Run the daily sales report locally.",
+    )
+    dr.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the report without sending an email.",
+    )
+
+    # test-sentry
+    sub.add_parser(
+        "test-sentry",
+        help="Trigger a test exception to verify Sentry integration.",
+    )
+
+    # test-sale-alert
+    sub.add_parser(
+        "test-sale-alert",
+        help="Send a test sale alert to ALERT_WEBHOOK_URL.",
+    )
+
     args = parser.parse_args()
 
     if args.command == "deploy":
@@ -351,6 +415,12 @@ def main():
         cmd_reset_hwid(args)
     elif args.command == "verify-token":
         cmd_verify_token(args)
+    elif args.command == "test-daily-report":
+        cmd_test_daily_report(args)
+    elif args.command == "test-sentry":
+        cmd_test_sentry(args)
+    elif args.command == "test-sale-alert":
+        cmd_test_sale_alert(args)
 
 
 if __name__ == "__main__":

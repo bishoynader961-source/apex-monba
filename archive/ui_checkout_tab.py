@@ -4,6 +4,7 @@ import database
 import audit_log
 import receipt_engine
 import barcode_logic
+import i18n
 from ui_helpers import apply_treeview_style
 
 
@@ -41,8 +42,11 @@ def setup_checkout_tab(self):
 
     self.checkout_barcode_entry.bind("<Return>", on_barcode_enter)
 
+    # NOTE: Global barcode listener in ui.py handles cross-tab scanning.
+    # The local key listener below is kept for backward compatibility
+    # with the checkout-specific Return key behavior.
     def global_key_listener(event):
-        if not self.tab_view.get() == "Checkout":
+        if self.tab_view.get() != i18n.t("checkout"):
             return
         if event.keysym == "Return":
             on_barcode_enter()

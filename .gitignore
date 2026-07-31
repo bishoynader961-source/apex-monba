@@ -16,3 +16,4 @@ hwid-client/target/
 .next/
 node_modules/
 labels/
+push_via_api.py

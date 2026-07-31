@@ -463,6 +463,24 @@ def serve_portal():
     return send_file(os.path.join(_ARCHIVE_DIR, "customer", "index.html"))
 
 
+@app.route("/terms")
+def serve_terms():
+    """Serve the Terms of Service page."""
+    return send_file(os.path.join(_ARCHIVE_DIR, "landing", "terms.html"))
+
+
+@app.route("/privacy")
+def serve_privacy():
+    """Serve the Privacy Policy page."""
+    return send_file(os.path.join(_ARCHIVE_DIR, "landing", "privacy.html"))
+
+
+@app.route("/refund")
+def serve_refund():
+    """Serve the Refund Policy page."""
+    return send_file(os.path.join(_ARCHIVE_DIR, "landing", "refund.html"))
+
+
 # ── Expiry parsing helper ──────────────────────────────────────────────
 def _parse_expiry(raw: str) -> datetime:
     """Parse expiry date string, handling multiple formats."""
@@ -1094,14 +1112,31 @@ def webhook_paddle():
         return jsonify({"error": "Missing paddle-signature header"}), 400
 
     # Verify HMAC-SHA256 (skipped in test mode)
+    # Paddle-Signature format: "ts=TIMESTAMP;h1=HASH"
+    # Signed payload: "{ts}:{raw_body}"
     if WEBHOOK_TEST_MODE:
         logger.info("Paddle webhook — TEST MODE: signature verification skipped")
     else:
+        sig_parts = {}
+        for part in signature.split(";"):
+            if "=" in part:
+                k, v = part.split("=", 1)
+                sig_parts[k] = v
+
+        ts = sig_parts.get("ts", "")
+        h1 = sig_parts.get("h1", "")
+
+        if not ts or not h1:
+            logger.warning("Paddle webhook — malformed signature header")
+            _log_request("/api/webhook/paddle", 403)
+            return jsonify({"error": "Invalid signature format"}), 403
+
+        signed_payload = f"{ts}:{raw_body}"
         expected = hmac.new(
-            PADDLE_WEBHOOK_SECRET.encode(), raw_body.encode(), hashlib.sha256
+            PADDLE_WEBHOOK_SECRET.encode(), signed_payload.encode(), hashlib.sha256
         ).hexdigest()
 
-        if not hmac.compare_digest(expected, signature):
+        if not hmac.compare_digest(expected, h1):
             logger.warning("Paddle webhook signature mismatch")
             _log_request("/api/webhook/paddle", 403)
             return jsonify({"error": "Invalid signature"}), 403
@@ -1117,7 +1152,9 @@ def webhook_paddle():
         # ── transaction.completed → new license ──────────────────────
         if event_type == "transaction.completed":
             customer = data.get("custom_data", {})
-            email = customer.get("email", "") or data.get("billing", {}).get("email", "")
+            email = (customer.get("email", "")
+                     or data.get("customer", {}).get("email", "")
+                     or data.get("billing_details", {}).get("email", ""))
             subscription_id = data.get("subscription_id", "")
             amount = str(data.get("total", {}).get("amount", "5000"))
 
@@ -1155,7 +1192,9 @@ def webhook_paddle():
         # ── subscription.created → new license ───────────────────────
         if event_type == "subscription.created":
             customer = data.get("custom_data", {})
-            email = customer.get("email", "") or data.get("billing", {}).get("email", "")
+            email = (customer.get("email", "")
+                     or data.get("customer", {}).get("email", "")
+                     or data.get("billing_details", {}).get("email", ""))
             subscription_id = str(data.get("id", ""))
 
             existing = db.execute(
@@ -1422,6 +1461,179 @@ def api_verify_token():
         "device_id": payload.get("device_id"),
         "hwid": payload.get("hwid"),
         "expires_at": payload.get("expires_at"),
+    })
+
+
+# ── Crash Report Endpoint ─────────────────────────────────────────────
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "bishoynader961-source/apex-monba")
+KNOWN_FIXES: dict[str, dict] = {
+    "ModuleNotFoundError": {
+        "subject": "PharmacyPro Fix Available — Missing Module",
+        "body": (
+            "A missing module was detected on your system.\n\n"
+            "Resolution: Please download the latest version from:\n"
+            "https://inventory1app1nn.pythonanywhere.com/portal\n\n"
+            "If the issue persists, contact pharmacypro.support@gmail.com."
+        ),
+    },
+    "FileNotFoundError": {
+        "subject": "PharmacyPro Fix Available — File Not Found",
+        "body": (
+            "A required file was not found on your system.\n\n"
+            "Resolution: Reinstall PharmacyPro from the customer portal.\n"
+            "https://inventory1app1nn.pythonanywhere.com/portal"
+        ),
+    },
+}
+
+
+def _create_github_issue(payload: dict) -> str | None:
+    """Create a GitHub Issue via REST API. Returns the issue URL or None."""
+    if not GITHUB_TOKEN:
+        return None
+
+    title = f"[automated-crash] {payload['error_type']} in {payload.get('crash_frame', 'unknown')}"
+    # Truncate title to 256 chars
+    title = title[:256]
+
+    body = (
+        "## Automated Crash Report\n\n"
+        f"**App Version:** {payload.get('app_version', '?')}\n"
+        f"**Error Type:** `{payload['error_type']}`\n"
+        f"**Error Message:** {payload.get('error_message', '?')}\n"
+        f"**Crash Frame:** `{payload.get('crash_frame', '?')}`\n"
+        f"**OS:** {payload.get('os', {}).get('system', '?')} {payload.get('os', {}).get('release', '?')}\n"
+        f"**Python:** {payload.get('os', {}).get('python', '?')}\n"
+        f"**HWID (hashed):** `{payload.get('hwid_hash', '?')}`\n"
+        f"**License Key:** `{payload.get('license_key', 'N/A')}`\n"
+        f"**Timestamp:** {payload.get('timestamp', '?')}\n"
+        f"**Frozen Build:** {payload.get('os', {}).get('frozen', False)}\n\n"
+        "### Stack Trace\n\n"
+        f"```\n{payload.get('traceback', 'N/A')}\n```\n\n"
+        "---\n"
+        "*This issue was created automatically by the PharmacyPro crash reporter.*\n"
+        "*Label: `automated-crash`*"
+    )
+
+    data = json.dumps({"title": title, "body": body, "labels": ["automated-crash"]}).encode("utf-8")
+    req = urllib.request.Request(
+        f"https://api.github.com/repos/{GITHUB_REPO}/issues",
+        data=data,
+        headers={
+            "Authorization": f"Bearer {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+        method="POST",
+    )
+    try:
+        resp = urllib.request.urlopen(req, timeout=15)
+        result = json.loads(resp.read())
+        issue_url = result.get("html_url", "")
+        logger.info("GitHub Issue created: %s", issue_url)
+        return issue_url
+    except Exception as exc:
+        logger.exception("Failed to create GitHub Issue: %s", exc)
+        return None
+
+
+def _send_fix_email(to_email: str, fix_info: dict, issue_url: str | None = None):
+    """Send an automated fix notification email to the user."""
+    if not to_email or not SMTP_HOST or not SMTP_USER or not SMTP_PASSWORD:
+        return
+
+    subject = fix_info.get("subject", "PharmacyPro — Error Report Update")
+    body = fix_info.get("body", "Your error has been reported and is being investigated.")
+    if issue_url:
+        body += f"\n\nTracked issue: {issue_url}"
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = SENDER_EMAIL
+        msg["To"] = to_email
+        msg.attach(MIMEText(body, "plain"))
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SENDER_EMAIL, [to_email], msg.as_string())
+        logger.info("Fix email sent to %s", to_email)
+    except Exception:
+        logger.exception("Failed to send fix email to %s", to_email)
+
+
+@app.route("/api/report-error", methods=["POST"])
+def api_report_error():
+    """Accept crash telemetry from desktop clients.
+
+    Creates a GitHub Issue with label 'automated-crash' and sends a
+    fix email if a known resolution exists.
+    """
+    payload = request.get_json(silent=True)
+    if not payload:
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    # Validate required fields
+    error_type = payload.get("error_type", "")
+    error_message = payload.get("error_message", "")
+    if not error_type and not error_message:
+        return jsonify({"error": "Missing error_type or error_message"}), 400
+
+    # Sanitize payload
+    sanitized = {
+        "app_version": str(payload.get("app_version", "unknown"))[:20],
+        "error_type": str(error_type)[:100],
+        "error_message": str(error_message)[:500],
+        "traceback": str(payload.get("traceback", ""))[:4000],
+        "crash_frame": str(payload.get("crash_frame", ""))[:300],
+        "hwid_hash": str(payload.get("hwid_hash", ""))[:32],
+        "os": payload.get("os", {}),
+        "license_key": str(payload.get("license_key", ""))[:50],
+        "timestamp": payload.get("timestamp", datetime.now(timezone.utc).isoformat()),
+    }
+
+    logger.info(
+        "Crash report received: %s — %s (hwid=%s)",
+        sanitized["error_type"],
+        sanitized["error_message"][:80],
+        sanitized["hwid_hash"],
+    )
+
+    # 1. Create GitHub Issue
+    issue_url = _create_github_issue(sanitized)
+
+    # 2. Check known fixes and email user
+    fix_sent = False
+    for known_type, fix_info in KNOWN_FIXES.items():
+        if known_type.lower() in sanitized["error_type"].lower():
+            # Resolve user email from license key if available
+            user_email = ""
+            license_key = sanitized.get("license_key", "")
+            if license_key:
+                try:
+                    db = _get_db()
+                    row = db.execute(
+                        "SELECT email FROM licenses WHERE license_key = ?",
+                        (license_key,),
+                    ).fetchone()
+                    if row and row["email"]:
+                        user_email = row["email"]
+                except Exception:
+                    pass
+
+            if user_email:
+                _send_fix_email(user_email, fix_info, issue_url)
+                fix_sent = True
+            break
+
+    return jsonify({
+        "status": "ok",
+        "issue_url": issue_url,
+        "fix_email_sent": fix_sent,
     })
 
 

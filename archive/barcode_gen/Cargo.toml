@@ -1,0 +1,13 @@
+[package]
+name = "barcode_gen"
+version = "1.0.0"
+edition = "2021"
+description = "Native Rust batch barcode generator for PharmacyPro"
+
+[lib]
+name = "barcode_gen"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.23", features = ["extension-module", "abi3-py38"] }
+uuid = { version = "1", features = ["v4"] }

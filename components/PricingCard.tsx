@@ -1,13 +1,22 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { initializePaddle, type Paddle } from "@paddle/paddle-js";
 
-const PADDLE_PRICE_ID = "pri_01kxtz89nn4e6wcx9jatsyqtcv";
+declare global {
+  interface Window {
+    Paddle: {
+      Initialize: (config: { token: string; environment: string; eventCallback: (event: any) => void }) => void;
+      Checkout: {
+        open: (config: { items: Array<{ priceId: string; quantity: number }>; settings?: Record<string, string> }) => void;
+      };
+    };
+  }
+}
+
+const PADDLE_PRICE_ID = "pri_01kyweg4y7hjxvv4ppg33x422y";
 
 export function PricingCard() {
   const [loading, setLoading] = useState(false);
-  const [paddle, setPaddle] = useState<Paddle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paddleReady, setPaddleReady] = useState(false);
   const [testingMode, setTestingMode] = useState(false);
@@ -22,53 +31,58 @@ export function PricingCard() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
     const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
     const env = process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT;
 
-    if (!token) {
-      if (!cancelled) setTestingMode(true);
+    if (!token || typeof window === "undefined") {
+      if (mountedRef.current) {
+        setTestingMode(true);
+        setPaddleReady(true);
+      }
       return;
     }
 
-    initializePaddle({
-      token,
-      environment: env === "production" ? "production" : "sandbox",
-      eventCallback: (event) => {
-        console.log("[Paddle] Event:", event.name, event.data);
+    const initPaddle = () => {
+      if (!window.Paddle) return;
+      window.Paddle.Initialize({
+        token,
+        environment: env === "production" ? "production" : "sandbox",
+        eventCallback: (event) => {
+          console.log("[Paddle] Event:", event.name, event.data);
 
-        if (event.name === "checkout.completed") {
-          if (checkoutTimeoutRef.current) {
-            clearTimeout(checkoutTimeoutRef.current);
-            checkoutTimeoutRef.current = null;
+          if (event.name === "checkout.completed") {
+            if (checkoutTimeoutRef.current) {
+              clearTimeout(checkoutTimeoutRef.current);
+              checkoutTimeoutRef.current = null;
+            }
+            console.log("[Paddle] Checkout completed successfully");
+            if (mountedRef.current) setLoading(false);
           }
-          console.log("[Paddle] Checkout completed successfully");
-          if (mountedRef.current) setLoading(false);
-        }
-      },
-    })
-      .then((instance) => {
-        if (!cancelled && instance) {
-          setPaddle(instance);
-          setPaddleReady(true);
-        }
-      })
-      .catch((err) => {
-        console.error("[Paddle] Init failed:", err);
-        if (!cancelled) {
-          setError("Failed to load payment system. Please refresh the page.");
-          setPaddleReady(true);
-        }
+        },
       });
+      if (mountedRef.current) setPaddleReady(true);
+    };
+
+    if (window.Paddle) {
+      initPaddle();
+    } else {
+      // Load the Paddle SDK client-side only (avoids any Node-SSR script eval).
+      const script = document.createElement("script");
+      script.src = "https://cdn.paddle.com/paddle/v2/paddle.js";
+      script.async = true;
+      script.onload = () => initPaddle();
+      document.head.appendChild(script);
+    }
 
     return () => {
-      cancelled = true;
+      if (checkoutTimeoutRef.current) {
+        clearTimeout(checkoutTimeoutRef.current);
+      }
     };
   }, []);
 
   const handleCheckout = useCallback(() => {
-    if (!paddle) {
+    if (typeof window === "undefined" || !window.Paddle) {
       setError("Payment system not ready. Please refresh.");
       return;
     }
@@ -83,7 +97,7 @@ export function PricingCard() {
     }, 10000);
 
     try {
-      paddle.Checkout.open({
+      window.Paddle.Checkout.open({
         items: [{ priceId: PADDLE_PRICE_ID, quantity: 1 }],
       });
     } catch (err) {
@@ -95,9 +109,9 @@ export function PricingCard() {
       setError(`Checkout failed: ${err instanceof Error ? err.message : "Unknown error"}`);
       setLoading(false);
     }
-  }, [paddle]);
+  }, []);
 
-  const buttonDisabled = loading || (!testingMode && !paddle);
+  const buttonDisabled = loading || (!testingMode && !paddleReady);
 
   let buttonText = "Buy Now — $50 one-time";
   if (loading) buttonText = "Processing...";

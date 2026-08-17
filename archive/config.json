@@ -11,5 +11,16 @@
     "address": "",
     "phone": "",
     "tax_rate": 0.0,
-    "low_stock_threshold": 5
+    "low_stock_threshold": 5,
+    "database_url": "",
+    "email_report": {
+        "smtp_host": "",
+        "smtp_port": 587,
+        "smtp_username": "",
+        "sender_email": "",
+        "recipient_emails": [],
+        "enabled": false
+    },
+    "receipt_header_note": "",
+    "receipt_footer_note": ""
 }

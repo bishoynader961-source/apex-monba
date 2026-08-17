@@ -4,6 +4,7 @@ from tkinter import ttk, messagebox
 import os
 import re
 import json
+import logging
 from datetime import datetime, date, timedelta
 from PIL import Image, ImageTk
 import tempfile
@@ -18,10 +19,13 @@ import barcode_logic
 import audit_log
 from path_utils import get_resource_path
 
+log = logging.getLogger("ui")
+
 from label_engine.canvas_core import LabelCanvas, LabelElement, draw_elements
 from label_engine.export import save_label, load_label, export_to_png, print_label, TEMPLATE_PATH
 
 from ui_helpers import _extract_first_var, _extract_all_vars
+from ui_navigation import create_navigation_system
 
 from ui_modals import (
     LabelDesignerPopup, QuickReceiveModal,
@@ -56,11 +60,14 @@ from ui_report_tab import (
 from ui_receive_tab import (
     setup_receive_tab, _on_vendor_change, _on_product_change,
     _set_disabled_text, refresh_product_list, _add_to_queue,
-    _refresh_po_treeview, _remove_selected_from_queue,
+    _refresh_po_treeview, _remove_selected_from_queue, _update_invoice_total,
     _print_bulk_labels, _commit_shipment,
     _load_shipment_history, _filter_history_by_date,
     _clear_history_filter, _sort_history_by_date,
     load_receiving_log, calculate_vendor_owed, _print_all_selected_tags,
+    _run_ai_extract, _ai_populate_review, _ai_handle_error,
+    _ai_add_selected_to_queue, _ai_add_all_to_queue, _ai_clear_review,
+    _run_smart_parse,
 )
 from ui_checkout_tab import (
     setup_checkout_tab, _refresh_checkout_patients, _on_patient_select,
@@ -78,11 +85,15 @@ from ui_templates_tab import (
 )
 from ui_settings_tab import (
     setup_settings_tab, browse_db_path,
-    _on_role_change, _update_role_controls,
     backup_database_gui, _add_ignore_product,
     _remove_ignore_product, _refresh_ignore_list,
     save_settings, _open_audit_log_viewer,
+    _on_language_change,
+    _test_pg_connection, _build_pg_url, _load_pg_config,
+    _load_email_config, _send_test_email, _save_email_config, _reset_email_ui,
+    _refresh_cascade_badge,
 )
+
 from ui_patients_tab import (
     setup_patients_tab,
 )
@@ -97,13 +108,26 @@ class PharmacyApp(ctk.CTk):
 
         self._set_window_icon()
 
+        # Initialize centralized async task manager with Tkinter root
+        from async_ui import init_async_ui
+        init_async_ui(self)
+
         self.apply_design_system()
+
+        # Region-aware money formatting (single source of truth: LocalizationManager)
+        import localization_manager
+        from currency import CurrencyFormatter
+        localization_manager.init(app_root=self)
+        self.currency = CurrencyFormatter()
 
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-        self.tab_view = ctk.CTkTabview(self)
-        self.tab_view.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+        # ── Navigation Drawer + Content Container ───────────────────────────
+        self.nav_drawer, self.tab_view, self.nav_container = create_navigation_system(
+            self, i18n_module=i18n
+        )
+        self.nav_container.grid(row=0, column=0, sticky="nsew")
 
         self.tab_view.configure(command=self.on_tab_change)
 
@@ -118,11 +142,22 @@ class PharmacyApp(ctk.CTk):
         self.tab_patients = self.tab_view.add(i18n.t("patients"))
         self.tab_settings = self.tab_view.add(i18n.t("settings"))
 
+        # Show dashboard as default tab
+        self.tab_view._switch_to(i18n.t("dashboard"))
+
         self.templates_list = []
         self.receiving_session = {}
-        self.cart = []
 
         self.setup_dashboard_tab()
+
+        # Persistent dashboard banner (survives setup_dashboard_tab refresh).
+        # Row 0 is reserved; content was shifted to rows 1–4 by setup_dashboard_tab.
+        self.dashboard_banner_frame = ctk.CTkFrame(
+            self.tab_dashboard, fg_color="transparent")
+        self.dashboard_banner_frame.grid(
+            row=0, column=0, sticky="ew", padx=20, pady=(16, 8))
+        from ui_banner import RegionBanner
+        self.region_banner = RegionBanner(self.dashboard_banner_frame, self)
         self.setup_add_tab()
         self.setup_inventory_tab()
         self.setup_expiring_tab()
@@ -162,7 +197,7 @@ class PharmacyApp(ctk.CTk):
         return len(low_stock), expiring_30
 
     def _update_tab_badges(self):
-        """Refresh tab header badges with alert counts."""
+        """Refresh navigation drawer badges with alert counts."""
         try:
             low_stock_count, expiring_count = self._calculate_alert_counts()
         except Exception:
@@ -172,18 +207,17 @@ class PharmacyApp(ctk.CTk):
 
         try:
             inv_label = i18n.t("inventory")
-            alerts_label = i18n.t("critical").lower()
-            self.tab_view.tab(inv_label).configure(
-                text=f"{inv_label}  [{total_alerts} {alerts_label}]" if total_alerts > 0 else inv_label
-            )
+            badge_text = str(total_alerts) if total_alerts > 0 else ""
+            badge_status = "error" if total_alerts > 0 else "neutral"
+            self.nav_drawer.update_badge(inv_label, badge_text, badge_status)
         except Exception:
             pass
 
         try:
             exp_label = i18n.t("expiring_soon")
-            self.tab_view.tab(exp_label).configure(
-                text=f"{exp_label}  [{expiring_count}]" if expiring_count > 0 else exp_label
-            )
+            badge_text = str(expiring_count) if expiring_count > 0 else ""
+            badge_status = "warning" if expiring_count > 0 else "neutral"
+            self.nav_drawer.update_badge(exp_label, badge_text, badge_status)
         except Exception:
             pass
 
@@ -269,14 +303,19 @@ class PharmacyApp(ctk.CTk):
             self.load_receiving_log()
             self.refresh_product_list()
         elif current_tab == i18n.t("checkout"):
+            self._refresh_cart_treeview()
             self._refresh_checkout_stock_dropdown()
             self._refresh_receipts_history()
+            if hasattr(self, "checkout_cascade_badge"):
+                self._refresh_cascade_badge()
         elif current_tab == i18n.t("templates"):
             self.load_templates_grid()
         elif current_tab == i18n.t("patients"):
             pass  # patients tab auto-refreshes on load
         elif current_tab == i18n.t("settings"):
             self._refresh_ignore_list()
+            self._refresh_cascade_badge()
+            self._notify_config_updated()
 
     def _handle_global_scan(self, barcode: str) -> None:
         """Route a scanned barcode to the appropriate tab handler."""
@@ -381,6 +420,103 @@ class PharmacyApp(ctk.CTk):
         self._refresh_checkout_stock_dropdown()
         self._update_tab_badges()
 
+    def _notify_config_updated(self):
+        """Broadcast after config.json changes (tax rate, store details, receipt notes).
+
+        Modeled on _notify_inventory_updated but additionally refreshes the checkout
+        balance panel so the live POS re-reads tax_rate without a restart.
+        """
+        self._notify_inventory_updated()
+        if hasattr(self, "tab_checkout"):
+            self._refresh_cart_treeview()
+            self._checkout_update_change()
+        self.load_dashboard()
+
+    def _new_prescription(self):
+        """Navigate to Clinical Workflow tab and open the prescription wizard."""
+        try:
+            target = i18n.t("clinical_workflow_title")
+            self.tab_view.set(target)
+            if self.tab_view._command:
+                self.tab_view._command()
+            if hasattr(self, "clinical_workflow_frame") and \
+                    hasattr(self.clinical_workflow_frame, "_open_wizard"):
+                self.clinical_workflow_frame._open_wizard()
+            else:
+                messagebox.showinfo("Info",
+                                    "Clinical Workflow not yet initialized.",
+                                    parent=self)
+        except Exception as e:
+            messagebox.showerror("Error", str(e), parent=self)
+            log.error("New prescription failed: %s", e)
+
+    def _open_database(self):
+        """Navigate to the Settings tab and focus the database path section."""
+        try:
+            self.tab_view.set(i18n.t("settings"))
+            if self.tab_view._command:
+                self.tab_view._command()
+            if hasattr(self, "browse_db_path"):
+                self.browse_db_path()
+        except Exception as e:
+            messagebox.showerror("Error", str(e), parent=self)
+            log.error("Open database settings failed: %s", e)
+
+    def _save_all(self):
+        """Save all open tab state and broadcast config update."""
+        try:
+            if hasattr(self, "save_settings"):
+                self.save_settings()
+        except Exception as e:
+            log.warning("Save settings failed: %s", e)
+        self._notify_config_updated()
+
+    def _open_preferences(self):
+        """Navigate to the Settings tab and select the preferences section."""
+        try:
+            self.tab_view.set(i18n.t("settings"))
+            if self.tab_view._command:
+                self.tab_view._command()
+        except Exception as e:
+            messagebox.showerror("Error", str(e), parent=self)
+            log.error("Open preferences failed: %s", e)
+
+    def _show_about(self):
+        """Show an About dialog with app version, build date, and pharmacy info."""
+        import os as _os
+        from datetime import datetime as _dt
+
+        version = _os.environ.get("PHARMACYPRO_VERSION", "1.0.0")
+        build_date = _dt.now().strftime("%Y-%m-%d")
+
+        config = barcode_logic.load_config()
+        pharmacy_name = config.get("pharmacy_name", "My Pharmacy")
+
+        about_win = ctk.CTkToplevel(self)
+        about_win.title(i18n.t("about_dialog_title"))
+        about_win.resizable(False, False)
+        about_win.transient(self)
+        about_win.grab_set()
+
+        w, h = 400, 300
+        root = self.winfo_toplevel()
+        try:
+            px = root.winfo_x() + (root.winfo_width() - w) // 2
+            py = root.winfo_y() + (root.winfo_height() - h) // 2
+            about_win.geometry(f"{w}x{h}+{px}+{py}")
+        except Exception:
+            about_win.geometry(f"{w}x{h}")
+
+        ctk.CTkLabel(about_win, text=pharmacy_name,
+                     font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(30, 8))
+        ctk.CTkLabel(about_win, text=f"Pharmacy Management System\n"
+                                    f"{i18n.t('version')}: {version}\n"
+                                    f"{i18n.t('build_date')}: {build_date}",
+                       font=ctk.CTkFont(size=12), justify="center").pack(pady=8)
+
+        ctk.CTkButton(about_win, text=i18n.t("cancel"), width=80,
+                      command=about_win.destroy).pack(pady=(0, 30))
+
     def setup_dashboard_tab(self):
         setup_dashboard_tab(self)
 
@@ -436,6 +572,7 @@ PharmacyApp._set_disabled_text = _set_disabled_text
 PharmacyApp.refresh_product_list = refresh_product_list
 PharmacyApp._add_to_queue = _add_to_queue
 PharmacyApp._refresh_po_treeview = _refresh_po_treeview
+PharmacyApp._update_invoice_total = _update_invoice_total
 PharmacyApp._remove_selected_from_queue = _remove_selected_from_queue
 PharmacyApp._print_bulk_labels = _print_bulk_labels
 PharmacyApp._commit_shipment = _commit_shipment
@@ -452,6 +589,7 @@ PharmacyApp._ai_handle_error = _ai_handle_error
 PharmacyApp._ai_add_selected_to_queue = _ai_add_selected_to_queue
 PharmacyApp._ai_add_all_to_queue = _ai_add_all_to_queue
 PharmacyApp._ai_clear_review = _ai_clear_review
+PharmacyApp._run_smart_parse = _run_smart_parse
 
 PharmacyApp.setup_checkout_tab = setup_checkout_tab
 PharmacyApp._refresh_checkout_patients = _refresh_checkout_patients
@@ -478,8 +616,6 @@ PharmacyApp.delete_template_gui = delete_template_gui
 PharmacyApp.setup_settings_tab = setup_settings_tab
 PharmacyApp.setup_patients_tab = setup_patients_tab
 PharmacyApp.browse_db_path = browse_db_path
-PharmacyApp._on_role_change = _on_role_change
-PharmacyApp._update_role_controls = _update_role_controls
 PharmacyApp.backup_database_gui = backup_database_gui
 PharmacyApp._add_ignore_product = _add_ignore_product
 PharmacyApp._remove_ignore_product = _remove_ignore_product
@@ -487,3 +623,11 @@ PharmacyApp._refresh_ignore_list = _refresh_ignore_list
 PharmacyApp.save_settings = save_settings
 PharmacyApp._open_audit_log_viewer = _open_audit_log_viewer
 PharmacyApp._on_language_change = _on_language_change
+PharmacyApp._test_pg_connection = _test_pg_connection
+PharmacyApp._build_pg_url = _build_pg_url
+PharmacyApp._load_pg_config = _load_pg_config
+PharmacyApp._load_email_config = _load_email_config
+PharmacyApp._send_test_email = _send_test_email
+PharmacyApp._save_email_config = _save_email_config
+PharmacyApp._reset_email_ui = _reset_email_ui
+PharmacyApp._refresh_cascade_badge = _refresh_cascade_badge

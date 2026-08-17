@@ -5,3 +5,5 @@ flask-limiter>=3.0,<4.0
 itsdangerous>=2.0,<3.0
 sentry-sdk[flask]>=2.0,<3.0
 sqlalchemy>=2.0,<3.0
+# Fernet decryption for crash telemetry payloads
+cryptography>=42.0

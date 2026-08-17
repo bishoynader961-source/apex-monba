@@ -1,0 +1,22 @@
+# Edge kiosk reverse proxy (Phase 4).
+# Serves the Next.js frontend and the FastAPI backend over a single loopback
+# endpoint using Caddy's built-in internal CA (self-signed, trusted on-device).
+# Run as a Windows service via NSSM (see install.ps1).
+
+{
+    admin off
+    auto_https off
+    # Lock the listener to the loopback so the kiosk is never exposed on the LAN.
+    bind 127.0.0.1
+}
+
+:8443 {
+    tls internal
+
+    # API traffic -> FastAPI backend (:8000)
+    @api path /api/*
+    reverse_proxy @api 127.0.0.1:8000
+
+    # Everything else -> Next.js standalone frontend (:3000)
+    reverse_proxy 127.0.0.1:3000
+}

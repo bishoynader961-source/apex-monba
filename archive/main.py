@@ -18,9 +18,16 @@ def main():
     # ── Install crash reporter FIRST (before anything that can crash) ──
     install_crash_reporter()
     ensure_runtime_directories()
+    barcode_logic.ensure_writable_config()
 
     # ── Initialize i18n (load locale files, restore saved language) ──
     i18n.init()
+
+    # ── Initialize localization/region manager (single source of truth for
+    #    currency, tax term & region). Must precede database.init_db so the
+    #    banner-dismissal KV keys land in system_settings. ──
+    import localization_manager
+    localization_manager.init()
 
     # ── Dev bypass: skip license gate entirely if dev_config.json present ──
     if is_dev_mode():

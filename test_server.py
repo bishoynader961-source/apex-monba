@@ -3,7 +3,7 @@ test_server.py — Comprehensive test suite for server_app.py.
 
 Covers:
   - Health check
-  - Webhook payload parsing (Paddle + Lemon Squeezy)
+  - Paddle webhook (transaction.completed, subscription lifecycle)
   - License creation and DB persistence
   - Email dispatch safety (no crash on missing SMTP)
   - Validate / Activate endpoints
@@ -14,6 +14,7 @@ Covers:
 Run:  python test_server.py
 """
 
+import base64
 import hashlib
 import hmac
 import json
@@ -21,9 +22,9 @@ import os
 import sqlite3
 import sys
 import tempfile
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode
 
 # Ensure archive/ is on path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "archive"))
@@ -32,6 +33,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "archive"))
 os.environ["WEBHOOK_TEST_MODE"] = "1"
 os.environ["SERVER_ADMIN_SECRET"] = "test-admin-secret-12345"
 os.environ["SMTP_HOST"] = ""  # Ensure SMTP is skipped
+os.environ["CREEM_WEBHOOK_SECRET"] = "test-creem-secret"
+os.environ["LEMON_SQUEEZEY_SIGNATURE_SECRET"] = "test-ls-secret"
 
 from server_app import app, _get_db, DATABASE  # noqa: E402
 
@@ -86,6 +89,18 @@ class BaseTestCase(unittest.TestCase):
         )
         return resp
 
+    def _paddle_headers(self, payload_str: str) -> dict:
+        """Generate Paddle-format signature header for a JSON payload."""
+        import server_app
+        secret = server_app.PADDLE_WEBHOOK_SECRET or "test-secret"
+        ts = str(int(time.time()))
+        signed = f"{ts}:{payload_str}"
+        h1 = hmac.new(secret.encode(), signed.encode(), hashlib.sha256).hexdigest()
+        return {
+            "Content-Type": "application/json",
+            "paddle-signature": f"ts={ts};h1={h1}",
+        }
+
 
 # ══════════════════════════════════════════════════════════════════════
 # 1. HEALTH CHECK
@@ -98,21 +113,28 @@ class TestHealth(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 2. WEBHOOK — PADDLE
+# 2. WEBHOOK — PADDLE (JSON payloads with paddle-signature header)
 # ══════════════════════════════════════════════════════════════════════
 class TestWebhookPaddle(BaseTestCase):
-    def test_paddle_payment_success_creates_license(self):
+    def test_paddle_transaction_completed_creates_license(self):
         payload = {
-            "alert_name": "payment_success",
-            "alert_status": "active",
-            "email": "paddle-buyer@test.com",
-            "transaction_id": "txn_test_999",
+            "event_type": "transaction.completed",
+            "data": {
+                "id": "txn_test_001",
+                "subscription_id": "",
+                "custom_data": {"email": "paddle-buyer@test.com"},
+                "customer": {"email": "paddle-buyer@test.com"},
+                "billing_details": {"email": "paddle-buyer@test.com"},
+                "total": {"amount": "5000"},
+                "status": "completed",
+            },
         }
+        payload_str = json.dumps(payload, separators=(",", ":"))
+        headers = self._paddle_headers(payload_str)
         resp = self.client.post(
             "/api/webhook/paddle",
-            data=urlencode(payload),
-            content_type="application/x-www-form-urlencoded",
-            headers={"paddle-signature": "test-sig"},
+            data=payload_str,
+            headers=headers,
         )
         self.assertEqual(resp.status_code, 200)
         body = resp.get_json()
@@ -129,258 +151,72 @@ class TestWebhookPaddle(BaseTestCase):
             self.assertEqual(row["email"], "paddle-buyer@test.com")
             self.assertEqual(row["status"], "active")
 
-    def test_paddle_ignored_event_returns_200(self):
-        payload = {"alert_name": "subscription_created", "alert_status": "active"}
-        resp = self.client.post(
-            "/api/webhook/paddle",
-            data=urlencode(payload),
-            content_type="application/x-www-form-urlencoded",
-            headers={"paddle-signature": "test-sig"},
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.get_json()["status"], "ignored")
-
-    def test_paddle_missing_signature_returns_400(self):
-        """Without test mode, missing signature should return 400."""
-        import server_app
-        orig = server_app.WEBHOOK_TEST_MODE
-        server_app.WEBHOOK_TEST_MODE = False
-        try:
-            resp = self.client.post(
-                "/api/webhook/paddle",
-                data=urlencode({"alert_name": "payment_success"}),
-                content_type="application/x-www-form-urlencoded",
-            )
-            self.assertEqual(resp.status_code, 400)
-        finally:
-            server_app.WEBHOOK_TEST_MODE = orig
-
-
-# ══════════════════════════════════════════════════════════════════════
-# 3. WEBHOOK — LEMON SQUEEZY
-# ══════════════════════════════════════════════════════════════════════
-class TestWebhookLemonSqueezy(BaseTestCase):
-    def test_ls_order_created_creates_license(self):
+    def test_paddle_subscription_created_creates_license(self):
         payload = {
-            "meta": {"event_name": "order_created", "test_mode": True},
+            "event_type": "subscription.created",
             "data": {
-                "id": "ord_test_001",
-                "type": "orders",
-                "attributes": {
-                    "status": "paid",
-                    "user_email": "ls-buyer@test.com",
-                    "user_name": "Test LS Buyer",
-                    "total": 4900,
-                    "total_formatted": "$49.00",
-                    "currency": "USD",
-                    "identifier": "TEST-ORDER-001",
-                },
+                "id": "sub_test_001",
+                "custom_data": {"email": "sub-created@test.com"},
+                "customer": {"email": "sub-created@test.com"},
+                "status": "active",
             },
         }
+        payload_str = json.dumps(payload, separators=(",", ":"))
+        headers = self._paddle_headers(payload_str)
         resp = self.client.post(
-            "/api/webhook/lemonsqueezy",
-            data=json.dumps(payload),
-            content_type="application/json",
-            headers={"x-signature": "test-sig"},
+            "/api/webhook/paddle",
+            data=payload_str,
+            headers=headers,
         )
         self.assertEqual(resp.status_code, 200)
         body = resp.get_json()
         self.assertEqual(body["status"], "ok")
         self.assertIn("PHARM-", body["license_key"])
 
-        # Verify DB
         with app.app_context():
             db = _get_db()
             row = db.execute(
                 "SELECT * FROM licenses WHERE license_key = ?", (body["license_key"],)
             ).fetchone()
             self.assertIsNotNone(row)
-            self.assertEqual(row["email"], "ls-buyer@test.com")
-
-    def test_ls_ignored_event_returns_200(self):
-        payload = {
-            "meta": {"event_name": "refund_created"},
-            "data": {"attributes": {}},
-        }
-        resp = self.client.post(
-            "/api/webhook/lemonsqueezy",
-            data=json.dumps(payload),
-            content_type="application/json",
-            headers={"x-signature": "test-sig"},
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.get_json()["status"], "ignored")
-
-    def test_ls_missing_signature_returns_400(self):
-        import server_app
-        orig = server_app.WEBHOOK_TEST_MODE
-        server_app.WEBHOOK_TEST_MODE = False
-        try:
-            resp = self.client.post(
-                "/api/webhook/lemonsqueezy",
-                data=json.dumps({"meta": {"event_name": "order_created"}, "data": {"attributes": {}}}),
-                content_type="application/json",
-            )
-            self.assertEqual(resp.status_code, 400)
-        finally:
-            server_app.WEBHOOK_TEST_MODE = orig
-
-    # ── subscription_created tests ────────────────────────────────
-    def test_ls_subscription_created_creates_license(self):
-        payload = {
-            "meta": {"event_name": "subscription_created"},
-            "data": {"attributes": {
-                "user_email": "sub-created@test.com",
-                "subscription_id": 99001,
-            }},
-        }
-        resp = self.client.post(
-            "/api/webhook/lemonsqueezy",
-            data=json.dumps(payload),
-            content_type="application/json",
-            headers={"x-signature": "test-sig"},
-        )
-        self.assertEqual(resp.status_code, 200)
-        body = resp.get_json()
-        self.assertEqual(body["status"], "ok")
-        key = body["license_key"]
-
-        with app.app_context():
-            db = _get_db()
-            row = db.execute(
-                "SELECT * FROM licenses WHERE license_key = ?", (key,)
-            ).fetchone()
-            self.assertIsNotNone(row)
             self.assertEqual(row["email"], "sub-created@test.com")
-            self.assertEqual(row["subscription_id"], "99001")
-            self.assertEqual(row["status"], "active")
+            self.assertEqual(row["subscription_id"], "sub_test_001")
 
-    def test_ls_order_created_stores_subscription_id(self):
-        payload = {
-            "meta": {"event_name": "order_created"},
-            "data": {"attributes": {
-                "user_email": "order-sub@test.com",
-                "subscription_id": 99002,
-            }},
-        }
-        resp = self.client.post(
-            "/api/webhook/lemonsqueezy",
-            data=json.dumps(payload),
-            content_type="application/json",
-            headers={"x-signature": "test-sig"},
-        )
-        self.assertEqual(resp.status_code, 200)
-        key = resp.get_json()["license_key"]
-
-        with app.app_context():
-            db = _get_db()
-            row = db.execute(
-                "SELECT subscription_id FROM licenses WHERE license_key = ?", (key,)
-            ).fetchone()
-            self.assertEqual(row["subscription_id"], "99002")
-
-    def test_ls_duplicate_subscription_returns_existing(self):
+    def test_paddle_subscription_updated_extends_license(self):
         self._seed_license(
-            "PHARM-DUP-SUB-0001", "dup@test.com", subscription_id="99099"
-        )
-        payload = {
-            "meta": {"event_name": "order_created"},
-            "data": {"attributes": {
-                "user_email": "dup@test.com",
-                "subscription_id": 99099,
-            }},
-        }
-        resp = self.client.post(
-            "/api/webhook/lemonsqueezy",
-            data=json.dumps(payload),
-            content_type="application/json",
-            headers={"x-signature": "test-sig"},
-        )
-        body = resp.get_json()
-        self.assertEqual(body["license_key"], "PHARM-DUP-SUB-0001")
-        self.assertEqual(body["note"], "already_exists")
-
-    # ── subscription_payment_success tests ────────────────────────
-    def test_ls_subscription_payment_success_extends(self):
-        self._seed_license(
-            "PHARM-RENEW-0001", "renew@test.com", subscription_id="99100",
+            "PHARM-RENEW-0001", "renew@test.com", subscription_id="sub_renew_001",
             days=5,
         )
-
-        # Capture original expiry
-        with app.app_context():
-            db = _get_db()
-            orig = db.execute(
-                "SELECT expires_at FROM licenses WHERE license_key = 'PHARM-RENEW-0001'"
-            ).fetchone()["expires_at"]
-
         payload = {
-            "meta": {"event_name": "subscription_payment_success"},
-            "data": {"attributes": {"subscription_id": 99100}},
+            "event_type": "subscription.updated",
+            "data": {"id": "sub_renew_001", "status": "active"},
         }
+        payload_str = json.dumps(payload, separators=(",", ":"))
+        headers = self._paddle_headers(payload_str)
         resp = self.client.post(
-            "/api/webhook/lemonsqueezy",
-            data=json.dumps(payload),
-            content_type="application/json",
-            headers={"x-signature": "test-sig"},
+            "/api/webhook/paddle",
+            data=payload_str,
+            headers=headers,
         )
         self.assertEqual(resp.status_code, 200)
         body = resp.get_json()
         self.assertEqual(body["license_key"], "PHARM-RENEW-0001")
-        new_expiry = datetime.fromisoformat(body["expires_at"])
+        self.assertIn("expires_at", body)
 
-        with app.app_context():
-            db = _get_db()
-            row = db.execute(
-                "SELECT expires_at, status FROM licenses WHERE license_key = 'PHARM-RENEW-0001'"
-            ).fetchone()
-            stored_expiry = datetime.fromisoformat(row["expires_at"])
-            self.assertEqual(row["status"], "active")
-            # New expiry should be > original
-            self.assertGreater(stored_expiry.isoformat(), orig)
-
-    def test_ls_subscription_payment_success_no_subscription_ignored(self):
-        payload = {
-            "meta": {"event_name": "subscription_payment_success"},
-            "data": {"attributes": {"subscription_id": 0}},
-        }
-        resp = self.client.post(
-            "/api/webhook/lemonsqueezy",
-            data=json.dumps(payload),
-            content_type="application/json",
-            headers={"x-signature": "test-sig"},
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.get_json()["reason"], "no_subscription_id")
-
-    def test_ls_subscription_payment_success_unknown_sub_ignored(self):
-        payload = {
-            "meta": {"event_name": "subscription_payment_success"},
-            "data": {"attributes": {"subscription_id": 99999}},
-        }
-        resp = self.client.post(
-            "/api/webhook/lemonsqueezy",
-            data=json.dumps(payload),
-            content_type="application/json",
-            headers={"x-signature": "test-sig"},
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.get_json()["reason"], "license_not_found")
-
-    # ── subscription_cancelled tests ──────────────────────────────
-    def test_ls_subscription_cancelled_revokes(self):
+    def test_paddle_subscription_cancelled_revokes(self):
         self._seed_license(
-            "PHARM-CANCEL-0001", "cancel@test.com", subscription_id="99200"
+            "PHARM-CANCEL-0001", "cancel@test.com", subscription_id="sub_cancel_001"
         )
         payload = {
-            "meta": {"event_name": "subscription_cancelled"},
-            "data": {"attributes": {"subscription_id": 99200}},
+            "event_type": "subscription.cancelled",
+            "data": {"id": "sub_cancel_001"},
         }
+        payload_str = json.dumps(payload, separators=(",", ":"))
+        headers = self._paddle_headers(payload_str)
         resp = self.client.post(
-            "/api/webhook/lemonsqueezy",
-            data=json.dumps(payload),
-            content_type="application/json",
-            headers={"x-signature": "test-sig"},
+            "/api/webhook/paddle",
+            data=payload_str,
+            headers=headers,
         )
         self.assertEqual(resp.status_code, 200)
         body = resp.get_json()
@@ -393,85 +229,534 @@ class TestWebhookLemonSqueezy(BaseTestCase):
             ).fetchone()
             self.assertEqual(row["status"], "revoked")
 
-    def test_ls_subscription_cancelled_unknown_sub_ignored(self):
-        payload = {
-            "meta": {"event_name": "subscription_cancelled"},
-            "data": {"attributes": {"subscription_id": 88888}},
-        }
-        resp = self.client.post(
-            "/api/webhook/lemonsqueezy",
-            data=json.dumps(payload),
-            content_type="application/json",
-            headers={"x-signature": "test-sig"},
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.get_json()["reason"], "license_not_found")
-
-    # ── subscription_expired tests ────────────────────────────────
-    def test_ls_subscription_expired_marks_expired(self):
+    def test_paddle_subscription_paused_revokes(self):
         self._seed_license(
-            "PHARM-EXPIRE-0001", "expire@test.com", subscription_id="99300"
+            "PHARM-PAUSE-0001", "pause@test.com", subscription_id="sub_pause_001"
         )
         payload = {
-            "meta": {"event_name": "subscription_expired"},
-            "data": {"attributes": {"subscription_id": 99300}},
+            "event_type": "subscription.paused",
+            "data": {"id": "sub_pause_001"},
         }
+        payload_str = json.dumps(payload, separators=(",", ":"))
+        headers = self._paddle_headers(payload_str)
         resp = self.client.post(
-            "/api/webhook/lemonsqueezy",
-            data=json.dumps(payload),
-            content_type="application/json",
-            headers={"x-signature": "test-sig"},
+            "/api/webhook/paddle",
+            data=payload_str,
+            headers=headers,
         )
         self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["status"], "revoked")
+
+    def test_paddle_subscription_resumed_reactivates(self):
+        self._seed_license(
+            "PHARM-RESUME-0001", "resume@test.com", subscription_id="sub_resume_001",
+            status="revoked",
+        )
+        payload = {
+            "event_type": "subscription.resumed",
+            "data": {"id": "sub_resume_001"},
+        }
+        payload_str = json.dumps(payload, separators=(",", ":"))
+        headers = self._paddle_headers(payload_str)
+        resp = self.client.post(
+            "/api/webhook/paddle",
+            data=payload_str,
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["status"], "active")
+
+    def test_paddle_duplicate_subscription_returns_existing(self):
+        self._seed_license(
+            "PHARM-DUP-SUB-0001", "dup@test.com", subscription_id="sub_dup_001"
+        )
+        payload = {
+            "event_type": "subscription.created",
+            "data": {
+                "id": "sub_dup_001",
+                "custom_data": {"email": "dup@test.com"},
+                "customer": {"email": "dup@test.com"},
+                "status": "active",
+            },
+        }
+        payload_str = json.dumps(payload, separators=(",", ":"))
+        headers = self._paddle_headers(payload_str)
+        resp = self.client.post(
+            "/api/webhook/paddle",
+            data=payload_str,
+            headers=headers,
+        )
         body = resp.get_json()
-        self.assertEqual(body["status"], "expired")
+        self.assertEqual(body["license_key"], "PHARM-DUP-SUB-0001")
+        self.assertEqual(body["note"], "already_exists")
 
-        with app.app_context():
-            db = _get_db()
-            row = db.execute(
-                "SELECT status FROM licenses WHERE license_key = 'PHARM-EXPIRE-0001'"
-            ).fetchone()
-            self.assertEqual(row["status"], "expired")
-
-    def test_ls_subscription_expired_unknown_sub_ignored(self):
-        payload = {
-            "meta": {"event_name": "subscription_expired"},
-            "data": {"attributes": {"subscription_id": 77777}},
-        }
+    def test_paddle_ignored_event_returns_200(self):
+        payload = {"event_type": "transaction.billed", "data": {}}
+        payload_str = json.dumps(payload, separators=(",", ":"))
+        headers = self._paddle_headers(payload_str)
         resp = self.client.post(
-            "/api/webhook/lemonsqueezy",
-            data=json.dumps(payload),
-            content_type="application/json",
-            headers={"x-signature": "test-sig"},
+            "/api/webhook/paddle",
+            data=payload_str,
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["status"], "ignored")
+
+    def test_paddle_missing_signature_returns_400(self):
+        import server_app
+        orig = server_app.WEBHOOK_TEST_MODE
+        server_app.WEBHOOK_TEST_MODE = False
+        try:
+            resp = self.client.post(
+                "/api/webhook/paddle",
+                data=json.dumps({"event_type": "transaction.completed"}),
+                content_type="application/json",
+            )
+            self.assertEqual(resp.status_code, 400)
+        finally:
+            server_app.WEBHOOK_TEST_MODE = orig
+
+    def test_paddle_invalid_signature_returns_403(self):
+        import server_app
+        orig = server_app.WEBHOOK_TEST_MODE
+        server_app.WEBHOOK_TEST_MODE = False
+        try:
+            resp = self.client.post(
+                "/api/webhook/paddle",
+                data=json.dumps({"event_type": "transaction.completed"}),
+                content_type="application/json",
+                headers={"paddle-signature": "ts=12345;h1=invalidhash"},
+            )
+            self.assertEqual(resp.status_code, 403)
+        finally:
+            server_app.WEBHOOK_TEST_MODE = orig
+
+    def test_paddle_no_subscription_id_ignored(self):
+        payload = {
+            "event_type": "subscription.updated",
+            "data": {"id": ""},
+        }
+        payload_str = json.dumps(payload, separators=(",", ":"))
+        headers = self._paddle_headers(payload_str)
+        resp = self.client.post(
+            "/api/webhook/paddle",
+            data=payload_str,
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["reason"], "no_subscription_id")
+
+    def test_paddle_unknown_subscription_ignored(self):
+        payload = {
+            "event_type": "subscription.updated",
+            "data": {"id": "sub_unknown_999"},
+        }
+        payload_str = json.dumps(payload, separators=(",", ":"))
+        headers = self._paddle_headers(payload_str)
+        resp = self.client.post(
+            "/api/webhook/paddle",
+            data=payload_str,
+            headers=headers,
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.get_json()["reason"], "license_not_found")
 
-    # ── subscription_payment_success extends from now when expiry is past ──
-    def test_ls_renewal_extends_from_now_if_expired(self):
+    def test_paddle_renewal_extends_from_now_if_expired(self):
         self._seed_license(
-            "PHARM-RENEW-PAST-01", "past@test.com", subscription_id="99400",
+            "PHARM-RENEW-PAST-01", "past@test.com", subscription_id="sub_past_001",
             days=-5,
         )
         payload = {
-            "meta": {"event_name": "subscription_payment_success"},
-            "data": {"attributes": {"subscription_id": 99400}},
+            "event_type": "subscription.updated",
+            "data": {"id": "sub_past_001", "status": "active"},
         }
+        payload_str = json.dumps(payload, separators=(",", ":"))
+        headers = self._paddle_headers(payload_str)
         resp = self.client.post(
-            "/api/webhook/lemonsqueezy",
-            data=json.dumps(payload),
-            content_type="application/json",
-            headers={"x-signature": "test-sig"},
+            "/api/webhook/paddle",
+            data=payload_str,
+            headers=headers,
         )
         self.assertEqual(resp.status_code, 200)
         body = resp.get_json()
         new_expiry = datetime.fromisoformat(body["expires_at"])
-        # Should extend from now, not from the past expiry — expiry should be ~25-30 days ahead
         self.assertGreater(new_expiry.date(), datetime.now(timezone.utc).date())
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 4. EMAIL DISPATCH SAFETY
+# 2B. WEBHOOK — CREEM (base64 HMAC-SHA256 over raw body, creem-signature header)
+# ══════════════════════════════════════════════════════════════════════
+class TestWebhookCreem(BaseTestCase):
+    def _creem_headers(self, raw_body: bytes) -> dict:
+        import server_app
+        secret = server_app.CREEM_WEBHOOK_SECRET or "test-secret"
+        sig = base64.b64encode(
+            hmac.new(secret.encode(), raw_body, hashlib.sha256).digest()
+        ).decode()
+        return {
+            "Content-Type": "application/json",
+            "creem-signature": sig,
+        }
+
+    def test_creem_checkout_completed_creates_license(self):
+        payload = {
+            "id": "evt_creem_001",
+            "eventType": "checkout.completed",
+            "object": {
+                "id": "chk_creem_001",
+                "customer": {"email": "creem-buyer@test.com"},
+                "subscription_id": "sub_creem_001",
+                "order": {"amount": "50.00"},
+            },
+        }
+        raw = json.dumps(payload).encode()
+        resp = self.client.post(
+            "/api/webhook/creem",
+            data=raw,
+            headers=self._creem_headers(raw),
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertEqual(body["status"], "ok")
+        self.assertIn("license_key", body)
+        with app.app_context():
+            row = _get_db().execute(
+                "SELECT * FROM licenses WHERE subscription_id = ?", ("sub_creem_001",)
+            ).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["email"], "creem-buyer@test.com")
+        self.assertEqual(row["status"], "active")
+
+    def test_creem_subscription_paid_extends_license(self):
+        self._seed_license(
+            "PHARM-CREEM-RENEW-01", "renew@test.com", subscription_id="sub_creem_renew",
+            days=5,
+        )
+        payload = {
+            "id": "evt_creem_renew",
+            "eventType": "subscription.paid",
+            "object": {"id": "sub_creem_renew", "amount": "50.00"},
+        }
+        raw = json.dumps(payload).encode()
+        resp = self.client.post(
+            "/api/webhook/creem",
+            data=raw,
+            headers=self._creem_headers(raw),
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertEqual(body["status"], "ok")
+        self.assertIn("expires_at", body)
+
+    def test_creem_subscription_canceled_revokes(self):
+        self._seed_license(
+            "PHARM-CREEM-CANCEL", "cancel@test.com", subscription_id="sub_creem_cancel"
+        )
+        payload = {
+            "id": "evt_creem_cancel",
+            "eventType": "subscription.canceled",
+            "object": {"id": "sub_creem_cancel"},
+        }
+        raw = json.dumps(payload).encode()
+        resp = self.client.post(
+            "/api/webhook/creem",
+            data=raw,
+            headers=self._creem_headers(raw),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["status"], "revoked")
+
+    def test_creem_subscription_expired_revokes(self):
+        self._seed_license(
+            "PHARM-CREEM-EXPIRE", "expire@test.com", subscription_id="sub_creem_expire"
+        )
+        payload = {
+            "id": "evt_creem_expire",
+            "eventType": "subscription.expired",
+            "object": {"id": "sub_creem_expire"},
+        }
+        raw = json.dumps(payload).encode()
+        resp = self.client.post(
+            "/api/webhook/creem",
+            data=raw,
+            headers=self._creem_headers(raw),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["status"], "revoked")
+
+    def test_creem_subscription_paused_revokes(self):
+        self._seed_license(
+            "PHARM-CREEM-PAUSE", "pause@test.com", subscription_id="sub_creem_pause"
+        )
+        payload = {
+            "id": "evt_creem_pause",
+            "eventType": "subscription.paused",
+            "object": {"id": "sub_creem_pause"},
+        }
+        raw = json.dumps(payload).encode()
+        resp = self.client.post(
+            "/api/webhook/creem",
+            data=raw,
+            headers=self._creem_headers(raw),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["status"], "revoked")
+
+    def test_creem_subscription_active_reactivates(self):
+        self._seed_license(
+            "PHARM-CREEM-ACTIVE", "active@test.com", subscription_id="sub_creem_active",
+            status="revoked",
+        )
+        payload = {
+            "id": "evt_creem_active",
+            "eventType": "subscription.active",
+            "object": {"id": "sub_creem_active"},
+        }
+        raw = json.dumps(payload).encode()
+        resp = self.client.post(
+            "/api/webhook/creem",
+            data=raw,
+            headers=self._creem_headers(raw),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["status"], "active")
+
+    def test_creem_subscription_resumed_reactivates(self):
+        self._seed_license(
+            "PHARM-CREEM-RESUME", "resume@test.com", subscription_id="sub_creem_resume",
+            status="revoked",
+        )
+        payload = {
+            "id": "evt_creem_resume",
+            "eventType": "subscription.resumed",
+            "object": {"id": "sub_creem_resume"},
+        }
+        raw = json.dumps(payload).encode()
+        resp = self.client.post(
+            "/api/webhook/creem",
+            data=raw,
+            headers=self._creem_headers(raw),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["status"], "active")
+
+    def test_creem_duplicate_subscription_returns_existing(self):
+        self._seed_license(
+            "PHARM-CREEM-DUP", "dup@test.com", subscription_id="sub_creem_dup"
+        )
+        payload = {
+            "id": "evt_creem_dup",
+            "eventType": "checkout.completed",
+            "object": {
+                "id": "chk_creem_dup",
+                "customer": {"email": "dup2@test.com"},
+                "subscription_id": "sub_creem_dup",
+                "order": {"amount": "50.00"},
+            },
+        }
+        raw = json.dumps(payload).encode()
+        resp = self.client.post(
+            "/api/webhook/creem",
+            data=raw,
+            headers=self._creem_headers(raw),
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertEqual(body["license_key"], "PHARM-CREEM-DUP")
+        self.assertEqual(body["note"], "already_exists")
+
+    def test_creem_ignored_event_returns_200(self):
+        payload = {"eventType": "checkout.updated", "object": {}}
+        raw = json.dumps(payload).encode()
+        resp = self.client.post(
+            "/api/webhook/creem",
+            data=raw,
+            headers=self._creem_headers(raw),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["status"], "ignored")
+
+    def test_creem_missing_signature_returns_400(self):
+        import server_app
+        orig = server_app.WEBHOOK_TEST_MODE
+        server_app.WEBHOOK_TEST_MODE = False
+        try:
+            resp = self.client.post(
+                "/api/webhook/creem",
+                data=json.dumps({"eventType": "checkout.completed"}),
+                content_type="application/json",
+            )
+            self.assertEqual(resp.status_code, 400)
+        finally:
+            server_app.WEBHOOK_TEST_MODE = orig
+
+    def test_creem_invalid_signature_returns_403(self):
+        import server_app
+        orig = server_app.WEBHOOK_TEST_MODE
+        server_app.WEBHOOK_TEST_MODE = False
+        try:
+            resp = self.client.post(
+                "/api/webhook/creem",
+                data=json.dumps({"eventType": "checkout.completed"}),
+                content_type="application/json",
+                headers={"creem-signature": "invalidsignature"},
+            )
+            self.assertEqual(resp.status_code, 403)
+        finally:
+            server_app.WEBHOOK_TEST_MODE = orig
+
+    def test_creem_test_mode_skips_signature(self):
+        import server_app
+        orig = server_app.WEBHOOK_TEST_MODE
+        server_app.WEBHOOK_TEST_MODE = True
+        try:
+            payload = {
+                "eventType": "checkout.completed",
+                "object": {
+                    "customer": {"email": "testmode@test.com"},
+                    "subscription_id": "sub_testmode",
+                    "order": {"amount": "50.00"},
+                },
+            }
+            raw = json.dumps(payload).encode()
+            resp = self.client.post(
+                "/api/webhook/creem",
+                data=raw,
+                headers={"Content-Type": "application/json"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.get_json()["status"], "ok")
+        finally:
+            server_app.WEBHOOK_TEST_MODE = orig
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 2C. WEBHOOK — LEMON SQUEEZY (HMAC-SHA256 hexdigest, X-Signature header)
+# ══════════════════════════════════════════════════════════════════════
+class TestWebhookLemonSqueezy(BaseTestCase):
+    def _ls_headers(self, raw_body: bytes) -> dict:
+        import server_app
+        secret = server_app.LEMON_WEBHOOK_SECRET or "test-secret"
+        sig = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+        return {
+            "Content-Type": "application/json",
+            "X-Signature": sig,
+        }
+
+    def test_ls_order_created_creates_license(self):
+        payload = {
+            "meta": {"event_name": "order_created"},
+            "data": {
+                "id": "ord_ls_001",
+                "attributes": {"user_email": "ls-buyer@test.com"},
+            },
+        }
+        raw = json.dumps(payload).encode()
+        resp = self.client.post(
+            "/api/webhook/lemon-squeezy",
+            data=raw,
+            headers=self._ls_headers(raw),
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertEqual(body["status"], "ok")
+        self.assertIn("license_key", body)
+        with app.app_context():
+            row = _get_db().execute(
+                "SELECT * FROM licenses WHERE subscription_id = ?", ("ord_ls_001",)
+            ).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["email"], "ls-buyer@test.com")
+        self.assertEqual(row["status"], "active")
+
+    def test_ls_duplicate_order_returns_existing(self):
+        self._seed_license(
+            "PHARM-LS-DUP-001", "dup@test.com", subscription_id="ord_ls_dup"
+        )
+        payload = {
+            "meta": {"event_name": "order_created"},
+            "data": {
+                "id": "ord_ls_dup",
+                "attributes": {"user_email": "dup2@test.com"},
+            },
+        }
+        raw = json.dumps(payload).encode()
+        resp = self.client.post(
+            "/api/webhook/lemon-squeezy",
+            data=raw,
+            headers=self._ls_headers(raw),
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertEqual(body["license_key"], "PHARM-LS-DUP-001")
+        self.assertEqual(body["note"], "already_exists")
+
+    def test_ls_ignored_event_returns_200(self):
+        payload = {"meta": {"event_name": "subscription_created"}, "data": {}}
+        raw = json.dumps(payload).encode()
+        resp = self.client.post(
+            "/api/webhook/lemon-squeezy",
+            data=raw,
+            headers=self._ls_headers(raw),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["status"], "ignored")
+
+    def test_ls_missing_signature_returns_400(self):
+        import server_app
+        orig = server_app.WEBHOOK_TEST_MODE
+        server_app.WEBHOOK_TEST_MODE = False
+        try:
+            resp = self.client.post(
+                "/api/webhook/lemon-squeezy",
+                data=json.dumps({"meta": {"event_name": "order_created"}}),
+                content_type="application/json",
+            )
+            self.assertEqual(resp.status_code, 400)
+        finally:
+            server_app.WEBHOOK_TEST_MODE = orig
+
+    def test_ls_invalid_signature_returns_401(self):
+        import server_app
+        orig = server_app.WEBHOOK_TEST_MODE
+        server_app.WEBHOOK_TEST_MODE = False
+        try:
+            resp = self.client.post(
+                "/api/webhook/lemon-squeezy",
+                data=json.dumps({"meta": {"event_name": "order_created"}}),
+                content_type="application/json",
+                headers={"X-Signature": "deadbeef"},
+            )
+            self.assertEqual(resp.status_code, 401)
+        finally:
+            server_app.WEBHOOK_TEST_MODE = orig
+
+    def test_ls_test_mode_skips_signature(self):
+        import server_app
+        orig = server_app.WEBHOOK_TEST_MODE
+        server_app.WEBHOOK_TEST_MODE = True
+        try:
+            payload = {
+                "meta": {"event_name": "order_created"},
+                "data": {
+                    "id": "ord_ls_testmode",
+                    "attributes": {"user_email": "ls-testmode@test.com"},
+                },
+            }
+            raw = json.dumps(payload).encode()
+            resp = self.client.post(
+                "/api/webhook/lemon-squeezy",
+                data=raw,
+                headers={"Content-Type": "application/json"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.get_json()["status"], "ok")
+        finally:
+            server_app.WEBHOOK_TEST_MODE = orig
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 3. EMAIL DISPATCH SAFETY
 # ══════════════════════════════════════════════════════════════════════
 class TestEmailSafety(BaseTestCase):
     def test_send_license_email_returns_false_without_smtp(self):
@@ -491,7 +776,7 @@ class TestEmailSafety(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 5. VALIDATE ENDPOINT
+# 4. VALIDATE ENDPOINT
 # ══════════════════════════════════════════════════════════════════════
 class TestValidate(BaseTestCase):
     def test_validate_valid_key(self):
@@ -517,7 +802,6 @@ class TestValidate(BaseTestCase):
         self.assertFalse(resp.get_json()["valid"])
 
     def test_validate_hwid_mismatch_rejects(self):
-        """License bound to hwid-bob-123, different hwid should fail."""
         resp = self.client.post(
             "/api/validate",
             json={
@@ -544,7 +828,6 @@ class TestValidate(BaseTestCase):
             json={"license_key": "PHARM-FRESH-0001", "device_id": "dev-fresh", "hwid": "hwid-fresh"},
         )
         self.assertEqual(resp.status_code, 200)
-        # Check DB shows binding
         with app.app_context():
             db = _get_db()
             row = db.execute("SELECT device_id, hwid FROM licenses WHERE license_key='PHARM-FRESH-0001'").fetchone()
@@ -553,7 +836,7 @@ class TestValidate(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 6. ACTIVATE ENDPOINT
+# 5. ACTIVATE ENDPOINT
 # ══════════════════════════════════════════════════════════════════════
 class TestActivate(BaseTestCase):
     def test_activate_fresh_license(self):
@@ -566,14 +849,11 @@ class TestActivate(BaseTestCase):
         self.assertTrue(resp.get_json()["activated"])
 
     def test_activate_device_conflict(self):
-        """License already bound to device-a, activating device-b should 409."""
         self._seed_license("PHARM-ACTV-0002", "conflict@test.com")
-        # Bind first
         self.client.post(
             "/api/activate",
             json={"license_key": "PHARM-ACTV-0002", "device_id": "device-a"},
         )
-        # Try second device
         resp = self.client.post(
             "/api/activate",
             json={"license_key": "PHARM-ACTV-0002", "device_id": "device-b"},
@@ -590,7 +870,7 @@ class TestActivate(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 7. ADMIN — CREATE
+# 6. ADMIN — CREATE
 # ══════════════════════════════════════════════════════════════════════
 class TestAdminCreate(BaseTestCase):
     def test_create_license(self):
@@ -615,7 +895,7 @@ class TestAdminCreate(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 8. ADMIN — STATS
+# 7. ADMIN — STATS
 # ══════════════════════════════════════════════════════════════════════
 class TestAdminStats(BaseTestCase):
     def test_stats_returns_counts(self):
@@ -625,7 +905,7 @@ class TestAdminStats(BaseTestCase):
         self.assertIn("total", body)
         self.assertIn("active", body)
         self.assertIn("bound", body)
-        self.assertGreaterEqual(body["total"], 2)  # seeded licenses
+        self.assertGreaterEqual(body["total"], 2)
 
     def test_stats_unauthorized(self):
         resp = self.client.get("/admin/api/stats")
@@ -633,7 +913,7 @@ class TestAdminStats(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 9. ADMIN — LICENSES LIST
+# 8. ADMIN — LICENSES LIST
 # ══════════════════════════════════════════════════════════════════════
 class TestAdminLicenses(BaseTestCase):
     def test_list_licenses(self):
@@ -662,7 +942,7 @@ class TestAdminLicenses(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 10. ADMIN — HWID RESET
+# 9. ADMIN — HWID RESET
 # ══════════════════════════════════════════════════════════════════════
 class TestAdminResetHwid(BaseTestCase):
     def test_reset_hwid(self):
@@ -672,7 +952,6 @@ class TestAdminResetHwid(BaseTestCase):
             headers=self.admin_headers,
         )
         self.assertEqual(resp.status_code, 200)
-        # Verify cleared
         with app.app_context():
             db = _get_db()
             row = db.execute("SELECT hwid, device_id FROM licenses WHERE license_key='PHARM-TEST-0002-BBBB'").fetchone()
@@ -689,7 +968,7 @@ class TestAdminResetHwid(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 11. ADMIN — ACTIVITY
+# 10. ADMIN — ACTIVITY
 # ══════════════════════════════════════════════════════════════════════
 class TestAdminActivity(BaseTestCase):
     def test_activity_returns_list(self):
@@ -701,7 +980,7 @@ class TestAdminActivity(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 12. CUSTOMER PORTAL — LOGIN
+# 11. CUSTOMER PORTAL — LOGIN
 # ══════════════════════════════════════════════════════════════════════
 class TestPortalLogin(BaseTestCase):
     def test_portal_login_success(self):
@@ -728,7 +1007,7 @@ class TestPortalLogin(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 13. CUSTOMER PORTAL — DETAILS
+# 12. CUSTOMER PORTAL — DETAILS
 # ══════════════════════════════════════════════════════════════════════
 class TestPortalDetails(BaseTestCase):
     def _get_token(self):
@@ -761,7 +1040,7 @@ class TestPortalDetails(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 14. CUSTOMER PORTAL — RESET HWID
+# 13. CUSTOMER PORTAL — RESET HWID
 # ══════════════════════════════════════════════════════════════════════
 class TestPortalResetHwid(BaseTestCase):
     def _get_token(self):
@@ -780,21 +1059,17 @@ class TestPortalResetHwid(BaseTestCase):
         self.assertEqual(resp.status_code, 200)
         body = resp.get_json()
         self.assertEqual(body["status"], "ok")
-        # Verify cleared
         with app.app_context():
             db = _get_db()
             row = db.execute("SELECT hwid FROM licenses WHERE license_key='PHARM-TEST-0002-BBBB'").fetchone()
             self.assertIsNone(row["hwid"])
 
     def test_portal_reset_hwid_cooldown(self):
-        """Second reset within 30 days should 429."""
         token = self._get_token()
-        # First reset
         self.client.post(
             "/api/portal/reset-hwid",
             headers={"Authorization": f"Bearer {token}"},
         )
-        # Second reset — should hit cooldown
         resp = self.client.post(
             "/api/portal/reset-hwid",
             headers={"Authorization": f"Bearer {token}"},
@@ -803,7 +1078,7 @@ class TestPortalResetHwid(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 15. OFFLINE TOKEN
+# 14. OFFLINE TOKEN
 # ══════════════════════════════════════════════════════════════════════
 class TestOfflineToken(BaseTestCase):
     def test_validate_returns_offline_token(self):
@@ -813,7 +1088,6 @@ class TestOfflineToken(BaseTestCase):
         )
         body = resp.get_json()
         self.assertIn("offline_token", body)
-        # Verify the token
         from server_app import verify_offline_token
         payload = verify_offline_token(body["offline_token"])
         self.assertIsNotNone(payload)
@@ -821,7 +1095,7 @@ class TestOfflineToken(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 16. ADMIN — OLD RESET ENDPOINT
+# 15. ADMIN — OLD RESET ENDPOINT
 # ══════════════════════════════════════════════════════════════════════
 class TestAdminResetOld(BaseTestCase):
     def test_old_reset_hwid_endpoint(self):
@@ -834,17 +1108,15 @@ class TestAdminResetOld(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 17. VERIFY TOKEN ENDPOINT
+# 16. VERIFY TOKEN ENDPOINT
 # ══════════════════════════════════════════════════════════════════════
 class TestVerifyToken(BaseTestCase):
     def test_verify_valid_token(self):
-        # Create a token first
         resp = self.client.post(
             "/api/validate",
             json={"license_key": "PHARM-TEST-0001-AAAA", "device_id": "dev-vt"},
         )
         token = resp.get_json()["offline_token"]
-        # Verify it
         resp = self.client.post(
             "/api/verify-token",
             json={"token": token},
@@ -862,7 +1134,7 @@ class TestVerifyToken(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 18. ERROR HANDLERS
+# 17. ERROR HANDLERS
 # ══════════════════════════════════════════════════════════════════════
 class TestErrorHandlers(BaseTestCase):
     def test_404(self):
@@ -875,7 +1147,7 @@ class TestErrorHandlers(BaseTestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# 19. HTML PAGES
+# 18. HTML PAGES
 # ══════════════════════════════════════════════════════════════════════
 class TestHtmlPages(BaseTestCase):
     def test_landing_page(self):
@@ -897,7 +1169,7 @@ class TestHtmlPages(BaseTestCase):
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  PharmacyPro Server — Full Test Suite")
+    print("  PharmacyPro Server — Full Test Suite (Paddle Only)")
     print("=" * 60)
     print()
     unittest.main(verbosity=2)

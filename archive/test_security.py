@@ -62,23 +62,29 @@ def _remove_dev_config(directory):
 # ═══════════════════════════════════════════════════════════════════════
 #  Import the function under test
 # ═══════════════════════════════════════════════════════════════════════
-from license_gate import is_dev_mode, DEV_CONFIG_FILE
+from license_gate import is_dev_mode
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  Test 1: Dev mode works when NOT frozen and dev_config.json exists
+#  Test 1: Dev mode works when NOT frozen and PHARMACY_DEV_MODE=1 is set
 # ═══════════════════════════════════════════════════════════════════════
 def test_dev_mode_active_when_not_frozen():
-    """Simulate dev environment: sys.frozen absent, dev_config.json present."""
+    """Simulate dev environment: not frozen AND PHARMACY_DEV_MODE=1.
+
+    Per license_gate.is_dev_mode(), the bypass triggers on the
+    PHARMACY_DEV_MODE env var (or a ~/.pharmacy_dev.key ghost token) — NOT
+    on dev_config.json, which is a runtime config file.
+    """
     had_frozen = hasattr(sys, "frozen")
     old_frozen = getattr(sys, "frozen", None)
+    old_env = os.environ.get("PHARMACY_DEV_MODE")
 
     # Ensure NOT frozen
     if had_frozen:
         delattr(sys, "frozen")
 
+    os.environ["PHARMACY_DEV_MODE"] = "1"   # the actual, supported trigger
     try:
-        _write_dev_config(SCRIPT_DIR, dev_mode=True)
         result = is_dev_mode()
         if result is True:
             results.ok("test_dev_mode_active_when_not_frozen",
@@ -87,7 +93,10 @@ def test_dev_mode_active_when_not_frozen():
             results.fail("test_dev_mode_active_when_not_frozen",
                          f"Expected True, got {result}")
     finally:
-        _remove_dev_config(SCRIPT_DIR)
+        if old_env is None:
+            os.environ.pop("PHARMACY_DEV_MODE", None)
+        else:
+            os.environ["PHARMACY_DEV_MODE"] = old_env
         if had_frozen:
             sys.frozen = old_frozen
         elif old_frozen is not None:

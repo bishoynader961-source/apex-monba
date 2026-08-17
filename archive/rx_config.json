@@ -1,0 +1,6 @@
+{
+    "region": "US",
+    "unit_system": "imperial",
+    "compliance": "HIPAA",
+    "rx_secrets_file": "rx_secrets.json"
+}

@@ -1,0 +1,29 @@
+2026-07-31 20:27:13,323 | INFO | Flask-Limiter loaded — rate limiting active
+2026-07-31 20:27:13,325 | INFO | itsdangerous loaded — offline token signing active
+2026-07-31 20:27:13,328 | INFO | Portal session signing active
+============================================================
+  PharmacyPro Local Dev Server
+  http://127.0.0.1:5000
+  http://127.0.0.1:5000/terms
+  http://127.0.0.1:5000/privacy
+  http://127.0.0.1:5000/refund
+  http://127.0.0.1:5000/admin
+  http://127.0.0.1:5000/portal
+============================================================
+ * Serving Flask app 'server_app'
+ * Debug mode: off
+2026-07-31 20:27:13,349 | INFO | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-07-31 20:27:13,349 | INFO | [33mPress CTRL+C to quit[0m
+2026-07-31 20:27:51,622 | INFO | 127.0.0.1 - - [31/Jul/2026 20:27:51] "GET /api/health HTTP/1.1" 200 -
+2026-07-31 20:28:11,476 | INFO | 127.0.0.1 - - [31/Jul/2026 20:28:11] "GET /api/health HTTP/1.1" 200 -
+2026-07-31 20:29:21,686 | INFO | 127.0.0.1 - - [31/Jul/2026 20:29:21] "GET / HTTP/1.1" 200 -
+2026-07-31 20:29:21,713 | INFO | 127.0.0.1 - - [31/Jul/2026 20:29:21] "GET /terms HTTP/1.1" 200 -
+2026-07-31 20:29:21,729 | INFO | 127.0.0.1 - - [31/Jul/2026 20:29:21] "GET /privacy HTTP/1.1" 200 -
+2026-07-31 20:29:21,744 | INFO | 127.0.0.1 - - [31/Jul/2026 20:29:21] "GET /refund HTTP/1.1" 200 -
+2026-07-31 20:29:21,759 | INFO | 127.0.0.1 - - [31/Jul/2026 20:29:21] "GET /admin HTTP/1.1" 200 -
+2026-07-31 20:29:21,774 | INFO | 127.0.0.1 - - [31/Jul/2026 20:29:21] "GET /portal HTTP/1.1" 200 -
+2026-07-31 21:48:02,808 | INFO | 127.0.0.1 - - [31/Jul/2026 21:48:02] "GET /terms HTTP/1.1" 200 -
+2026-07-31 21:48:04,308 | INFO | 127.0.0.1 - - [31/Jul/2026 21:48:04] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-07-31 21:49:07,769 | INFO | 127.0.0.1 - - [31/Jul/2026 21:49:07] "GET /privacy HTTP/1.1" 200 -
+2026-07-31 21:49:20,876 | INFO | 127.0.0.1 - - [31/Jul/2026 21:49:20] "GET /refund HTTP/1.1" 200 -

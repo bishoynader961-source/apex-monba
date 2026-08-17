@@ -1,5 +1,9 @@
 import { PricingCard } from "@/components/PricingCard";
 
+// Interactive landing (Paddle SDK) — skip static prerender to avoid the
+// Node-SSR `location is not defined` quirk in Next's bundled script loader.
+export const dynamic = "force-dynamic";
+
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center">

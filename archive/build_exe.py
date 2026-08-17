@@ -103,6 +103,7 @@ def build(debug: bool = False, icon_path: str | None = None):
     cmd = [
         pyinstaller,
         entry_point,
+        "--onedir",
         "--name", output_name,
         "--distpath", os.path.join(archive_dir, "dist"),
         "--workpath", os.path.join(archive_dir, "build"),
@@ -164,6 +165,13 @@ def build(debug: bool = False, icon_path: str | None = None):
         "i18n",
         "db",
         "barcode_listener",
+        "crypto_utils",
+        "async_ui",
+        "design_system",
+        "ocr_cascade",
+        "ocr_engine",
+        "hw_client",
+        "native_accel",
     ]
     for h in hidden:
         cmd.extend(["--hidden-import", h])
@@ -188,15 +196,30 @@ def build(debug: bool = False, icon_path: str | None = None):
             sep = ":"
         data_files.append(f"--add-data={locales_dir}{sep}locales")
 
+    # Bundle compiled Rust extension binaries (.pyd files)
+    for ext_name in ("rust_crypto.pyd", "hw_client.pyd", "barcode_gen.pyd"):
+        ext_path = os.path.join(archive_dir, ext_name)
+        if os.path.isfile(ext_path):
+            if sys.platform == "win32":
+                sep = ";"
+            else:
+                sep = ":"
+            data_files.append(f"--add-binary={ext_path}{sep}.")
+
     cmd.extend(data_files)
 
     print(f"[BUILD] Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=archive_dir)
 
     if result.returncode == 0:
-        dist_dir = os.path.join(archive_dir, "dist", output_name)
-        print(f"\n[BUILD] Success! Output: {dist_dir}")
-        print(f"[BUILD] Executable: {os.path.join(dist_dir, output_name + '.exe')}")
+        # --onedir puts the exe in a subdirectory: dist/<name>/<name>.exe
+        onedir_exe = os.path.join(archive_dir, "dist", output_name, output_name + ".exe")
+        if os.path.isfile(onedir_exe):
+            print(f"\n[BUILD] Success! Output: {onedir_exe}")
+            exe_size = os.path.getsize(onedir_exe)
+            print(f"[BUILD] Executable: {onedir_exe} ({exe_size:,} bytes)")
+        else:
+            print(f"\n[BUILD] Success! Output: {os.path.join(archive_dir, 'dist')}")
     else:
         print(f"\n[BUILD] Failed with exit code {result.returncode}")
         sys.exit(result.returncode)

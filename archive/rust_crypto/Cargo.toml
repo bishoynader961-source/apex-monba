@@ -1,0 +1,19 @@
+[package]
+name = "rust_crypto"
+version = "1.0.0"
+edition = "2021"
+description = "Native Rust Fernet encryption (AES-128-CBC + HMAC-SHA256) for PharmacyPro crash telemetry"
+
+[lib]
+name = "rust_crypto"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.23", features = ["extension-module", "abi3-py38"] }
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+hmac = "0.12"
+sha2 = "0.10"
+pbkdf2 = "0.12"
+base64 = "0.22"
+rand = "0.9"

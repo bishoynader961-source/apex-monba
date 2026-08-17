@@ -2,6 +2,7 @@ import os
 import subprocess
 from datetime import datetime
 from path_utils import get_resource_path
+import currency
 
 RECEIPTS_DIR = get_resource_path("receipts")
 
@@ -11,15 +12,17 @@ def init_receipts_dir():
         os.makedirs(RECEIPTS_DIR)
 
 
-def generate_receipt(receipt_id: int, cart_items: list, total: float,
-                     payment_type: str = "Cash", patient_name: str = "",
+def generate_receipt(receipt_id: int, cart_items: list, subtotal: float, total: float,
+                     tax: float = 0.0, payment_type: str = "Cash", patient_name: str = "",
                      pharmacy_info: dict = None):
     """Generate a formatted receipt as a .txt file.
 
     Args:
         receipt_id: Unique receipt identifier.
         cart_items: List of dicts with keys: product_name, quantity, price_at_time.
-        total: Grand total for the transaction.
+        subtotal: Sum of (quantity × price_at_time) before tax.
+        total: Grand total (subtotal + tax).
+        tax: Tax amount applied to the subtotal.
         payment_type: Payment method string.
         patient_name: Optional patient name for the receipt.
         pharmacy_info: Optional dict with keys: pharmacy_name, address, phone.
@@ -37,6 +40,8 @@ def generate_receipt(receipt_id: int, cart_items: list, total: float,
     pharm_name = pharmacy_info.get("pharmacy_name", "My Pharmacy")
     pharm_addr = pharmacy_info.get("address", "")
     pharm_phone = pharmacy_info.get("phone", "")
+    pharm_header_note = pharmacy_info.get("receipt_header_note", "")
+    pharm_footer_note = pharmacy_info.get("receipt_footer_note", "")
 
     width = 40
     sep = "=" * width
@@ -50,6 +55,9 @@ def generate_receipt(receipt_id: int, cart_items: list, total: float,
     if pharm_phone:
         lines.append(f"Tel: {pharm_phone}".center(width))
     lines.append(sep)
+    if pharm_header_note:
+        lines.append(pharm_header_note.center(width))
+        lines.append(sep)
     lines.append(f"Receipt #: {receipt_id}")
     lines.append(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append(f"Payment: {payment_type}")
@@ -65,12 +73,12 @@ def generate_receipt(receipt_id: int, cart_items: list, total: float,
         price = item["price_at_time"]
         line_total = qty * price
         lines.append(f"  {name}")
-        lines.append(f"    x{qty}  @{price:.2f}  =  ${line_total:.2f}")
-
-    lines.append(dash)
-    lines.append(f"{'TOTAL:':<20} ${total:.2f}")
+        lines.append(f"    x{qty}  @{currency.fmt(price)}  =  {currency.fmt(line_total)}")
     lines.append(sep)
     lines.append("Thank you for your purchase!".center(width))
+    if pharm_footer_note:
+        lines.append(sep)
+        lines.append(pharm_footer_note.center(width))
     lines.append(sep)
 
     with open(filename, "w", encoding="utf-8") as f:

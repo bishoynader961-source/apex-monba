@@ -1,4 +1,3 @@
-import threading
 import os
 from datetime import datetime
 
@@ -7,6 +6,14 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
 import database
 import barcode_logic
+from async_ui import AsyncUI
+
+try:
+    import native_accel
+    _HAS_NATIVE_ACCEL = True
+except ImportError:
+    native_accel = None
+    _HAS_NATIVE_ACCEL = False
 
 
 HEADER_FILL = PatternFill(start_color="2B579A", end_color="2B579A", fill_type="solid")
@@ -112,10 +119,10 @@ def execute_import(file_path: str, column_map: dict, custom_field_map: dict = No
             wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
             ws = wb.active
             if ws is None:
-                if on_complete:
-                    on_complete(0, ["No active sheet found."])
-                return
+                return (0, ["No active sheet found."])
 
+            # First pass: collect valid rows (some may be skipped)
+            valid_rows: list[dict] = []
             for row_num, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
                 try:
                     def cell_val(field_key):
@@ -140,31 +147,62 @@ def execute_import(file_path: str, column_map: dict, custom_field_map: dict = No
                     sku = cell_val("mfg_barcode")
                     vendor = cell_val("vendor_name") or "N/A"
 
-                    internal_barcode = barcode_logic.generate_internal_barcode(vendor)
-
-                    database.add_product(
-                        name=name,
-                        price=price,
-                        manufacturer_barcode=sku,
-                        internal_unique_barcode=internal_barcode,
-                        expiry_date=expiry,
-                        manufacture_date="",
-                        vendor_name=vendor,
-                    )
-                    imported += 1
+                    valid_rows.append({
+                        "row_num": row_num,
+                        "name": name,
+                        "price": price,
+                        "expiry": expiry,
+                        "sku": sku,
+                        "vendor": vendor,
+                    })
                 except Exception as e:
                     errors.append(f"Row {row_num}: {str(e)}")
+
+            # Pre-generate all barcodes in batch (grouped by vendor)
+            _vendor_counts: dict[str, int] = {}
+            for vr in valid_rows:
+                v = vr["vendor"]
+                _vendor_counts[v] = _vendor_counts.get(v, 0) + 1
+
+            _vendor_barcodes: dict[str, list[str]] = {}
+            for vendor, count in _vendor_counts.items():
+                if _HAS_NATIVE_ACCEL:
+                    _vendor_barcodes[vendor] = native_accel.generate_batch_barcodes(vendor, count)
+                else:
+                    _vendor_barcodes[vendor] = [barcode_logic.generate_internal_barcode(vendor) for _ in range(count)]
+
+            # Assign barcodes from pre-generated batches
+            _vendor_idx: dict[str, int] = {v: 0 for v in _vendor_counts}
+            for vr in valid_rows:
+                v = vr["vendor"]
+                vr["barcode"] = _vendor_barcodes[v][_vendor_idx[v]]
+                _vendor_idx[v] += 1
+
+            # Second pass: insert into database
+            for vr in valid_rows:
+                database.add_product(
+                    name=vr["name"],
+                    price=vr["price"],
+                    manufacturer_barcode=vr["sku"],
+                    internal_unique_barcode=vr["barcode"],
+                    expiry_date=vr["expiry"],
+                    manufacture_date="",
+                    vendor_name=vr["vendor"],
+                )
+                imported += 1
 
             wb.close()
         except Exception as e:
             errors.append(f"File error: {str(e)}")
 
-        if on_complete:
-            on_complete(imported, errors)
+        return (imported, errors)
 
-    thread = threading.Thread(target=_worker, daemon=True)
-    thread.start()
-    return thread
+    def _on_done(result, error=None):
+        if on_complete:
+            if isinstance(result, tuple):
+                on_complete(result[0], result[1])
+
+    return AsyncUI.get().run(_worker, callback=_on_done)
 
 
 # ── Export Functions ──────────────────────────────────────────────────────────
@@ -172,44 +210,44 @@ def execute_import(file_path: str, column_map: dict, custom_field_map: dict = No
 def export_to_excel(data_list: list, headers: list, output_path: str, on_complete=None):
     """Export data to a formatted Excel file."""
     def _worker():
-        try:
-            wb = openpyxl.Workbook()
-            ws = wb.active
-            ws.title = "Export"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Export"
 
-            for col_idx, header in enumerate(headers, start=1):
-                cell = ws.cell(row=1, column=col_idx, value=header)
-                cell.font = HEADER_FONT
-                cell.fill = HEADER_FILL
-                cell.alignment = Alignment(horizontal="center")
+        for col_idx, header in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=col_idx, value=header)
+            cell.font = HEADER_FONT
+            cell.fill = HEADER_FILL
+            cell.alignment = Alignment(horizontal="center")
+            cell.border = THIN_BORDER
+
+        for row_idx, row_data in enumerate(data_list, start=2):
+            for col_idx, value in enumerate(row_data, start=1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=value)
                 cell.border = THIN_BORDER
+                if isinstance(value, (int, float)):
+                    cell.alignment = Alignment(horizontal="right")
 
-            for row_idx, row_data in enumerate(data_list, start=2):
-                for col_idx, value in enumerate(row_data, start=1):
-                    cell = ws.cell(row=row_idx, column=col_idx, value=value)
-                    cell.border = THIN_BORDER
-                    if isinstance(value, (int, float)):
-                        cell.alignment = Alignment(horizontal="right")
+        for col_idx, header in enumerate(headers, start=1):
+            max_len = len(str(header))
+            for row_idx in range(2, len(data_list) + 2):
+                val = ws.cell(row=row_idx, column=col_idx).value
+                if val is not None:
+                    max_len = max(max_len, len(str(val)))
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = min(max_len + 3, 40)
 
-            for col_idx, header in enumerate(headers, start=1):
-                max_len = len(str(header))
-                for row_idx in range(2, len(data_list) + 2):
-                    val = ws.cell(row=row_idx, column=col_idx).value
-                    if val is not None:
-                        max_len = max(max_len, len(str(val)))
-                ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = min(max_len + 3, 40)
+        wb.save(output_path)
+        wb.close()
+        return output_path
 
-            wb.save(output_path)
-            wb.close()
-            if on_complete:
-                on_complete(output_path)
-        except Exception:
-            if on_complete:
+    def _on_done(result, error=None):
+        if on_complete:
+            if error or result is None:
                 on_complete(None)
+            else:
+                on_complete(result)
 
-    thread = threading.Thread(target=_worker, daemon=True)
-    thread.start()
-    return thread
+    return AsyncUI.get().run(_worker, callback=_on_done)
 
 
 def export_inventory(output_path: str, on_complete=None):

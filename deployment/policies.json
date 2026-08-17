@@ -1,0 +1,37 @@
+{
+  "edge_kiosk": {
+    "backup": {
+      "method": "vacuum_into",
+      "interval_minutes": 360,
+      "retention_copies": 7,
+      "target_dir": "backups"
+    },
+    "concurrency": {
+      "uvicorn_workers": 1,
+      "lock_strategy": "in_process_asyncio"
+    },
+    "crypto": {
+      "pin_pbkdf2_iters": 200000,
+      "offline_pii_pbkdf2_iters": 200000,
+      "kdf": "PBKDF2-HMAC-SHA256"
+    },
+    "sync": {
+      "client_txn_id_strategy": "uuid4",
+      "local_seq_strategy": "lamport_per_device",
+      "flush_on_reconnect": true,
+      "throttle_ms": 250
+    },
+    "auth": {
+      "pin_lockout_attempts": 5,
+      "pin_lockout_minutes": 15,
+      "access_token_expire_minutes": 60
+    },
+    "tls": {
+      "termination": "caddy_internal_ca",
+      "bind": "127.0.0.1",
+      "frontend_port": 3000,
+      "backend_port": 8000,
+      "proxy_port": 8443
+    }
+  }
+}

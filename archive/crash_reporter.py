@@ -21,8 +21,12 @@ import socket
 import sys
 import threading
 import traceback
+import urllib.request
 import uuid
 from datetime import datetime, timezone
+
+from crypto_utils import encrypt_payload
+from async_ui import AsyncUI
 
 _reporter_logger = logging.getLogger("crash_reporter")
 
@@ -33,7 +37,20 @@ ANONYMIZE_HWID = True
 
 
 def _get_anonymized_hwid() -> str:
-    """Return a SHA-256 hashed hardware fingerprint (never raw HWID)."""
+    """Return a SHA-256 hashed hardware fingerprint (never raw HWID).
+
+    Resolution order (first available wins):
+        1. Rust extension ``hw_client`` (added in Phase 6; falls back automatically)
+        2. Python subprocess-based WMIC queries
+    """
+    try:
+        import hw_client  # type: ignore[import-not-found]
+        if hasattr(hw_client, "get_anonymized_hwid"):
+            return hw_client.get_anonymized_hwid()
+        raise ImportError("hw_client namespace package without compiled extension")
+    except ImportError:
+        pass
+
     raw = ""
     try:
         import subprocess
@@ -98,6 +115,21 @@ def _build_error_payload(
     }
 
 
+def _encrypt_payload_safe(payload: dict) -> dict:
+    """Encrypt a payload dict for secure transport.
+
+    Returns a wrapper dict with ``encrypted_payload`` key on success,
+    or the raw payload on encryption failure (graceful degradation).
+    """
+    try:
+        token = encrypt_payload(payload)
+        _reporter_logger.debug("Payload encrypted via Fernet (AES-128-CBC + HMAC)")
+        return {"encrypted_payload": token}
+    except Exception as exc:
+        _reporter_logger.warning("Encryption failed, sending raw payload: %s", exc)
+        return payload
+
+
 def _send_report(payload: dict) -> bool:
     """Non-blocking POST of the error payload to the Flask server."""
     try:
@@ -139,9 +171,11 @@ def _crash_excepthook(exc_type, exc_value, exc_tb):
         payload["traceback"],
     )
 
-    # Send in a daemon thread so we never block the exit
-    t = threading.Thread(target=_send_report, args=(payload,), daemon=True)
-    t.start()
+    # Encrypt payload before sending (graceful fallback to raw if encryption fails)
+    send_payload = _encrypt_payload_safe(payload)
+
+    # Non-blocking send via shared AsyncUI thread pool
+    AsyncUI.get().run(_send_report, args=(send_payload,))
 
     # Call the original hook so the traceback still prints
     _original_excepthook(exc_type, exc_value, exc_tb)
@@ -171,7 +205,9 @@ def report_error(exc_type=None, exc_value=None, exc_tb=None, note=""):
     if note:
         payload["note"] = note[:200]
 
-    # Non-blocking send
-    t = threading.Thread(target=_send_report, args=(payload,), daemon=True)
-    t.start()
+    # Encrypt payload before sending (graceful fallback to raw if encryption fails)
+    send_payload = _encrypt_payload_safe(payload)
+
+    # Non-blocking send via shared AsyncUI thread pool
+    AsyncUI.get().run(_send_report, args=(send_payload,))
     return True

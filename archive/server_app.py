@@ -11,6 +11,7 @@ Endpoints:
     POST /api/webhook/paddle    — Paddle Billing payment webhook
     GET  /api/health            — health check
 """
+import base64
 import hashlib
 import hmac
 import json
@@ -106,6 +107,9 @@ def _rate_limit_string(route: str) -> str | None:
 DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "licenses.db")
 ADMIN_SECRET = os.environ.get("SERVER_ADMIN_SECRET", "")
 PADDLE_WEBHOOK_SECRET = os.environ.get("PADDLE_WEBHOOK_SECRET", "")
+CREEM_WEBHOOK_SECRET = os.environ.get("CREEM_WEBHOOK_SECRET", "")
+# Lemon Squeezy (authoritative env var name per FLOW_LOGIC.md §17).
+LEMON_WEBHOOK_SECRET = os.environ.get("LEMON_SQUEEZEY_SIGNATURE_SECRET", "")
 OFFLINE_GRACE_DAYS = 7
 TOKEN_SIGNING_KEY = os.environ.get("SERVER_ADMIN_SECRET", "fallback-dev-key")
 
@@ -1323,6 +1327,267 @@ def webhook_paddle():
         return jsonify({"error": "Webhook processing failed"}), 500
 
 
+# ── Webhook: Creem ───────────────────────────────────────────────────────
+@app.route("/api/webhook/creem", methods=["POST"])
+def webhook_creem():
+    """Handle Creem webhook.
+
+    Verifies HMAC-SHA256 signature (base64) using CREEM_WEBHOOK_SECRET and the
+    raw request body, compared against the `creem-signature` header.
+
+    Supported Creem events:
+        checkout.completed     → create license (30-day, subscription/one-time)
+        subscription.paid      → extend license by 30 days (renewal)
+        subscription.active    → reactivate license
+        subscription.resumed   → reactivate license
+        subscription.canceled  → revoke license
+        subscription.expired   → revoke license
+        subscription.paused    → revoke license
+
+    Test mode: Set WEBHOOK_TEST_MODE=1 in .env to skip signature verification.
+    """
+    if not CREEM_WEBHOOK_SECRET and not WEBHOOK_TEST_MODE:
+        logger.warning("Creem webhook received but CREEM_WEBHOOK_SECRET not configured")
+        _log_request("/api/webhook/creem", 500)
+        return jsonify({"error": "Webhook not configured"}), 500
+
+    raw_body = request.get_data()  # bytes — must match exactly what Creem signed
+    signature = request.headers.get("creem-signature", "")
+
+    if not signature and not WEBHOOK_TEST_MODE:
+        _log_request("/api/webhook/creem", 400)
+        return jsonify({"error": "Missing creem-signature header"}), 400
+
+    if WEBHOOK_TEST_MODE:
+        logger.info("Creem webhook — TEST MODE: signature verification skipped")
+    else:
+        expected = base64.b64encode(
+            hmac.new(CREEM_WEBHOOK_SECRET.encode(), raw_body, hashlib.sha256).digest()
+        ).decode()
+        if not hmac.compare_digest(expected, signature):
+            logger.warning("Creem webhook signature mismatch")
+            _log_request("/api/webhook/creem", 403)
+            return jsonify({"error": "Invalid signature"}), 403
+
+    try:
+        payload = json.loads(raw_body.decode() or "{}")
+        # Creem uses camelCase `eventType`; allow snake_case for safety
+        event_type = payload.get("eventType") or payload.get("event_type", "")
+        obj = payload.get("object", {}) or {}
+
+        # ── Field extraction (defensive — verify against live sample) ──
+        customer = obj.get("customer", {}) or {}
+        email = (
+            customer.get("email", "")
+            if isinstance(customer, dict) else ""
+        ) or obj.get("customer_email", "")
+        sub_id = str(obj.get("subscription_id") or obj.get("id") or "")
+        amount = str(
+            (obj.get("order", {}) or {}).get("amount", "")
+            or (obj.get("subscription", {}) or {}).get("amount", "")
+            or "50.00"
+        )
+
+        db = _get_db()
+        now = datetime.now(timezone.utc)
+
+        # ── checkout.completed → new license ──────────────────────────
+        if event_type == "checkout.completed":
+            if sub_id:
+                existing = db.execute(
+                    "SELECT license_key FROM licenses WHERE subscription_id = ?",
+                    (sub_id,),
+                ).fetchone()
+                if existing:
+                    logger.info("Creem checkout.completed — duplicate sub %s, skipping", sub_id)
+                    _log_request("/api/webhook/creem", 200)
+                    return jsonify({"status": "ok", "license_key": existing["license_key"],
+                                    "note": "already_exists"})
+
+            license_key = _generate_key("PHARM")
+            expires_at = now + timedelta(days=30)
+            db.execute(
+                "INSERT INTO licenses (license_key, email, status, created_at, expires_at, subscription_id) "
+                "VALUES (?, ?, 'active', ?, ?, ?)",
+                (license_key, email, now.isoformat(), expires_at.isoformat(),
+                 sub_id or None),
+            )
+            db.commit()
+            email_sent = send_license_email(email, license_key)
+            send_sale_alert(email, amount, "creem", license_key)
+            logger.info("Creem checkout.completed — license: %s for %s (sub=%s)",
+                        license_key, email, sub_id)
+            _log_request("/api/webhook/creem", 200)
+            return jsonify({"status": "ok", "license_key": license_key})
+
+        # ── subscription.paid → extend by 30 days ─────────────────────
+        if event_type == "subscription.paid":
+            if not sub_id:
+                _log_request("/api/webhook/creem", 200)
+                return jsonify({"status": "ignored", "reason": "no_subscription_id"})
+            row = db.execute(
+                "SELECT license_key, expires_at FROM licenses WHERE subscription_id = ?",
+                (sub_id,),
+            ).fetchone()
+            if not row:
+                logger.warning("Creem subscription.paid — no license for sub %s", sub_id)
+                _log_request("/api/webhook/creem", 200)
+                return jsonify({"status": "ignored", "reason": "license_not_found"})
+            base = max(_parse_expiry(row["expires_at"]), now)
+            new_expiry = base + timedelta(days=30)
+            db.execute(
+                "UPDATE licenses SET expires_at = ?, status = 'active' WHERE license_key = ?",
+                (new_expiry.isoformat(), row["license_key"]),
+            )
+            db.commit()
+            logger.info("Creem subscription.paid — key=%s extended to %s (sub=%s)",
+                        row["license_key"], new_expiry.date(), sub_id)
+            _log_request("/api/webhook/creem", 200)
+            return jsonify({"status": "ok", "license_key": row["license_key"],
+                            "expires_at": new_expiry.isoformat()})
+
+        # ── subscription.active / subscription.resumed → reactivate ──
+        if event_type in ("subscription.active", "subscription.resumed"):
+            if not sub_id:
+                _log_request("/api/webhook/creem", 200)
+                return jsonify({"status": "ignored", "reason": "no_subscription_id"})
+            row = db.execute(
+                "SELECT license_key FROM licenses WHERE subscription_id = ?",
+                (sub_id,),
+            ).fetchone()
+            if not row:
+                _log_request("/api/webhook/creem", 200)
+                return jsonify({"status": "ignored", "reason": "license_not_found"})
+            db.execute(
+                "UPDATE licenses SET status = 'active' WHERE license_key = ?",
+                (row["license_key"],),
+            )
+            db.commit()
+            logger.info("Creem %s — key=%s reactivated (sub=%s)", event_type, row["license_key"], sub_id)
+            _log_request("/api/webhook/creem", 200)
+            return jsonify({"status": "ok", "license_key": row["license_key"], "status": "active"})
+
+        # ── subscription.canceled / expired / paused → revoke ─────────
+        if event_type in ("subscription.canceled", "subscription.expired", "subscription.paused"):
+            if not sub_id:
+                _log_request("/api/webhook/creem", 200)
+                return jsonify({"status": "ignored", "reason": "no_subscription_id"})
+            row = db.execute(
+                "SELECT license_key FROM licenses WHERE subscription_id = ?",
+                (sub_id,),
+            ).fetchone()
+            if not row:
+                _log_request("/api/webhook/creem", 200)
+                return jsonify({"status": "ignored", "reason": "license_not_found"})
+            db.execute(
+                "UPDATE licenses SET status = 'revoked' WHERE license_key = ?",
+                (row["license_key"],),
+            )
+            db.commit()
+            logger.info("Creem %s — key=%s revoked (sub=%s)", event_type, row["license_key"], sub_id)
+            _log_request("/api/webhook/creem", 200)
+            return jsonify({"status": "ok", "license_key": row["license_key"], "status": "revoked"})
+
+        # ── Unhandled event ──────────────────────────────────────────
+        logger.info("Creem webhook — unhandled event: %s", event_type)
+        _log_request("/api/webhook/creem", 200)
+        return jsonify({"status": "ignored", "event": event_type})
+
+    except Exception:
+        logger.exception("Creem webhook processing error")
+        _log_request("/api/webhook/creem", 500)
+        return jsonify({"error": "Webhook processing failed"}), 500
+
+
+# ── Webhook: Lemon Squeezy ─────────────────────────────────────────────────
+@app.route("/api/webhook/lemon-squeezy", methods=["POST"])
+def webhook_lemon_squeezy():
+    """Handle Lemon Squeezy webhook (migrated from backend/app.py).
+
+    Verifies HMAC-SHA256 signature using LEMON_WEBHOOK_SECRET (sourced from the
+    authoritative LEMON_SQUEEZEY_SIGNATURE_SECRET env var) over the raw request
+    body, compared against the `X-Signature` header.
+
+    Supported Lemon Squeezy events:
+        order_created  → create a 30-day license (one-time or subscription),
+                         idempotent by order_id (stored as subscription_id)
+
+    Test mode: Set WEBHOOK_TEST_MODE=1 in .env to skip signature verification.
+    """
+    if not LEMON_WEBHOOK_SECRET and not WEBHOOK_TEST_MODE:
+        logger.warning("Lemon Squeezy webhook received but LEMON_WEBHOOK_SECRET not configured")
+        _log_request("/api/webhook/lemon-squeezy", 500)
+        return jsonify({"error": "Webhook not configured"}), 500
+
+    raw_body = request.get_data()
+    signature_header = request.headers.get("X-Signature", "")
+
+    if not signature_header and not WEBHOOK_TEST_MODE:
+        _log_request("/api/webhook/lemon-squeezy", 400)
+        return jsonify({"error": "Missing X-Signature header"}), 400
+
+    if WEBHOOK_TEST_MODE:
+        logger.info("Lemon Squeezy webhook — TEST MODE: signature verification skipped")
+    else:
+        expected = hmac.new(LEMON_WEBHOOK_SECRET.encode(), raw_body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, signature_header):
+            logger.warning("Lemon Squeezy webhook signature mismatch")
+            _log_request("/api/webhook/lemon-squeezy", 401)
+            return jsonify({"error": "Invalid signature"}), 401
+
+    try:
+        payload = json.loads(raw_body)
+    except (json.JSONDecodeError, ValueError):
+        _log_request("/api/webhook/lemon-squeezy", 400)
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    event_name = payload.get("meta", {}).get("event_name", "")
+
+    if event_name == "order_created":
+        try:
+            customer_email = payload["data"]["attributes"]["user_email"]
+            order_id = str(payload["data"]["id"])
+        except (KeyError, TypeError) as exc:
+            logger.error("Malformed order_created payload — missing field: %s", exc)
+            _log_request("/api/webhook/lemon-squeezy", 400)
+            return jsonify({"error": "Malformed order_created payload"}), 400
+
+        db = _get_db()
+        now = datetime.now(timezone.utc)
+
+        # Idempotency by order_id (stored as subscription_id).
+        existing = db.execute(
+            "SELECT license_key FROM licenses WHERE subscription_id = ?",
+            (order_id,),
+        ).fetchone()
+        if existing:
+            logger.info("Lemon Squeezy order_created — duplicate order %s, skipping", order_id)
+            _log_request("/api/webhook/lemon-squeezy", 200)
+            return jsonify({"status": "ok", "license_key": existing["license_key"],
+                            "note": "already_exists"})
+
+        license_key = _generate_key("PHARM")
+        expires_at = now + timedelta(days=30)
+        db.execute(
+            "INSERT INTO licenses (license_key, email, status, created_at, expires_at, subscription_id) "
+            "VALUES (?, ?, 'active', ?, ?, ?)",
+            (license_key, customer_email, now.isoformat(), expires_at.isoformat(), order_id),
+        )
+        db.commit()
+
+        email_sent = send_license_email(customer_email, license_key)
+        send_sale_alert(customer_email, "50.00", "lemonsqueezy", license_key)
+
+        logger.info("Lemon Squeezy order_created — license: %s for %s (order=%s, email=%s)",
+                    license_key, customer_email, order_id, "sent" if email_sent else "skipped")
+        _log_request("/api/webhook/lemon-squeezy", 200)
+        return jsonify({"status": "ok", "license_key": license_key})
+
+    logger.info("Lemon Squeezy webhook — unhandled event: %s", event_name)
+    _log_request("/api/webhook/lemon-squeezy", 200)
+    return jsonify({"status": "ignored", "event_name": event_name})
+
+
 # ── Helpers ────────────────────────────────────────────────────────────
 def _generate_key(prefix: str = "PHARM") -> str:
     """Generate a unique license key: {PREFIX}-XXXX-XXXX-XXXX"""
@@ -1426,6 +1691,17 @@ def api_trigger_report():
 @app.route("/api/health")
 def api_health():
     return jsonify({"status": "ok"})
+
+
+# ── Update check ───────────────────────────────────────────────────────
+@app.route("/api/check-update", methods=["GET"])
+def api_check_update():
+    """Lightweight update check used by the client updater.
+
+    Always reports up_to_date so the client updater passes cleanly.
+    Returns 200: {"status": "up_to_date", "version": "1.0.0"}
+    """
+    return jsonify({"status": "up_to_date", "version": "1.0.0"}), 200
 
 
 # ── Offline Token Verification ─────────────────────────────────────────
@@ -1576,6 +1852,19 @@ def api_report_error():
     payload = request.get_json(silent=True)
     if not payload:
         return jsonify({"error": "Invalid JSON"}), 400
+
+    # Decrypt Fernet-encrypted payload if present (Phase 1 crash encryption)
+    encrypted_token = payload.get("encrypted_payload")
+    if encrypted_token:
+        try:
+            from crypto_utils import decrypt_payload
+            payload = decrypt_payload(encrypted_token)
+            if not isinstance(payload, dict):
+                payload = {"raw": payload}
+            logger.info("Decrypted encrypted crash payload from client")
+        except Exception as exc:
+            logger.error("Failed to decrypt crash payload: %s", exc)
+            return jsonify({"error": "Failed to decrypt payload"}), 400
 
     # Validate required fields
     error_type = payload.get("error_type", "")

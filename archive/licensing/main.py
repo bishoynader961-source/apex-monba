@@ -121,7 +121,7 @@ class ActivationScreen(ctk.CTk):
 
         self.license_entry = ctk.CTkEntry(
             card, width=360, height=42,
-            placeholder_text="PP-XXXX-XXXX-XXXX-XXXX",
+            placeholder_text="PHARM-XXXX-XXXX-XXXX",
             font=ctk.CTkFont(size=14),
             corner_radius=8,
         )

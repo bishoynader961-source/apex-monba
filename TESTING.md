@@ -91,18 +91,25 @@ curl http://localhost:5000/api/validate -X POST -H "Content-Type: application/js
 
 ### Lemon Squeezy mock payload
 ```bash
-curl -X POST http://localhost:5000/api/webhook/lemonsqueezy \
+curl -X POST http://localhost:5000/webhooks/lemon-squeezy \
   -H "Content-Type: application/json" \
-  -H "x-signature: test-signature" \
+  -H "X-Signature: <hmac-sha256-hex-digest>" \
   -d '{
     "meta": { "event_name": "order_created" },
     "data": {
+      "id": "ord_123",
+      "type": "order",
       "attributes": {
         "user_email": "test@example.com"
       }
     }
   }'
 ```
+
+The `X-Signature` header is an HMAC-SHA256 hex digest of the raw request body, computed
+using `LEMON_SQUEEZEY_SIGNATURE_SECRET`. In test mode, set
+`LEMON_SQUEEZEY_SIGNATURE_SECRET` to a known value and compute the signature with
+`hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()`.
 
 ### Paddle mock payload
 ```bash
@@ -189,7 +196,7 @@ Copy the `https://xxxx.ngrok.io` URL.
 
 ### Step 3: Configure gateway webhook URL
 - **Lemon Squeezy**: Dashboard → Settings → Webhooks → Add endpoint
-  - URL: `https://xxxx.ngrok.io/api/webhook/lemonsqueezy`
+  - URL: `https://xxxx.ngrok.io/webhooks/lemon-squeezy`
 - **Paddle**: Dashboard → Developer Tools → Webhooks → Add endpoint
   - URL: `https://xxxx.ngrok.io/api/webhook/paddle`
 
@@ -197,7 +204,7 @@ Copy the `https://xxxx.ngrok.io` URL.
 ```
 WEBHOOK_TEST_MODE=0
 ```
-Set your real `LEMONSQUEEZY_WEBHOOK_SECRET` and `PADDLE_WEBHOOK_SECRET` in `.env`.
+Set your real `LEMON_SQUEEZEY_SIGNATURE_SECRET` and `PADDLE_WEBHOOK_SECRET` in `.env`.
 
 ### Step 5: Trigger a test payment
 - **Lemon Squeezy**: Dashboard → Products → Duplicate a product → Buy it with test email

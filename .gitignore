@@ -5,6 +5,8 @@ __pycache__/
 build/
 dist/
 *.db
+*.sqlite
+*.sqlite3
 .license_cache
 .env
 .env.local
@@ -12,8 +14,20 @@ dist/
 .env*
 dev_config.json
 hwid-client/target/
+archive/rust_crypto/target/
+archive/hw_client/target/
+archive/barcode_gen/target/
+Cargo.lock
 .idea/
 .next/
 node_modules/
 labels/
 push_via_api.py
+
+# ── Refactor: FastAPI backend ──
+backend_fastapi/.env
+backend_fastapi/__pycache__/
+backend_fastapi/tests/.pytest_cache/
+backend_fastapi/*.sqlite
+backend_fastapi/*.sqlite-journal
+backend_fastapi/*.sqlite-wal

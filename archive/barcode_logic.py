@@ -8,7 +8,7 @@ import subprocess
 import barcode
 from barcode.writer import ImageWriter
 from PIL import Image, ImageDraw, ImageFont
-from path_utils import get_resource_path
+from path_utils import get_resource_path, get_writable_config_path
 
 CONFIG_FILE = get_resource_path("config.json")
 LABELS_DIR = get_resource_path("labels")
@@ -112,46 +112,105 @@ def init_labels_dir():
     if not os.path.exists(LABELS_DIR):
         os.makedirs(LABELS_DIR)
 
+# ── Canonical configuration defaults (single source of truth) ──────────────
+# New keys are ADDITIVE: a missing key in the on-disk config simply falls back
+# to its default here, so older config files need no migration. G9 adds
+# session_timeout_minutes; G4 adds price_override_manager_threshold.
+CONFIG_DEFAULTS = {
+    "pharmacy_name": "My Pharmacy",
+    "address": "",
+    "phone": "",
+    "tax_rate": 0.0,
+    "low_stock_threshold": 5,
+    "font_size": 20,
+    "include_price": True,
+    "db_path": "pharmacy.db",
+    "expiry_alarm_days": 50,
+    "expiry_ignore_list": [],
+    "receipt_header_note": "",
+    "receipt_footer_note": "",
+    "session_timeout_minutes": 0,             # 0 = disabled (G9 session TTL)
+    "price_override_manager_threshold": 0.0,  # G4 manager escalation (0 = never)
+}
+
+
 def load_config():
-    if not os.path.exists(CONFIG_FILE):
-        default_config = {
-            "pharmacy_name": "My Pharmacy",
-            "address": "",
-            "phone": "",
-            "tax_rate": 0.0,
-            "low_stock_threshold": 5,
-            "font_size": 20,
-            "include_price": True,
-            "db_path": "pharmacy.db",
-            "expiry_alarm_days": 50,
-            "expiry_ignore_list": []
-        }
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(default_config, f, indent=4)
-        return default_config
-    with open(CONFIG_FILE, "r") as f:
-        config = json.load(f)
-    defaults = {
-        "pharmacy_name": "My Pharmacy",
-        "address": "",
-        "phone": "",
-        "tax_rate": 0.0,
-        "low_stock_threshold": 5,
-        "font_size": 20,
-        "include_price": True,
-        "db_path": "pharmacy.db",
-        "expiry_alarm_days": 50,
-        "expiry_ignore_list": []
-    }
-    changed = False
-    for key, val in defaults.items():
-        if key not in config:
-            config[key] = val
-            changed = True
-    if changed:
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(config, f, indent=4)
-    return config
+    """Load configuration as a read-only merge of defaults + on-disk files.
+
+    Resolution order (first hit wins):
+        1. Writable user config  (%LOCALAPPDATA%/PharmacyPro/config.json)
+        2. Shipped read-only seed (get_resource_path("config.json"), frozen-safe)
+
+    A missing, stripped, or malformed file is non-fatal: the app always boots
+    with CONFIG_DEFAULTS and unknown keys from the file are preserved. This
+    function NEVER writes — see save_config() for persistence.
+    """
+    candidates = [get_writable_config_path(), CONFIG_FILE]
+    raw = {}
+    for path in candidates:
+        try:
+            with open(path, "r") as f:
+                raw = json.load(f)
+                break
+        except (FileNotFoundError, json.JSONDecodeError):
+            continue
+    merged = dict(CONFIG_DEFAULTS)
+    if isinstance(raw, dict):
+        merged.update({k: v for k, v in raw.items() if k in CONFIG_DEFAULTS})
+    return merged
+
+
+def save_config(config: dict) -> None:
+    """Persist configuration to the writable user directory only.
+
+    Never writes to the frozen/shipped config (which is read-only in a PyInstaller
+    build). Unknown keys present in ``config`` are preserved.
+    """
+    path = get_writable_config_path()
+    with open(path, "w") as f:
+        json.dump(config, f, indent=4)
+
+
+def ensure_writable_config() -> None:
+    """One-time seed: copy the shipped config into the writable user dir if absent."""
+    try:
+        if not os.path.exists(get_writable_config_path()):
+            save_config(load_config())
+    except Exception:
+        pass
+
+
+def get_int(key: str, default: int = 0, lo: int | None = None, hi: int | None = None) -> int:
+    """Typed, clamped integer accessor. Garbage/missing values fall back to default."""
+    try:
+        v = int(load_config().get(key, default))
+    except (TypeError, ValueError):
+        v = default
+    if lo is not None:
+        v = max(lo, v)
+    if hi is not None:
+        v = min(hi, v)
+    return v
+
+
+def get_float(key: str, default: float = 0.0, lo: float | None = None, hi: float | None = None) -> float:
+    """Typed, clamped float accessor. Garbage/missing values fall back to default."""
+    try:
+        v = float(load_config().get(key, default))
+    except (TypeError, ValueError):
+        v = default
+    if lo is not None:
+        v = max(lo, v)
+    if hi is not None:
+        v = min(hi, v)
+    return v
+
+
+def get_bool(key: str, default: bool = False) -> bool:
+    """Typed boolean accessor."""
+    v = load_config().get(key, default)
+    return v if isinstance(v, bool) else bool(v)
+
 
 def generate_internal_barcode(vendor_name: str) -> str:
     prefix = vendor_name.strip()[:3].upper() if vendor_name and vendor_name.strip() and vendor_name.strip() != 'N/A' else 'PRD'
@@ -178,7 +237,7 @@ def create_label(price: float, internal_barcode: str) -> str:
     dummy_img = Image.new('RGB', (1, 1))
     draw = ImageDraw.Draw(dummy_img)
     name_bbox = draw.textbbox((0, 0), pharmacy_name, font=ImageFont.truetype("arial.ttf", int(font_size)))
-    price_bbox = draw.textbbox((0, 0), f"${price:.2f}", font=ImageFont.truetype("arial.ttf", 16))
+    price_bbox = draw.textbbox((0, 0), self.app.currency.fmt(price), font=ImageFont.truetype("arial.ttf", 16))
     expiry_bbox = draw.textbbox((0, 0), "Exp: --/--", font=ImageFont.truetype("arial.ttf", 16))
     
     max_text_width = max(name_bbox[2] - name_bbox[0], price_bbox[2] - price_bbox[0], expiry_bbox[2] - expiry_bbox[0])
@@ -191,7 +250,7 @@ def create_label(price: float, internal_barcode: str) -> str:
     # Drawing logic...
     draw.text((30, 30), pharmacy_name, fill='black', font=ImageFont.truetype("arial.ttf", int(font_size)))
     if include_price:
-        draw.text((30, 60), f"${price:.2f}", fill='black', font=ImageFont.truetype("arial.ttf", 16))
+        draw.text((30, 60), self.app.currency.fmt(price), fill='black', font=ImageFont.truetype("arial.ttf", 16))
     draw.text((30, 90), "Exp: --/--", fill='black', font=ImageFont.truetype("arial.ttf", 16))
     
     label_img.paste(barcode_img, (max_text_width + 60, (label_height - barcode_img.height) // 2))

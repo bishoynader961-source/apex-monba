@@ -23,6 +23,11 @@ build/
 build_temp/
 dist/
 
+# Rust crate build artifacts (source + Cargo.toml are tracked)
+rust_crypto/target/
+hw_client/target/
+Cargo.lock
+
 # Generated labels
 labels/
 .vercel

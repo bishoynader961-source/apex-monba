@@ -8,11 +8,16 @@ import barcode_logic
 def setup_expiring_tab(self):
     self.tab_expiring.grid_rowconfigure(0, weight=0)
     self.tab_expiring.grid_rowconfigure(1, weight=0)
-    self.tab_expiring.grid_rowconfigure(2, weight=1)
+    self.tab_expiring.grid_rowconfigure(2, weight=0)
+    self.tab_expiring.grid_rowconfigure(3, weight=1)
     self.tab_expiring.grid_columnconfigure(0, weight=1)
 
+    ctk.CTkLabel(self.tab_expiring, text="Expiry Alerts",
+                 font=ctk.CTkFont(size=24, weight="bold"), text_color="#f0f0f0").grid(
+        row=0, column=0, padx=20, pady=(20, 8), sticky="w")
+
     controls_frame = ctk.CTkFrame(self.tab_expiring, fg_color="transparent")
-    controls_frame.grid(row=0, column=0, padx=10, pady=(10, 5), sticky="ew")
+    controls_frame.grid(row=1, column=0, padx=10, pady=(10, 5), sticky="ew")
 
     ctk.CTkLabel(controls_frame, text="Main Threshold (days):",
                  font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=(0, 4))
@@ -45,7 +50,7 @@ def setup_expiring_tab(self):
     self.expiring_summary_label.pack(side="left", padx=(12, 0))
 
     vendor_bar_frame = ctk.CTkFrame(self.tab_expiring, fg_color="transparent")
-    vendor_bar_frame.grid(row=1, column=0, padx=10, pady=(0, 5), sticky="ew")
+    vendor_bar_frame.grid(row=2, column=0, padx=10, pady=(0, 5), sticky="ew")
 
     vendor_summary_label = ctk.CTkLabel(
         vendor_bar_frame, text="Vendor Summary:",
@@ -115,8 +120,8 @@ def setup_expiring_tab(self):
     columns = ("Name", "Price", "Int. Barcode", "Vendor", "Expiry", "Mfg Date", "Mfg Barcode")
 
     expiring_pane = ttk.PanedWindow(self.tab_expiring, orient="vertical")
-    expiring_pane.grid(row=2, column=0, sticky="nsew", padx=10, pady=(0, 10))
-    self.tab_expiring.grid_rowconfigure(2, weight=1)
+    expiring_pane.grid(row=3, column=0, sticky="nsew", padx=10, pady=(0, 10))
+    self.tab_expiring.grid_rowconfigure(3, weight=1)
 
     expired_frame = ttk.Frame(expiring_pane)
     expired_label = ttk.Label(expired_frame, text=" Already Expired",
@@ -227,7 +232,7 @@ def load_expiring_items(self):
         mfg_text = mfg_date if mfg_date else "N/A"
         vendor_text = vendor or "N/A"
         row_vals = (
-            name, f"${price:.2f}", int_barcode, vendor_text,
+            name, self.app.currency.fmt(price), int_barcode, vendor_text,
             expiry_text, mfg_text, mfg_barcode
         )
 

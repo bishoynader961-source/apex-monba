@@ -7,14 +7,32 @@ import os
 
 import database
 import barcode_logic
+import i18n
+
+try:
+    import native_accel
+    _HAS_NATIVE_ACCEL = True
+except ImportError:
+    native_accel = None
+    _HAS_NATIVE_ACCEL = False
 
 
 def setup_receive_tab(self):
     LEFT_PANEL_WIDTH = 420
 
-    self._recv_left_container = ctk.CTkFrame(self.tab_receive, width=LEFT_PANEL_WIDTH,
-                                              fg_color="transparent")
-    self._recv_left_container.pack(side="left", fill="y", padx=10, pady=10)
+    # Header
+    header = ctk.CTkFrame(self.tab_receive, fg_color="transparent")
+    header.pack(fill="x", padx=20, pady=(20, 8))
+    ctk.CTkLabel(header, text="Receive Inventory",
+                 font=ctk.CTkFont(size=24, weight="bold"), text_color="#f0f0f0").pack(side="left", anchor="w")
+
+    # Content area (left + right panels)
+    content_area = ctk.CTkFrame(self.tab_receive, fg_color="transparent")
+    content_area.pack(fill="both", expand=True, padx=20, pady=(0, 10))
+
+    self._recv_left_container = ctk.CTkFrame(content_area, width=LEFT_PANEL_WIDTH,
+                                               fg_color="transparent")
+    self._recv_left_container.pack(side="left", fill="y", padx=(0, 10), pady=0)
     self._recv_left_container.pack_propagate(False)
 
     try:
@@ -115,7 +133,7 @@ def setup_receive_tab(self):
                                        placeholder_text="e.g. 50")
     self.recv_qty_entry.grid(row=3, column=1, columnspan=2, pady=5, sticky="ew")
 
-    ctk.CTkLabel(s1_grid, text="Total Cost ($)", anchor="w",
+    ctk.CTkLabel(s1_grid, text=i18n.t("total_cost"), anchor="w",
                  width=110).grid(row=4, column=0, padx=(0, 8), pady=5, sticky="w")
     self.recv_cost_entry = ctk.CTkEntry(s1_grid, state="normal",
                                         placeholder_text="e.g. 250.00")
@@ -176,8 +194,8 @@ def setup_receive_tab(self):
         wraplength=360, anchor="center", justify="center")
     self.recv_status_label.pack(fill="both", expand=True)
 
-    self.recv_right_frame = ctk.CTkFrame(self.tab_receive)
-    self.recv_right_frame.pack(side="right", fill="both", expand=True, padx=(0, 10), pady=10)
+    self.recv_right_frame = ctk.CTkFrame(content_area, fg_color="transparent")
+    self.recv_right_frame.pack(side="right", fill="both", expand=True)
     self.recv_right_frame.grid_rowconfigure(1, weight=1)
     self.recv_right_frame.grid_columnconfigure(0, weight=1)
 
@@ -216,11 +234,13 @@ def setup_receive_tab(self):
     commit_frame = ctk.CTkFrame(self.recv_right_frame, fg_color="transparent")
     commit_frame.grid(row=2, column=0, columnspan=2, pady=(5, 10), padx=15, sticky="ew")
     commit_frame.grid_columnconfigure(1, weight=1)
+    self.recv_right_frame.grid_rowconfigure(2, weight=0)
+    self.recv_right_frame.grid_rowconfigure(3, weight=0)
 
-    ctk.CTkLabel(commit_frame, text="Invoice Total ($):").grid(
+    ctk.CTkLabel(commit_frame, text=i18n.t("invoice_total")).grid(
         row=0, column=0, padx=(0, 5), pady=5, sticky="w")
     self.invoice_total_entry = ctk.CTkEntry(commit_frame, width=120,
-                                             placeholder_text="0.00")
+                                             placeholder_text=self.currency.fmt(0))
     self.invoice_total_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
     ctk.CTkButton(commit_frame, text="Remove Selected", width=120,
@@ -245,7 +265,7 @@ def setup_receive_tab(self):
 
     # ── AI Document Extractor ────────────────────────────────────────
     ai_frame = ctk.CTkFrame(self.recv_right_frame, fg_color="#1a1a2e", corner_radius=10)
-    ai_frame.grid(row=2, column=0, columnspan=2, pady=(0, 10), padx=15, sticky="ew")
+    ai_frame.grid(row=3, column=0, columnspan=2, pady=(0, 10), padx=15, sticky="ew")
     ai_frame.grid_columnconfigure(1, weight=1)
 
     ai_hdr = ctk.CTkFrame(ai_frame, fg_color="transparent")
@@ -332,7 +352,7 @@ def setup_receive_tab(self):
                   command=self.calculate_vendor_owed).grid(
         row=1, column=2, padx=5, pady=5)
 
-    self.vendor_owed_label = ctk.CTkLabel(payables_frame, text="Total Owed: $0.00",
+    self.vendor_owed_label = ctk.CTkLabel(payables_frame, text="Total Owed: " + self.currency.fmt(0),
                                           font=ctk.CTkFont(size=14, weight="bold"),
                                           text_color="#dc3545")
     self.vendor_owed_label.grid(row=2, column=0, columnspan=3, pady=(5, 0), sticky="w")
@@ -434,7 +454,7 @@ def _on_product_change(self, choice):
         tpl_name, tpl_price, tpl_mfg_barcode, tpl_expiry, tpl_mfg_date = template
         self._set_disabled_text(self.recv_mfg_date_display, tpl_mfg_date or "")
         self._set_disabled_text(self.recv_expiry_display, tpl_expiry or "")
-        self._set_disabled_text(self.recv_price_display, f"${tpl_price:.2f}" if tpl_price else "")
+        self._set_disabled_text(self.recv_price_display, self.currency.fmt(tpl_price) if tpl_price else "")
         self._set_disabled_text(self.recv_mfg_barcode_display, tpl_mfg_barcode or "")
     else:
         self._set_disabled_text(self.recv_mfg_date_display, "")
@@ -558,14 +578,26 @@ def _refresh_po_treeview(self):
         total_qty = data["total_quantity"]
         total_cost = sum(i["cost"] for i in data["items"])
         vendor_iid = self.tree_po.insert("", "end", text=f"{vendor}  ({total_qty} units)",
-                                          values=("", "", "", "", f"${total_cost:.2f}", "", "", ""),
+                                           values=("", "", "", "", self.currency.fmt(total_cost), "", "", ""),
                                           open=True)
         for item in data["items"]:
             line_total = item["qty"] * item["price"]
             self.tree_po.insert(vendor_iid, "end", text=item["name"],
-                                 values=(vendor, item["qty"], item["name"], f"${item['price']:.2f}",
-                                         f"${line_total:.2f}", item["mfg_date"], item["exp_date"],
-                                         ""))
+                                  values=(vendor, item["qty"], item["name"], self.currency.fmt(item['price']),
+                                           self.currency.fmt(line_total), item["mfg_date"], item["exp_date"],
+                                          ""))
+    self._update_invoice_total()
+
+
+def _update_invoice_total(self):
+    """Recalculate and display the running invoice total from the receive queue."""
+    total = 0.0
+    for vendor, data in self.receiving_session.items():
+        for item in data["items"]:
+            total += item["qty"] * item["price"]
+    formatted = self.currency.fmt(total)
+    self.invoice_total_entry.delete(0, "end")
+    self.invoice_total_entry.insert(0, formatted)
 
 
 def _remove_selected_from_queue(self):
@@ -603,8 +635,15 @@ def _print_bulk_labels(self):
     boxes = []
     for vendor, data in self.receiving_session.items():
         for item in data["items"]:
-            for _ in range(item["qty"]):
-                bc = barcode_logic.generate_internal_barcode(vendor)
+            qty = item["qty"]
+            # Pre-generate all barcodes for this vendor/item in a single batch
+            if _HAS_NATIVE_ACCEL:
+                barcodes = native_accel.generate_batch_barcodes(vendor, qty)
+            else:
+                barcodes = [barcode_logic.generate_internal_barcode(vendor) for _ in range(qty)]
+            # Store for reuse in _commit_shipment
+            item["pre_barcodes"] = barcodes
+            for i, bc in enumerate(barcodes):
                 boxes.append({
                     "name": item["name"],
                     "price": item["price"],
@@ -649,6 +688,7 @@ def _commit_shipment(self):
 
     self._refresh_po_treeview()
     self.invoice_total_entry.delete(0, "end")
+    self._update_invoice_total()
 
     self._notify_inventory_updated()
     self.load_receiving_log()
@@ -681,7 +721,7 @@ def _load_shipment_history(self, filter_date=None):
             "", "end", text=f"{vendor_name} ({total_units} units{suffix})", open=True)
         for row in rows:
             self.tree_history.insert(vendor_iid, "end", values=(
-                row[2], row[3], row[4], f"${row[5]:.2f}", row[6]
+                row[2], row[3], row[4], self.currency.fmt(row[5]), row[6]
             ))
 
 
@@ -730,7 +770,7 @@ def calculate_vendor_owed(self):
         messagebox.showwarning("Missing Vendor", "Please enter a vendor name.")
         return
     total = database.get_vendor_total_owed(vendor)
-    self.vendor_owed_label.configure(text=f"Total Owed to {vendor}: ${total:.2f}")
+    self.vendor_owed_label.configure(text=f"Total Owed to {vendor}: {self.currency.fmt(total)}")
 
 
 # ── AI Document Extractor Methods ──────────────────────────────────────

@@ -97,6 +97,18 @@ def on_language_change(callback) -> None:
     _LISTENERS.append(callback)
 
 
+def unregister_listener(callback) -> None:
+    """Remove a previously registered language-change listener by identity.
+
+    Prevents leaked closures from accumulating in ``_LISTENERS`` after a widget
+    is destroyed (the i18n listener list is never pruned automatically).
+    Removing during a ``set_language`` broadcast is safe because that loop
+    iterates a snapshot of ``_LISTENERS``.
+    """
+    global _LISTENERS
+    _LISTENERS = [cb for cb in _LISTENERS if cb is not callback]
+
+
 def _save_preference(lang_code: str) -> None:
     """Persist the language choice to ~/.pharmacy_lang."""
     try:

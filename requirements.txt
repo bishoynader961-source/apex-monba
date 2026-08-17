@@ -1,4 +1,14 @@
+# Flask for the Lemon Squeezy webhook server (backend/app.py)
+flask>=3.0,<4.0
 # Core dependency for license activation network calls
 requests>=2.31,<3.0
 # Signed cache tokens for offline license grace period
 itsdangerous>=2.1,<3.0
+# Fernet encryption for crash telemetry payloads (AES-128-CBC + HMAC-SHA256)
+cryptography>=42.0
+# SQLAlchemy ORM layer for pharmacy database access (db.py)
+sqlalchemy>=2.0,<3.0
+# Fuzzy string matching for typo-tolerant search (native C++ backend with stdlib fallback)
+rapidfuzz>=3.10.0
+# WSGI server for Procfile deployment (gunicorn backend.app:app)
+gunicorn>=23.0,<24.0

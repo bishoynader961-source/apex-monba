@@ -9,7 +9,7 @@ import barcode_logic
 def setup_add_tab(self):
     self.tab_add.grid_columnconfigure((0, 1), weight=1)
 
-    title_label = ctk.CTkLabel(self.tab_add, text="Add New Product", font=ctk.CTkFont(size=24, weight="bold"))
+    title_label = ctk.CTkLabel(self.tab_add, text="Add New Product", font=ctk.CTkFont(size=24, weight="bold"), text_color="#f0f0f0")
     title_label.grid(row=0, column=0, columnspan=2, padx=20, pady=(20, 30))
 
     tpl_label = ctk.CTkLabel(self.tab_add, text="Use Template (Optional):", anchor="w")

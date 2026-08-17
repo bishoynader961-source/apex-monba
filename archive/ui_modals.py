@@ -110,7 +110,7 @@ class LabelDesignerPopup(ctk.CTkToplevel):
             "BATCH_NO": "",
             "MANUFACTURER": "",
             "QTY": "",
-            "PRICE": f"${float(self._get_numeric_price()):.2f}" if self._get_numeric_price() else "$0.00",
+            "PRICE": self.app.currency.fmt(float(self._get_numeric_price())) if self._get_numeric_price() else self.app.currency.fmt(0),
             "EXPIRY": self.product_expiry or "",
             "MFG_DATE": self.product_mfg or "",
         }
@@ -151,7 +151,7 @@ class LabelDesignerPopup(ctk.CTkToplevel):
         self.name_entry.bind("<KeyRelease>", lambda e: self.update_preview())
 
         self.price_entry = ctk.CTkEntry(self.controls_frame, width=200)
-        self.price_entry.insert(0, f"${float(price):.2f}" if price else "$0.00")
+        self.price_entry.insert(0, self.app.currency.fmt(float(price)) if price else self.app.currency.fmt(0))
         self.price_entry.pack(padx=20, pady=5)
         self.price_entry.bind("<KeyRelease>", lambda e: self.update_preview())
 
@@ -277,7 +277,7 @@ class QuickReceiveModal(ctk.CTkToplevel):
         self.qty_entry = ctk.CTkEntry(form, placeholder_text="e.g. 10")
         self.qty_entry.grid(row=0, column=1, sticky="ew", pady=5)
 
-        ctk.CTkLabel(form, text="Total Cost ($):", anchor="w").grid(row=1, column=0, padx=(0, 8), pady=5, sticky="w")
+        ctk.CTkLabel(form, text=i18n.t("total_cost"), anchor="w").grid(row=1, column=0, padx=(0, 8), pady=5, sticky="w")
         self.cost_entry = ctk.CTkEntry(form, placeholder_text="0.00")
         self.cost_entry.grid(row=1, column=1, sticky="ew", pady=5)
         self.cost_entry.insert(0, "0.00")
@@ -364,7 +364,7 @@ class BulkAddModal(ctk.CTkToplevel):
 
         fields = [
             ("Name:", name),
-            ("Price:", f"${price:.2f}"),
+            ("Price:", self.app.currency.fmt(price)),
             ("Vendor:", vendor_name),
             ("Mfg Barcode:", mfg_barcode or "\u2014"),
             ("Expiry:", expiry_date or "\u2014"),
@@ -384,7 +384,7 @@ class BulkAddModal(ctk.CTkToplevel):
         self.qty_entry = ctk.CTkEntry(form, placeholder_text="e.g. 50")
         self.qty_entry.grid(row=0, column=1, sticky="ew", pady=8)
 
-        ctk.CTkLabel(form, text="Total Wholesale Cost ($):", anchor="w").grid(row=1, column=0, padx=(0, 8), pady=8, sticky="w")
+        ctk.CTkLabel(form, text=i18n.t("total_wholesale_cost"), anchor="w").grid(row=1, column=0, padx=(0, 8), pady=8, sticky="w")
         self.cost_entry = ctk.CTkEntry(form, placeholder_text="e.g. 250.00")
         self.cost_entry.grid(row=1, column=1, sticky="ew", pady=8)
         self.cost_entry.insert(0, "0.00")
@@ -523,7 +523,7 @@ class BulkLabelPrintDialog(ctk.CTkToplevel):
             self.tree.insert("", "end", iid=str(idx - 1),
                              text=str(idx),
                              values=(box["name"], box["vendor"],
-                                     box["barcode"], f"${box['price']:.2f}"))
+                                     box["barcode"], self.app.currency.fmt(box['price'])))
         self.tree.bind("<<TreeviewSelect>>", self._on_select)
 
         right = ctk.CTkFrame(self)
@@ -589,7 +589,7 @@ class BulkLabelPrintDialog(ctk.CTkToplevel):
             load_template(lbl)
             lbl.var_context = {
                 "NAME": box["name"],
-                "PRICE": f"${box['price']:.2f}" if box["price"] else "$0.00",
+                "PRICE": self.app.currency.fmt(box['price']) if box["price"] else self.app.currency.fmt(0),
                 "BARCODE": box["barcode"],
                 "EXPIRY": box.get("expiry", ""),
                 "MFG_DATE": box.get("mfg_date", ""),
@@ -643,7 +643,7 @@ class BulkLabelPrintDialog(ctk.CTkToplevel):
             for box in self._boxes:
                 lbl.var_context = {
                     "NAME": box["name"],
-                    "PRICE": f"${box['price']:.2f}" if box["price"] else "$0.00",
+                    "PRICE": self.app.currency.fmt(box['price']) if box["price"] else self.app.currency.fmt(0),
                     "BARCODE": box["barcode"],
                     "EXPIRY": box.get("expiry", ""),
                     "MFG_DATE": box.get("mfg_date", ""),
@@ -672,7 +672,7 @@ class BulkLabelPrintDialog(ctk.CTkToplevel):
             for box in self._boxes:
                 lbl.var_context = {
                     "NAME": box["name"],
-                    "PRICE": f"${box['price']:.2f}" if box["price"] else "$0.00",
+                    "PRICE": self.app.currency.fmt(box['price']) if box["price"] else self.app.currency.fmt(0),
                     "BARCODE": box["barcode"],
                     "EXPIRY": box.get("expiry", ""),
                     "MFG_DATE": box.get("mfg_date", ""),
@@ -720,7 +720,7 @@ class EditBatchDialog(ctk.CTkToplevel):
 
         fields = [
             ("Name:", "name_var", name),
-            ("Price ($):", "price_var", f"{price:.2f}"),
+            (i18n.t("price_label"), "price_var", f"{price:.2f}"),
             ("Mfg Barcode:", "mfg_barcode_var", mfg_barcode),
             ("Internal Barcode:", "int_barcode_var", int_barcode),
             ("Expiry Date:", "expiry_var", expiry or ""),

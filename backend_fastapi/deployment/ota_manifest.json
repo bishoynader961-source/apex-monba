@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "files": [
+    {
+      "path": "app/services/health_route.py",
+      "sha256": "c037be7995bbedc8b72e8762e5b2e8f5cfedd8cdc6ef352773ca477791d70001"
+    },
+    {
+      "path": "app/shared/config.py",
+      "sha256": "2c345e9b915172d4752456849c336bca3bba4707f6b11b0cfecbfaf7857b84a5"
+    }
+  ]
+}

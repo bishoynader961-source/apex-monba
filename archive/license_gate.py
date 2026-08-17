@@ -64,9 +64,14 @@ def is_dev_mode() -> bool:
     """Development-only license bypass.
 
     Returns True (skip license gate) ONLY when ALL conditions are met:
-      1. The process is NOT a frozen PyInstaller binary.
-      2. A file named ``dev_config.json`` exists next to the entry-point script.
-      3. That file contains the JSON object ``{"dev_mode": true}``.
+      1. The process is NOT a frozen PyInstaller binary (``sys.frozen`` unset).
+      2. AND one of the following dev triggers is present:
+         - The environment variable ``PHARMACY_DEV_MODE`` is set to ``"1"``.
+         - A developer-only ghost-token file ``~/.pharmacy_dev.key`` exists
+           in the current user's home directory.
+
+    Note: ``dev_config.json`` is a runtime *configuration* file and is NOT a
+    dev-mode trigger.
 
     If the app is running as a compiled .exe (sys.frozen == True), this
     function **always** returns False — the bypass is structurally disabled
@@ -92,7 +97,20 @@ def get_device_mac() -> str | None:
 
     Format: ``"AA:BB:CC:DD:EE:FF"`` (uppercase, colon-separated).
     Returns ``None`` if the MAC cannot be determined.
+
+    Resolution order (first available wins):
+        1. Rust extension ``hw_client`` (added in Phase 6; falls back automatically)
+        2. Python ``uuid.getnode()``
     """
+    try:
+        import hw_client  # type: ignore[import-not-found]
+        if hasattr(hw_client, "get_device_mac"):
+            mac = hw_client.get_device_mac()
+            return mac if mac else None
+        raise ImportError("hw_client namespace package without compiled extension")
+    except ImportError:
+        pass
+
     try:
         mac_int = uuid.getnode()
         if (mac_int >> 40) & 1:
@@ -114,7 +132,20 @@ def is_dev_mac() -> bool:
 
 
 def _get_device_id() -> str:
-    """Hardware fingerprint: SHA-256 of machine UUID + hostname + processor."""
+    """Hardware fingerprint: SHA-256 of MAC + hostname + processor.
+
+    Resolution order (first available wins):
+        1. Rust extension ``hw_client`` (added in Phase 6; falls back automatically)
+        2. Python ``uuid.getnode()`` + ``platform``
+    """
+    try:
+        import hw_client  # type: ignore[import-not-found]
+        if hasattr(hw_client, "get_device_id"):
+            return hw_client.get_device_id()
+        raise ImportError("hw_client namespace package without compiled extension")
+    except ImportError:
+        pass
+
     raw = f"{uuid.getnode()}|{platform.node()}|{platform.processor()}"
     return hashlib.sha256(raw.encode()).hexdigest()
 

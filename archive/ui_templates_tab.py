@@ -2,14 +2,21 @@ import customtkinter as ctk
 from tkinter import ttk, messagebox
 
 import database
+import currency
 
 
 def setup_templates_tab(self):
-    self.tab_templates.grid_rowconfigure(1, weight=1)
+    self.tab_templates.grid_rowconfigure(0, weight=0)
+    self.tab_templates.grid_rowconfigure(1, weight=0)
+    self.tab_templates.grid_rowconfigure(2, weight=1)
     self.tab_templates.grid_columnconfigure(0, weight=1)
 
+    ctk.CTkLabel(self.tab_templates, text="Templates",
+                 font=ctk.CTkFont(size=24, weight="bold"), text_color="#f0f0f0").grid(
+        row=0, column=0, padx=20, pady=(20, 8), sticky="w")
+
     add_frame = ctk.CTkFrame(self.tab_templates, fg_color="transparent")
-    add_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+    add_frame.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="ew")
 
     ctk.CTkLabel(add_frame, text="Name:").pack(side="left", padx=(0, 5))
     self.tpl_name_entry = ctk.CTkEntry(add_frame, width=200)
@@ -38,11 +45,11 @@ def setup_templates_tab(self):
     self.tree_tpl.column("Name", width=400, anchor="w")
     self.tree_tpl.column("Price", width=100, anchor="center")
 
-    self.tree_tpl.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
+    self.tree_tpl.grid(row=2, column=0, sticky="nsew", padx=10, pady=(0, 10))
 
     scrollbar = ttk.Scrollbar(self.tab_templates, orient="vertical", command=self.tree_tpl.yview)
     self.tree_tpl.configure(yscroll=scrollbar.set)
-    scrollbar.grid(row=1, column=1, sticky="ns", pady=(0, 10))
+    scrollbar.grid(row=2, column=1, sticky="ns", pady=(0, 10))
 
     self.tree_tpl.bind("<<TreeviewSelect>>", self.on_template_tree_select)
 
@@ -53,7 +60,7 @@ def load_templates_grid(self):
 
     templates = database.get_templates()
     for tpl in templates:
-        self.tree_tpl.insert("", "end", values=(tpl[0], tpl[1], f"${tpl[2]:.2f}"))
+        self.tree_tpl.insert("", "end", values=(tpl[0], tpl[1], currency.fmt(tpl[2])))
 
 
 def on_template_tree_select(self, event):
@@ -67,7 +74,7 @@ def on_template_tree_select(self, event):
     self.tpl_name_entry.insert(0, values[1])
 
     self.tpl_price_entry.delete(0, 'end')
-    price = values[2].replace('$', '')
+    price = currency.parse(values[2])
     self.tpl_price_entry.insert(0, price)
 
 

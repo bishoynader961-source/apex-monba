@@ -6,7 +6,13 @@ import csv
 import os
 import database
 import barcode_logic
+import currency
+import i18n
 from ui_helpers import apply_treeview_style
+
+# RBAC middleware (lazy-safe: authz imports only `database`, no UI cycle).
+import authz
+import auth_session
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -14,12 +20,18 @@ from ui_helpers import apply_treeview_style
 # ─────────────────────────────────────────────────────────────────────────────
 
 def setup_report_tab(self):
-    self.tab_report.grid_rowconfigure(1, weight=1)
+    self.tab_report.grid_rowconfigure(0, weight=0)
+    self.tab_report.grid_rowconfigure(1, weight=0)
+    self.tab_report.grid_rowconfigure(2, weight=1)
     self.tab_report.grid_columnconfigure(0, weight=1)
+
+    ctk.CTkLabel(self.tab_report, text="Sales Report",
+                 font=ctk.CTkFont(size=24, weight="bold"), text_color="#f0f0f0").grid(
+        row=0, column=0, padx=20, pady=(20, 8), sticky="w")
 
     # ── Segmented control to switch Sales / Analytics ────────────────────
     seg_frame = ctk.CTkFrame(self.tab_report, fg_color="transparent")
-    seg_frame.grid(row=0, column=0, padx=10, pady=(10, 0), sticky="ew")
+    seg_frame.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="ew")
     seg_frame.grid_columnconfigure(0, weight=1)
 
     self._report_view_var = ctk.StringVar(value="Sales")
@@ -41,16 +53,16 @@ def setup_report_tab(self):
     self.setup_analytics_panel(self._analytics_frame)
 
     # Show Sales by default
-    self._sales_frame.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
+    self._sales_frame.grid(row=2, column=0, sticky="nsew", padx=2, pady=2)
 
 
 def _on_report_view_switch(self, choice):
     self._sales_frame.grid_forget()
     self._analytics_frame.grid_forget()
     if choice == "Sales":
-        self._sales_frame.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
+        self._sales_frame.grid(row=2, column=0, sticky="nsew", padx=2, pady=2)
     else:
-        self._analytics_frame.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
+        self._analytics_frame.grid(row=2, column=0, sticky="nsew", padx=2, pady=2)
 
 
 def _build_sales_frame(self, frame):
@@ -63,10 +75,10 @@ def _build_sales_frame(self, frame):
     self.report_count_label = ctk.CTkLabel(top_frame, text="Total Items Sold: 0", font=ctk.CTkFont(size=16, weight="bold"))
     self.report_count_label.pack(side="left", padx=20)
 
-    self.report_revenue_label = ctk.CTkLabel(top_frame, text="Total Revenue: $0.00", font=ctk.CTkFont(size=16, weight="bold"), text_color="#28a745")
+    self.report_revenue_label = ctk.CTkLabel(top_frame, text=i18n.t("total_revenue_label") + ": " + self.currency.fmt(0), font=ctk.CTkFont(size=16, weight="bold"), text_color="#28a745")
     self.report_revenue_label.pack(side="left", padx=20)
 
-    self.report_today_label = ctk.CTkLabel(top_frame, text="Today's Sales: $0.00", font=ctk.CTkFont(size=16, weight="bold"), text_color="#17a2b8")
+    self.report_today_label = ctk.CTkLabel(top_frame, text=i18n.t("todays_sales") + ": " + self.currency.fmt(0), font=ctk.CTkFont(size=16, weight="bold"), text_color="#17a2b8")
     self.report_today_label.pack(side="left", padx=20)
 
     refresh_btn = ctk.CTkButton(top_frame, text="Refresh", width=90, fg_color="#6c757d", hover_color="#5a6268",
@@ -75,10 +87,11 @@ def _build_sales_frame(self, frame):
 
     export_sales_btn = ctk.CTkButton(top_frame, text="Export Sales Report (CSV)", width=160,
                                      fg_color="#16a34a", hover_color="#15803d",
-                                     command=self._export_sales_report_csv)
+                                     command=authz.require_permission("sales.modify_report")(self._export_sales_report_csv))
     export_sales_btn.pack(side="right", padx=(0, 10))
 
-    refund_btn = ctk.CTkButton(top_frame, text="Refund Item", fg_color="#ffc107", text_color="black", hover_color="#e0a800", command=self.refund_item)
+    refund_btn = ctk.CTkButton(top_frame, text="Refund Item", fg_color="#ffc107", text_color="black", hover_color="#e0a800",
+                               command=authz.require_permission("sales.modify_report")(self.refund_item))
     refund_btn.pack(side="right", padx=(0, 10))
 
     date_frame = ctk.CTkFrame(frame, fg_color="transparent")
@@ -92,7 +105,7 @@ def _build_sales_frame(self, frame):
 
     ctk.CTkButton(date_frame, text="Check Date", width=100, command=self.calculate_custom_date_sales).pack(side="left", padx=5)
 
-    self.report_custom_date_label = ctk.CTkLabel(date_frame, text="Selected Date Sales: $0.00", font=ctk.CTkFont(size=14, weight="bold"), text_color="#6f42c1")
+    self.report_custom_date_label = ctk.CTkLabel(date_frame, text=i18n.t("selected_date_sales") + ": " + self.currency.fmt(0), font=ctk.CTkFont(size=14, weight="bold"), text_color="#6f42c1")
     self.report_custom_date_label.pack(side="left", padx=20)
 
     ctk.CTkLabel(date_frame, text="  |  ", font=ctk.CTkFont(size=14)).pack(side="left", padx=0)
@@ -142,37 +155,52 @@ def _build_sales_frame(self, frame):
 
 
 def load_sales_report(self):
+    """Load sales report data in a background thread; update tree via after()."""
+    from async_ui import AsyncUI
+
+    # Clear tree immediately to show UI responsiveness
     for item in self.tree_report.get_children():
         self.tree_report.delete(item)
+    self.report_count_label.configure(text="Loading...")
 
-    grouped = database.get_receipt_items_grouped_by_date()
+    def _load():
+        try:
+            return database.get_receipt_items_grouped_by_date()
+        except Exception as e:
+            return {"error": str(e)}
 
-    total_items = 0
-    total_revenue = 0.0
-    for date_str, rows in sorted(grouped.items(), reverse=True):
-        day_qty = sum(r[3] for r in rows)
-        day_revenue = sum(r[5] for r in rows)
-        total_items += day_qty
-        total_revenue += day_revenue
+    def _on_done(grouped, error=None):
+        if isinstance(grouped, dict) and "error" in grouped:
+            messagebox.showerror("Report Error", f"Failed to load sales report:\n{grouped['error']}")
+            self.report_count_label.configure(text="Loading...")
+            return
 
-        date_display = f"{date_str}  ({day_qty} items, ${day_revenue:.2f})"
-        date_iid = self.tree_report.insert(
-            "", "end", text=date_display,
-            values=("", "", "", f"${day_revenue:.2f}", "", "", "", "", ""),
-            open=(date_str == date.today().strftime("%Y-%m-%d"))
-        )
+        total_items = 0
+        total_revenue = 0.0
+        for date_str, rows in sorted(grouped.items(), reverse=True):
+            day_qty = sum(r[3] for r in rows)
+            day_revenue = sum(r[5] for r in rows)
+            total_items += day_qty
+            total_revenue += day_revenue
 
-        for r in rows:
-            time_part = r[6][11:19] if len(r[6]) > 11 else ""
-            self.tree_report.insert(date_iid, "end", text=r[2], values=(
-                r[2], r[3], f"${r[4]:.2f}", f"${r[5]:.2f}",
-                r[8], r[9], r[10], time_part, r[7],
-            ))
+            _rev = self.currency.fmt(day_revenue)
+            self.tree_report.insert(
+                date_iid, "end", text=date_str, values=(
+                f"{date_str}  ({day_qty} items, {_rev})", "", "", "", "", "",
+            ), open=(date_str == date.today().strftime("%Y-%m-%d")))
 
-    today_sales = database.get_receipts_total_for_date(date.today().strftime("%Y-%m-%d"))
-    self.report_count_label.configure(text=f"Total Items Sold: {total_items}")
-    self.report_revenue_label.configure(text=f"Total Revenue: ${total_revenue:.2f}")
-    self.report_today_label.configure(text=f"Today's Sales: ${today_sales:.2f}")
+            for r in rows:
+                time_part = r[6][11:19] if len(r[6]) > 11 else ""
+                self.tree_report.insert(date_iid, "end", text=r[2], values=(
+                    r[2], r[3], self.currency.fmt(r[4]),
+                    r[8], r[9], r[10], time_part, r[7],
+                ))
+
+        today_sales = database.get_receipts_total_for_date(date.today().strftime("%Y-%m-%d"))
+        self.report_count_label.configure(text=f"Total Items Sold: {total_items}")
+        self.report_revenue_label.configure(text=f"Total Revenue: {self.currency.fmt(total_revenue)}")
+
+    AsyncUI.get().run(_load, callback=_on_done)
 
 
 def _search_for_refund(self):
@@ -206,22 +234,21 @@ def _search_for_refund(self):
         total_items += day_qty
         total_revenue += day_revenue
 
-        date_display = f"{date_str}  ({day_qty} items, ${day_revenue:.2f})"
-        date_iid = self.tree_report.insert(
-            "", "end", text=date_display,
-            values=("", "", "", f"${day_revenue:.2f}", "", "", "", "", ""),
-            open=True
-        )
+        _rev = self.currency.fmt(day_revenue)
+        self.tree_report.insert(
+            date_iid, "end", text=date_str, values=(
+            f"{date_str}  ({day_qty} items, {_rev})", "", "", "", "", "",
+        ), open=True)
 
         for r in rows:
             time_part = r[6][11:19] if len(r[6]) > 11 else ""
             self.tree_report.insert(date_iid, "end", text=r[2], values=(
-                r[2], r[3], f"${r[4]:.2f}", f"${r[5]:.2f}",
+                r[2], r[3], self.currency.fmt(r[4]),
                 r[8], r[9], r[10], time_part, r[7],
             ))
 
     self.report_count_label.configure(text=f"Search: {total_items} item(s) found")
-    self.report_revenue_label.configure(text=f"Matched Revenue: ${total_revenue:.2f}")
+    self.report_revenue_label.configure(text=f"Matched Revenue: {self.currency.fmt(total_revenue)}")
     self.report_today_label.configure(text=f"Barcode: {query}")
 
 
@@ -242,10 +269,13 @@ def calculate_custom_date_sales(self):
 
     rows = database.get_receipt_items_for_date(raw)
     date_total = sum(r[5] for r in rows)
-    self.report_custom_date_label.configure(text=f"Sales for {raw}: ${date_total:.2f}")
+    self.report_custom_date_label.configure(text=f"Sales for {raw}: {self.currency.fmt(date_total)}")
 
 
 def refund_item(self):
+    if not authz.check_permission(auth_session.current_user_id(), "sales.modify_report"):
+        authz.access_denied("sales.modify_report")
+        return
     selected = self.tree_report.selection()
     if not selected:
         messagebox.showwarning("Warning", "Please select an item to refund.")
@@ -413,7 +443,11 @@ def _on_analytics_period_change(self, choice):
 
 
 def load_analytics(self):
-    """Fetch and display sales analytics for the selected date range."""
+    """Fetch and display sales analytics for the selected date range.
+    Uses a background thread for the DB query; updates KPIs via after().
+    """
+    from async_ui import AsyncUI
+
     start = self._analytics_from_entry.get().strip()
     end = self._analytics_to_entry.get().strip()
 
@@ -432,33 +466,41 @@ def load_analytics(self):
         messagebox.showwarning("Invalid Range", "From date must be before or equal to To date.")
         return
 
-    try:
-        result = database.get_sales_analytics(start, end)
-    except Exception as e:
-        messagebox.showerror("Analytics Error", f"Failed to load analytics:\n{e}")
-        return
+    def _load():
+        try:
+            return database.get_sales_analytics(start, end)
+        except Exception as e:
+            return {"error": str(e)}
 
-    # Update KPIs
-    self._analytics_kpi["Total Sold"].configure(text=str(result["total_items_sold"]))
-    self._analytics_kpi["Revenue"].configure(text=f"${result['total_revenue']:,.2f}")
-    self._analytics_kpi["Transactions"].configure(text=str(result["total_transactions"]))
-    self._analytics_kpi["Avg Basket"].configure(text=f"{result['avg_basket_size']:.1f}")
+    def _on_done(result, error=None):
+        if result is None or (isinstance(result, dict) and "error" in result):
+            msg = result["error"] if isinstance(result, dict) else str(error)
+            messagebox.showerror("Analytics Error", f"Failed to load analytics:\n{msg}")
+            return
 
-    config = barcode_logic.load_config()
-    tax_rate = config.get("tax_rate", 0.0)
-    tax_multiplier = 1 + (tax_rate / 100.0)
-    est_profit = result["total_revenue"] * 0.30
-    self._analytics_kpi["Est. Profit"].configure(text=f"${est_profit:,.2f}")
+        # Update KPIs
+        self._analytics_kpi["Total Sold"].configure(text=str(result["total_items_sold"]))
+        self._analytics_kpi["Revenue"].configure(text=self.currency.fmt(result['total_revenue']))
+        self._analytics_kpi["Transactions"].configure(text=str(result["total_transactions"]))
+        self._analytics_kpi["Avg Basket"].configure(text=f"{result['avg_basket_size']:.1f}")
 
-    # Update treeview
-    for item in self._analytics_tree.get_children():
-        self._analytics_tree.delete(item)
+        config = barcode_logic.load_config()
+        tax_rate = config.get("tax_rate", 0.0)
+        tax_multiplier = 1 + (tax_rate / 100.0)
+        est_profit = result["total_revenue"] * 0.30
+        self._analytics_kpi["Est. Profit"].configure(text=f"{self.currency.fmt(est_profit)}")
 
-    self._analytics_data_cache = result["ranked_products"]
-    for rank, name, qty, revenue, avg_price in result["ranked_products"]:
-        self._analytics_tree.insert("", "end", values=(
-            rank, name, qty, f"${revenue:,.2f}", f"${avg_price:.2f}",
-        ))
+        # Update treeview
+        for item in self._analytics_tree.get_children():
+            self._analytics_tree.delete(item)
+
+        self._analytics_data_cache = result["ranked_products"]
+        for rank, name, qty, revenue, avg_price in result["ranked_products"]:
+            self._analytics_tree.insert("", "end", values=(
+                rank, name, qty, f"{self.currency.fmt(revenue)}",
+            ))
+
+    AsyncUI.get().run(_load, callback=_on_done)
 
 
 def _export_analytics_csv(self):
@@ -489,6 +531,9 @@ def _export_analytics_csv(self):
 
 def _export_sales_report_csv(self):
     """Export the current sales report treeview to a CSV file."""
+    if not authz.check_permission(auth_session.current_user_id(), "sales.modify_report"):
+        authz.access_denied("sales.modify_report")
+        return
     file_path = ctk.filedialog.asksaveasfilename(
         title="Export Sales Report to CSV",
         defaultextension=".csv",

@@ -215,7 +215,7 @@ def upload_downloads(dry_run: bool = False) -> bool:
     for exe_file in downloads_dir.glob("*.exe"):
         remote_path = f"/home/{USERNAME}/downloads/{exe_file.name}"
         print(f"[UPLOAD] Binary: {exe_file.name} ({exe_file.stat().st_size:,} bytes)")
-        ok = _upload_file(remote_path, exe_file.read_bytes(), f"Binary: {exe_file.name}", dry_run, timeout=180) and ok
+        ok = _upload_file(remote_path, exe_file.read_bytes(), f"Binary: {exe_file.name}", dry_run, timeout=600) and ok
     return ok
 
 

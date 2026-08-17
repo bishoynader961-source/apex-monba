@@ -88,8 +88,16 @@ _PAYLOADS = {
 
 
 def _sign_paddle(payload_str: str, secret: str) -> str:
-    """Compute HMAC-SHA256 signature for Paddle."""
-    return hmac.new(secret.encode(), payload_str.encode(), hashlib.sha256).hexdigest()
+    """Compute Paddle-format HMAC-SHA256 signature.
+
+    Paddle-Signature format: "ts=TIMESTAMP;h1=HASH"
+    Signed payload: "{ts}:{raw_body}"
+    """
+    import time
+    ts = str(int(time.time()))
+    signed_payload = f"{ts}:{payload_str}"
+    h1 = hmac.new(secret.encode(), signed_payload.encode(), hashlib.sha256).hexdigest()
+    return f"ts={ts};h1={h1}"
 
 
 def cmd_test_webhook(args):

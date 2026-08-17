@@ -11,6 +11,10 @@ import excel_handler
 from ui_helpers import apply_treeview_style
 import audit_log
 
+# RBAC middleware (authz imports only `database`; no UI import cycle).
+import authz
+import auth_session
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  Import Wizard Modal
@@ -297,7 +301,7 @@ class LabelPrintDialog(ctk.CTkToplevel):
 
         price_val = 0.0
         try:
-            price_val = float(str(self.price).replace("$", "").replace(",", ""))
+            price_val = self.master.currency.parse(self.price)
         except (ValueError, TypeError):
             pass
 
@@ -331,7 +335,7 @@ class LabelPrintDialog(ctk.CTkToplevel):
         try:
             price_val = 0.0
             try:
-                price_val = float(str(self.price).replace("$", "").replace(",", ""))
+                price_val = self.master.currency.parse(self.price)
             except (ValueError, TypeError):
                 pass
             barcode_logic.open_label_engine(
@@ -348,18 +352,20 @@ class LabelPrintDialog(ctk.CTkToplevel):
 # ═════════════════════════════════════════════════════════════════════════════
 
 def setup_inventory_tab(self):
+    self.tab_inventory.grid_rowconfigure(0, weight=0)
+    self.tab_inventory.grid_rowconfigure(1, weight=0)
+    self.tab_inventory.grid_rowconfigure(2, weight=0)
     self.tab_inventory.grid_rowconfigure(3, weight=1)
     self.tab_inventory.grid_columnconfigure(0, weight=1)
+    self.tab_inventory.grid_columnconfigure(1, weight=0)
 
-    self._current_sort = 'expiry_date'
-    self._sort_reverse = False
-    self._imported_batch_ids = set()
-    self._row_counter = 0
-    self._inventory_filter = "All"
+    ctk.CTkLabel(self.tab_inventory, text="Inventory Browser",
+                 font=ctk.CTkFont(size=24, weight="bold"), text_color="#f0f0f0").grid(
+        row=0, column=0, padx=20, pady=(20, 8), sticky="w")
 
     # ── Expiry alert bar ─────────────────────────────────────────────────
     alert_frame = ctk.CTkFrame(self.tab_inventory, fg_color="transparent")
-    alert_frame.grid(row=0, column=0, padx=10, pady=(10, 0), sticky="ew")
+    alert_frame.grid(row=1, column=0, padx=10, pady=(10, 0), sticky="ew")
     alert_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
     self.alert_30 = ctk.CTkLabel(alert_frame, text="", font=ctk.CTkFont(size=13, weight="bold"), text_color="#dc3545")
@@ -369,9 +375,15 @@ def setup_inventory_tab(self):
     self.alert_90 = ctk.CTkLabel(alert_frame, text="", font=ctk.CTkFont(size=13, weight="bold"), text_color="#ffc107")
     self.alert_90.grid(row=0, column=2, padx=5, sticky="w")
 
-    # ── Filter toggle ────────────────────────────────────────────────────
+    self._current_sort = 'expiry_date'
+    self._sort_reverse = False
+    self._imported_batch_ids = set()
+    self._row_counter = 0
+    self._inventory_filter = "All"
+
+    # ── Filter toggle ──
     filter_frame = ctk.CTkFrame(self.tab_inventory, fg_color="transparent")
-    filter_frame.grid(row=1, column=0, padx=10, pady=(4, 0), sticky="ew")
+    filter_frame.grid(row=2, column=0, padx=10, pady=(4, 0), sticky="ew")
 
     ctk.CTkLabel(filter_frame, text="Filter:", font=ctk.CTkFont(size=12, weight="bold")).pack(side="left", padx=(10, 6))
     self._inventory_filter_var = ctk.StringVar(value="All")
@@ -396,8 +408,8 @@ def setup_inventory_tab(self):
     ctk.CTkButton(search_frame, text="Search", width=90, command=self.perform_search).grid(row=0, column=1)
     ctk.CTkButton(search_frame, text="Clear", width=80, fg_color="#6c757d", hover_color="#5a6268", command=self.load_inventory).grid(row=0, column=2, padx=(6, 0))
     ctk.CTkButton(search_frame, text="Sell", width=80, fg_color="#c42b1c", hover_color="#9e2216", command=self._send_to_checkout).grid(row=0, column=3, padx=(6, 0))
-    ctk.CTkButton(search_frame, text="Edit", width=80, fg_color="#e67e22", hover_color="#cf6d17", command=self._edit_batch).grid(row=0, column=4, padx=(6, 0))
-    ctk.CTkButton(search_frame, text="Delete", width=80, fg_color="#DC2626", hover_color="#991B1B", command=self._delete_batch).grid(row=0, column=5, padx=(6, 0))
+    ctk.CTkButton(search_frame, text="Edit", width=80, fg_color="#e67e22", hover_color="#cf6d17", command=authz.require_permission("inventory.manage")(self._edit_batch)).grid(row=0, column=4, padx=(6, 0))
+    ctk.CTkButton(search_frame, text="Delete", width=80, fg_color="#DC2626", hover_color="#991B1B", command=authz.require_permission("inventory.manage")(self._delete_batch)).grid(row=0, column=5, padx=(6, 0))
     ctk.CTkButton(search_frame, text="Print Label", width=90, fg_color="#17a2b8", hover_color="#138496", command=self._print_label_for_selected).grid(row=0, column=6, padx=(6, 0))
     ctk.CTkButton(search_frame, text="Import", width=80, fg_color="#6f42c1", hover_color="#5a32a3", command=lambda: _import_excel(self)).grid(row=0, column=7, padx=(6, 0))
     ctk.CTkButton(search_frame, text="Export", width=80, fg_color="#0d6efd", hover_color="#0b5ed7", command=lambda: _export_excel(self)).grid(row=0, column=8, padx=(6, 0))
@@ -423,9 +435,6 @@ def setup_inventory_tab(self):
     # Tag config for striping + import highlight
     self._tree_tags_configured = False
 
-    columns = ("Name", "Price", "Int. Barcode", "Vendor", "Expiry", "Mfg Date", "Mfg Barcode")
-    self.tree_inv = ttk.Treeview(self.tab_inventory, columns=columns, show="headings")
-
     # Column config: strings left, numbers right, dates center
     col_cfg = {
         "Name":         {"width": 170, "anchor": "w"},
@@ -441,11 +450,11 @@ def setup_inventory_tab(self):
         self.tree_inv.heading(col, text=col, command=lambda c=col: _header_sort(self, c))
         self.tree_inv.column(col, width=cfg["width"], anchor=cfg["anchor"])
 
-    self.tree_inv.grid(row=3, column=0, sticky="nsew", padx=10, pady=(0, 10))
+    self.tree_inv.grid(row=3, column=0, sticky="nsew", padx=(10, 0), pady=(0, 10))
 
     scrollbar = ttk.Scrollbar(self.tab_inventory, orient="vertical", command=self.tree_inv.yview)
     self.tree_inv.configure(yscroll=scrollbar.set)
-    scrollbar.grid(row=2, column=1, sticky="ns", pady=(0, 10))
+    scrollbar.grid(row=3, column=1, sticky="ns", pady=(0, 10))
 
     _configure_tree_tags(self)
     self.load_inventory()
@@ -475,7 +484,7 @@ def _get_row_tag(self):
 
 _COL_SORT_KEYS = {
     "Name":         lambda v: v[0].lower(),
-    "Price":        lambda v: float(v[1].replace("$", "").replace(",", "")) if v[1] else 0.0,
+    "Price":        lambda v: currency.parse(v[1]) if v[1] else 0.0,
     "Int. Barcode": lambda v: v[2].lower(),
     "Vendor":       lambda v: v[3].lower(),
     "Expiry":       lambda v: v[4] if v[4] and v[4] != "N/A" else "9999",
@@ -584,7 +593,7 @@ def load_inventory(self):
         mfg_text = mfg_date if mfg_date else "N/A"
         tag = "imported" if batch_id in self._imported_batch_ids else _get_row_tag(self)
         self.tree_inv.insert("", "end", iid=f"batch_{batch_id}", values=(
-            name, f"${price:.2f}", int_barcode, vendor or "N/A",
+            name, self.currency.fmt(price), int_barcode, vendor or "N/A",
             expiry_text, mfg_text, mfg_barcode
         ), tags=(tag,))
 
@@ -635,7 +644,7 @@ def perform_search(self, event=None):
         mfg_text = mfg_date if mfg_date else "N/A"
         tag = "imported" if batch_id in self._imported_batch_ids else _get_row_tag(self)
         self.tree_inv.insert("", "end", iid=f"batch_{batch_id}", values=(
-            name, f"${price:.2f}", int_barcode, vendor or "N/A",
+            name, self.currency.fmt(price), int_barcode, vendor or "N/A",
             expiry_text, mfg_text, mfg_barcode
         ), tags=(tag,))
 
@@ -655,7 +664,7 @@ def _send_to_checkout(self):
         return
     values = self.tree_inv.item(iid, 'values')
     product_name = values[0]
-    price_str = values[1].replace('$', '')
+    price_str = self.currency.parse(values[1])
     int_barcode = values[2]
     vendor = values[3] if values[3] and values[3] != "N/A" else ""
     expiry_date = values[4] if values[4] else "N/A"
@@ -665,27 +674,36 @@ def _send_to_checkout(self):
         messagebox.showerror("Error", "Could not parse price from the selected batch.")
         return
     product_row = database.get_product_by_internal_barcode(int_barcode)
-    available = 1 if product_row else 0
-    in_cart = sum(item["quantity"] for item in self.cart if item.get("internal_barcode") == int_barcode)
-    remaining = available - in_cart
-    if remaining <= 0:
-        messagebox.showwarning("Out of Stock", f"'{product_name}' (batch {int_barcode or 'N/A'}) is already in the cart.")
+    if not product_row:
+        messagebox.showwarning("Out of Stock", f"'{product_name}' (batch {int_barcode or 'N/A'}) is no longer in stock.")
         return
-    for item in self.cart:
-        if item["product_name"] == product_name and item.get("internal_barcode") == int_barcode:
+
+    for item in self.pos_cart:
+        if int_barcode in item.get("internal_barcodes", []):
+            messagebox.showwarning("Already in Cart",
+                f"'{product_name}' (batch {int_barcode}) is already in the cart.",
+                parent=self.tab_inventory)
+            return
+
+    for item in self.pos_cart:
+        if item["product_name"] == product_name:
+            item["internal_barcodes"].append(int_barcode)
             item["quantity"] += 1
             self._refresh_cart_treeview()
             self.tab_view.set("Checkout")
             return
-    self.cart.append({
+    self.pos_cart.append({
         "product_name": product_name, "quantity": 1, "price_at_time": price,
-        "internal_barcode": int_barcode, "vendor": vendor, "expiry_date": expiry_date,
+        "internal_barcodes": [int_barcode], "vendor": vendor, "expiry_date": expiry_date,
     })
     self._refresh_cart_treeview()
     self.tab_view.set("Checkout")
 
 
 def _edit_batch(self):
+    if not authz.check_permission(auth_session.current_user_id(), "inventory.manage"):
+        authz.access_denied("inventory.manage")
+        return
     selected = self.tree_inv.selection()
     if not selected:
         messagebox.showwarning("Warning", "Please select a batch to edit.")
@@ -703,6 +721,9 @@ def _edit_batch(self):
     EditBatchDialog(self, row)
 
 def _delete_batch(self):
+    if not authz.check_permission(auth_session.current_user_id(), "inventory.manage"):
+        authz.access_denied("inventory.manage")
+        return
     selected = self.tree_inv.selection()
     if not selected:
         messagebox.showwarning("Warning", "Please select a batch to delete.")
@@ -762,7 +783,7 @@ def open_label_for_selected(self):
         return
     values = self.tree_inv.item(iid, 'values')
     name = values[0]
-    price_str = values[1].replace('$', '')
+    price_str = self.currency.parse(values[1])
     barcode = values[2]
     expiry_raw = values[4] if values[4] != "N/A" else ""
     mfg_raw = values[5] if values[5] != "N/A" else ""

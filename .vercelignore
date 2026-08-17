@@ -1,0 +1,14 @@
+node_modules/
+.next/
+hwid-client/
+archive/
+venv/
+.venv/
+build/
+dist/
+__pycache__/
+.github/
+.idea/
+requirements.txt
+*.py
+*.db

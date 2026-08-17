@@ -1,0 +1,12 @@
+
+> my-progam-pharmacy@1.0.0 dev
+> next dev
+
+▲ Next.js 16.2.10 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.5:3000
+✓ Ready in 667ms
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+
+ GET / 200 in 365ms (next.js: 157ms, proxy.ts: 71ms, application-code: 136ms)
+ GET / 200 in 35ms (next.js: 4ms, proxy.ts: 5ms, application-code: 27ms)

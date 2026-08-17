@@ -244,6 +244,6 @@ def get_receipt_context(receipt_id, receipt_data, items, pharmacy_name):
         "receipt_id": receipt_id,
         "date": timestamp,
         "payment_method": method,
-        "grand_total": f"${total:.2f}",
+        "grand_total": self.app.currency.fmt(total),
         "items": item_list,
     }

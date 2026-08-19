@@ -16,6 +16,62 @@
 
 ---
 
+## 0b. Phase A (POS Operational Security Addendum) — Status & Remaining Execution
+
+> The M3-FL plan above is **complete and verified**. Execution then advanced into the POS Operational Security Addendum (`.kilo/plans/1786748052000-pos-operational-security-addendum.md`). The environment here runs with source-edit permission **denied** (only plan `.md` files are writable), so the three frontend source files below could not be written — the diffs are final and verbatim-ready for an implementation-capable agent.
+
+### Verified state (this environment)
+- **M3-FL:** delivered + verified (`tsc` 0, `next build` 13/13). ✅
+- **Phase A backend:** **complete + green** — `pytest` → **102 passed**, `mypy --strict` → **0 errors** (32 files). Implemented: Concern 1 cash-drawer movement approval (route + service + `DrawerMovementRead`/`DrawerMovementCreate`); Concern 4 `StockStateError` 410 hierarchy on live checkout (expired/recalled/missing lot) with tests; Concern 5 `SyncLock`; C.1 merge-sync hub `insert_discrepancy` (`OVER_SOLD_CROSS_TERMINAL`); and **A4 discrepancy-surfacing API**: `GET /api/v1/sync/discrepancies` (RBAC `inventory.read`) + `POST /api/v1/sync/discrepancies/{id}/resolve` (RBAC `inventory.write`), `DiscrepancyRead` schema, `SyncRepository.get/resolve_discrepancy`, `SyncService.list/resolve_discrepancy`, and `tests/test_pos_hardening.py::test_over_sell_discrepancy_is_surfaced`.
+
+### Remaining execution (3 frontend files; diffs final)
+1. **`types/contracts.ts`** — append after `SyncPushResult`:
+   ```ts
+   // Persisted sync discrepancy surfaced for manager review (A4). Mirrors the
+   // backend DiscrepancyRead Pydantic schema (schemas.py).
+   export interface DiscrepancyRead {
+     id: number;
+     reason: string;
+     device_id: string;
+     local_seq: number;
+     client_txn_id: string;
+     details?: string | null;
+     resolved: number;
+     created_at?: string | null;
+   }
+   ```
+2. **`lib/api/sync.ts`** — add (importing `DiscrepancyRead`):
+   ```ts
+   export async function getDiscrepancies(unresolvedOnly = true): Promise<DiscrepancyRead[]> {
+     const { data } = await api.get<DiscrepancyRead[]>(`${BASE}/discrepancies`, {
+       params: { unresolved_only: unresolvedOnly },
+     });
+     return data;
+   }
+   export async function resolveDiscrepancy(id: number): Promise<DiscrepancyRead> {
+     const { data } = await api.post<DiscrepancyRead>(
+       `${BASE}/discrepancies/${id}/resolve`,
+       {},
+     );
+     return data;
+   }
+   ```
+3. **`components/DiscrepanciesPanel.tsx`** — add a "Synced discrepancies" section that fetches via `getDiscrepancies`, renders `reason` + `client_txn_id.slice(0,8)` + `details`, with a "Resolve" button gated by `useAuthStore((s) => s.hasPermission("inventory.write"))` calling `resolveDiscrepancy`, and `setDiscrepancies(prev => prev.filter(d => d.id !== id))` on success. (Keep the existing "Pending offline sales" section.)
+
+> After applying, verify: `npx tsc --noEmit` (0 errors) + `next build` (13/13). Then update `CHANGELOG.md` + `PROJECT_MAP.md` (non-plan docs — out of scope for this plan-mode agent).
+
+### Open scope decisions (require user sign-off)
+- **A2 — Offline manager-PIN fallback:** backend PIN hashing/lockout already exists (`settings.pin_kdf_iters`, `pin_lockout_*`, `User.pin_hash/salt/lockout`). Frontend `ManagerApprovalDialog` is **online-only** today. Implement offline `verifyPinOffline` (PBKDF2 + attempt-wipe + self-wipe) + `manager_policies` store + dialog fallback, or mark out-of-scope.
+- **A3 — Recovery prompt + 4h GC sweep:** durability already via IndexedDB; add a UI recovery prompt + periodic sweep of orphaned records.
+- **A1 — Shift-close variance formula + paid-out threshold:** drawer movement recording exists; add the reconciliation variance formula + amount-threshold auto-approval in a shift-close RPC.
+
+### Validation
+- Backend (already met): `pytest -q` (≥102 pass) + `mypy app --strict` (0).
+- Frontend (after 3 edits): `npx tsc --noEmit` (0) + `next build` (13/13).
+- Manual: open `DiscrepanciesPanel`, confirm a seeded `OVER_SOLD_CROSS_TERMINAL` shows and "Resolve" clears it.
+
+---
+
 ## 1. Context & Current State
 
 **Already delivered (M2 + M8):**
@@ -235,3 +291,77 @@ Cross-checked the addendum against the actual repo. Several concerns are **alrea
 - Backend: `pytest tests/test_pos_hardening.py` (incl. new T23-T28) → green; `mypy app --strict` 0.
 - Frontend: `vitest run lib/offlineCrypto.test.ts stores/posStore.test.ts` → H19-H23 green; `tsc --noEmit` 0; `next build` green.
 - Smoke: `python run_services.py` → POS scan + checkout (incl. 410 lot surfaced in DiscrepanciesPanel) → inventory search/filter/receive/delete → license validate.
+
+---
+
+## 0c. Phase A — A1 (Shift-Close Variance) + A3 (Cart Recovery) Execution Plan  (AUTHORITATIVE, 2026-08-17)
+
+> **Supersedes section 7 for A1 / A3 / A4 status.** Verified against disk this planning turn (not from the stale Part-2 framing). User directive: implement A1, then A3.
+
+### Verified current state
+- **A1 backend: DONE + green.** `pos_route.py` already has amount-gated approval (`_CASH_DROP_APPROVE_THRESHOLD=400`, `_PAID_OUT_APPROVE_THRESHOLD=50`), `POST /api/v1/pos/shift/open`, `POST /api/v1/pos/shift/close` → `PosService.close_shift` computing `expected = opening_float + cash_sales + Σ(float_add,cash_drop,paid_out,pickup)` and returning `ShiftCloseResult(opening_float, expected_cash, counted_cash, variance, status)`. `preview_shift` → `ShiftPreviewResult`. Tests `test_shift_close_variance_zero` (= addendum T23) + drawer-approval gating (= T24) already pass. `pytest` 102 / `mypy` 0.
+- **A1 frontend: NOT DONE.** No `closeShift`/`previewShift`/`openShift` helper in `lib/api/pos.ts`; `components/ShiftCloseDialog.tsx` shows only offline-count + `DiscrepanciesPanel` + a static Close button (no `ShiftCloseResult`, no variance, no auto-approve threshold). `types/contracts.ts` lacks Shift types. No UI tracks the active `shift_id`.
+- **A3: NOT DONE (durability exists, recovery/GC missing).** `lib/storagePersist.ts` is a thin IndexedDB KV wrapper (`persistState`/`loadState`) — no `RECOVERY_WINDOW`/`sweepStaleTabs`/meta timestamp. `stores/posStore.ts:hydrate` loads only the current tab's `pos:{tabId}:lines`; no cross-tab recovery scan. `app/pos/page.tsx` has no recovery toast.
+- **A4: DONE (this session).** Discrepancy-surfacing API + UI implemented; `tsc`/`next build`/`pytest`/`mypy` green.
+- **Mechanism deviation (important):** A3 durability uses **IndexedDB KV** keyed `pos:{tabId}:lines` (NOT the addendum §3 `localStorage[pos_activecart_tab_*]`). The recovery scan/GC must follow the *actual* IndexedDB mechanism.
+
+### Decisions (recommended defaults)
+1. **Variance auto-approve threshold = `$0.50`** (`_VARIANCE_AUTO_APPROVE = Decimal("0.50")`). Close allowed without a fresh manager token when `abs(variance) <= 0.50` AND `offlineCount == 0`. Otherwise a `shift.close` scope approval token is required — **enforced server-side** (consistent with drawer-movement token gating).
+2. **Active shift tracking:** add `currentShiftId` to `PosState` + `openShift(openingFloat)` action; `ShiftCloseDialog` opens a shift inline if none is active.
+3. **A3 uses the actual IndexedDB KV** with a `{ value, last_write }` meta envelope; `RECOVERY_WINDOW_MS = 4*60*60*1000`.
+4. **Restore = deep-merge** candidate lines into the active cart (dedupe by `product_name`, sum qty); stock re-validation happens at checkout.
+
+### A1 — ordered tasks
+- **Backend (small):** `pos_route.py`: add `_VARIANCE_AUTO_APPROVE = Decimal("0.50")`. Extend `close_shift` to compute `requires_approval = abs(variance) > _VARIANCE_AUTO_APPROVE or pending_offline_sales`, accept optional `X-Approval-Token`, and raise `ForbiddenError` when `requires_approval` and no valid `scope=shift.close` token (mirror `drawer/movement`). Add `requires_approval: bool` to `ShiftCloseResult`. (`ShiftCloseRequest` unchanged; `ShiftPreviewResult` unchanged — variance only known at close.)
+- **Types:** `types/contracts.ts` add `ShiftOpenRequest`, `ShiftRead`, `ShiftCloseRequest`, `ShiftCloseResult`, `ShiftPreviewResult` (mirror `Money` for decimal fields; `DrawerMovementCreate`/`DrawerMovementRead` already match backend).
+- **API:** `lib/api/pos.ts` add `openShift`, `previewShift(shift_id)`, `closeShift(req)` (POST `/shift/open`, GET `/shift/{id}/preview`, POST `/shift/close`); attach `client_timestamp` + `Bearer` like `checkout`, and pass `X-Approval-Token` for `closeShift` when a token is supplied.
+- **Store:** `stores/posStore.ts` add `currentShiftId: number | null`, `openShift(openingFloat)`; persist the id from `ShiftRead`.
+- **UI:** `components/ShiftCloseDialog.tsx`:
+  - If no `currentShiftId` → inline "Open shift — counted opening float" input → `openShift`.
+  - Call `previewShift(currentShiftId)` → show `expected_cash`, editable `counted_cash`, computed `variance` (green if `|variance| <= 0.50` else red).
+  - If `|variance| > 0.50` or `offlineCount > 0` and not tokened → `ManagerApprovalDialog` (scope `shift.close`); on approval re-call `closeShift` with token. Catch `403` → prompt token.
+  - On success show closed summary + `onClose`. Keep `DiscrepanciesPanel` + offline guard.
+- **Tests:** `tests/test_pos_hardening.py` add `test_shift_close_variance_over_threshold_requires_approval` (variance > $0.50 → close w/o token `403`; with token → `200`). Add a `ShiftCloseDialog` render test (vitest) asserting expected/variance display.
+
+### A3 — ordered tasks (after A1)
+- **`lib/storagePersist.ts`:** add `RECOVERY_WINDOW_MS = 4*60*60*1000`; `persistStateWithMeta(key, value)` writes `{ value, last_write: Date.now() }`; `listRecoveryCandidates(exceptTabId)` scans `STORE_KV` for keys matching `pos:*:lines`, parses meta, returns entries with `last_write > now − RECOVERY_WINDOW` and `tabId !== exceptTabId` (value arrays); `sweepStaleTabs(exceptTabId)` deletes older-than-window candidates. Route cart persistence through `persistStateWithMeta`.
+- **`stores/posStore.ts`:** `checkout()`/`clear()` persist via `persistStateWithMeta(\`pos:${tabId}:lines\`, [])`. `hydrate()` → after loading own lines, call `listRecoveryCandidates(tabId)` → set `recoveryCandidates: CartLine[][]`. Add `restoreDraft(lines)` (deep-merge into `lines`, dedupe by `product_name`) + `dismissRecovery()`. Call `sweepStaleTabs(tabId)` on hydrate/focus/visibility.
+- **`app/pos/page.tsx`:** when `recoveryCandidates.length > 0`, render non-blocking toast ("Unsaved drafts found — restore?") with Restore / Dismiss; auto-dismiss 30 s; Restore → `restoreDraft`.
+- **Tests (vitest `stores/posStore.test.ts` — H20/H21/H22):** `test_cart_survives_browser_restart` (persist → rehydrate same tabId from IndexedDB), `test_unsaved_drafts_recovery_prompt` (plant `pos:OLD:lines` meta last_write 1h ago + current tab → candidates emitted; restore deep-merges), `test_no_cross_tab_clobber` (Tab A/B independent).
+
+### Validation
+- Backend: `pytest -q` (≥103 pass) + `mypy app --strict` (0).
+- Frontend: `npx tsc --noEmit` (0) + `next build` (exit 0).
+- Manual: (1) open $100 → sale $250 → drop $150 → preview expected $200, counted $200 → variance 0, close w/o token; (2) force variance $5 → close w/o token `403`; with manager token `200`; (3) plant stale cross-tab cart → reload → recovery toast → restore merges.
+
+### Open questions (resolve at execution start)
+- Exact `_VARIANCE_AUTO_APPROVE` ($0.50 recommended; business may want $1.00).
+- Should `close_shift` hard-block when `offlineCount > 0` (recommended: yes, require token) or soft-warn.
+
+---
+
+## 0d. Execution status — Phase A COMPLETE (authoritative, 2026-08-18)
+
+> Implementation was executed by an implementation-capable agent in a prior turn. This
+> section records the authoritative final state after a regression was found and fixed.
+
+### What was done
+- **A1–A5 all implemented and verified green**: backend `pytest` **110 passed**, `mypy app --strict` **0 errors / 33 files**, frontend `tsc --noEmit` **0**, `next build` **12/12**.
+- **A1 backend:** `PosService.close_shift` computes `expected = opening_float + cash_sales + Σ{float_add, cash_drop, paid_out, pickup}` and returns `ShiftCloseResult(opening_float, expected_cash, counted_cash, variance, status)`. The discrepancy gate is enforced **UI-side** by `components/ShiftCloseDialog.tsx` (`VARIANCE_WARN = 2.0`, scope `shift.close.variance`).
+- **Drawer-movement amount-gating is KEPT** (`_CASH_DROP_APPROVE_THRESHOLD=400`, `_PAID_OUT_APPROVE_THRESHOLD=50`, scope `drawer.move`): the frontend genuinely wires `X-Approval-Token` (`app/pos/page.tsx` → `stores/posStore.recordDrawer` → `lib/api/pos.ts` header). The grep confirmed `onApproved`/`requestApproval`/`X-Approval-Token` are wired along this path, so no regression.
+
+### Key correction vs §0c (regression + fix)
+- §0c recommended **server-side** `close_shift` token enforcement (`_VARIANCE_AUTO_APPROVE=0.50`, `requires_approval` field, 403 on material variance). That was implemented, but it **broke the existing frontend**: `ShiftCloseDialog.handleClose` calls `closeShift({shift_id, counted_cash})` with **no token** and gates UI-side at `VARIANCE_WARN=2.0` (scope `shift.close.variance`, not `shift.close`). The backend's `0.50` threshold also conflicted with the frontend's `2.0`.
+- **Fix (Option A' — full revert of the close_shift backend additions):** removed `_VARIANCE_AUTO_APPROVE`, the `requires_approval` field on `ShiftCloseResult`, the `close_shift` token-param + `ForbiddenError`/`consume_approval_token` plumbing, and the now-orphaned imports in `pos_service.py` (the `drawer.move` route still uses those imports). Rewrote the test to `test_shift_close_variance_computed`, which asserts the **formula** (expected 200.00, variance 5.00) instead of a 403 the UI never triggers.
+- Result: shift-close authorization is governed entirely by the existing `VARIANCE_WARN=2.0` UI gate — identical to the pre-session green baseline. No server-side close token is required, matching the frontend contract.
+
+### Remaining task (documentation STATE-SYNC — out of scope for this plan-mode agent)
+- `PROJECT_MAP.md` line 1170 (A1 milestone row) still says "full suite **104 passed**" and references stale names `test_shift_close_variance_zeros` + `test_approval_thresholds (T24)`. An implementation-capable agent should update it to: **110 passed**; cite `tests/test_pos_hardening.py::test_shift_close_variance_zero` (T23) + `test_shift_close_variance_computed` (new) + `test_paid_out_requires_approval_over_threshold` (T24).
+- `CHANGELOG.md:12` already shows `104→110`; `FLOW_LOGIC.md` has no `close_shift`/token references (verified by grep — no edits needed). `PROJECT_MAP.md` §12 ORPHANS (¶898, ¶1188) contains no `_VARIANCE_AUTO_APPROVE`/`requires_approval` references (verified) — clean.
+
+### Final verification gates (all green)
+- `cd backend_fastapi && .venv\Scripts\python.exe -m pytest -q` → **110 passed**.
+- `cd backend_fastapi && .venv\Scripts\python.exe -m mypy app --strict` → **Success: no issues found in 33 source files**.
+- `npx tsc --noEmit` (repo root) → **0 errors**.
+- `npx next build` → **12/12 pages**.
+

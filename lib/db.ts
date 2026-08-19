@@ -2,11 +2,16 @@
 // per-tab persisted POS state. No external dependency.
 
 export const DB_NAME = "pharmacypro";
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export const STORE_KV = "kv";
 export const STORE_QUEUE = "offline_queue";
 export const STORE_META = "meta";
+// Cached offline manager-approval policy (Concern 2 / A2). Keyed by username.
+// Stores a PBKDF2-derived pin_hash + salt so the manager PIN can be verified
+// locally when /api/v1/pos/approve is unreachable. Self-wipes after
+// OFFLINE_MAX_ATTEMPTS failures (see lib/offlineCrypto.ts).
+export const STORE_MANAGER_POLICIES = "manager_policies";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -28,6 +33,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORE_META)) {
         db.createObjectStore(STORE_META);
+      }
+      if (!db.objectStoreNames.contains(STORE_MANAGER_POLICIES)) {
+        db.createObjectStore(STORE_MANAGER_POLICIES);
       }
     };
     req.onsuccess = () => resolve(req.result);

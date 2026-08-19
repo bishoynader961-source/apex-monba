@@ -240,4 +240,12 @@ self.region_selector.configure(
 - USD SaaS billing in `license_server.py`/`server_app.py` (not pharmacy revenue).
 - Localizing stored ISO date formats (display-only `format_date`; DB stays ISO).
 - Regions beyond `US`/`GB`/`DE`; `db.py` SQLAlchemy parity for new KV helpers.
+
+## Status (2026-08-19, verified)
+
+**Phase C (Localization Banner, Persistence, RBAC & Nav Indicator) — VERIFIED GREEN.**
+- `cd archive && python -m unittest test_localization_banner -v` → **34 tests, OK** (covers G1.1–G1.3, G2.1–G2.4, G3.1–G3.3, G4.0–G4.2, G5.1–G5.3, plus source-inspection assertions for each gap). All Phase C code was already present: `localization_manager.set_kv/get_kv` (G3.1), `is_banner_dismissed`/`set_banner_dismissed`/`refresh_all`/`_broadcasting` guard (G1.1–G1.3/G2.1), `ui_banner.RegionBanner` (G2), `dashboard_banner_frame` preserved across `setup_dashboard_tab` refresh (G2.3), `ui_enterprise_settings` `CTkOptionMenu`+`require_permission("settings.manage")`+`settings.region_change` audit + `cm.get_region()` (G4.0–G4.2), `NavigationDrawer` persistent region indicator + `unregister_listener` on destroy (G5).
+- **No source changes were required for Phase C** — it was implemented and green prior to this checkpoint; verified to confirm completion.
+- **Remaining manual gate (§5 items 2–4):** behavior/geometry/RBAC UI smoke (banner appears/hidden on region change, nav-indicator within drawer width) needs an interactive Tk display (unavailable in this headless sandbox); unit + source-level coverage is complete.
+- **Regression:** this session's only source edits were to `backend_fastapi/` and `.github/` (B2); `archive/` (this app) was untouched, so no Phase C regression is introduced.
 - Rebuilding `ui_inventory_management.py` layout (weights already correct).

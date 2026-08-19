@@ -5,6 +5,7 @@ import { useActionState, useEffect } from "react";
 
 import { loginAction } from "@/app/login/actions";
 import { useAuthStore } from "@/stores/authStore";
+import { useI18n } from "@/components/I18nProvider";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function LoginPage() {
   const setToken = useAuthStore((s) => s.setToken);
   const fetchCurrentUser = useAuthStore((s) => s.fetchCurrentUser);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (state?.success && state.access_token) {
@@ -31,10 +33,10 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-6 rounded-lg bg-white dark:bg-gray-800 p-8 shadow-lg">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Pharmacy Suite — Sign In
+            {t("login.heading")}
           </h1>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Enter your credentials to continue.
+            {t("login.subtitle")}
           </p>
         </div>
 
@@ -50,7 +52,7 @@ export default function LoginPage() {
         <form action={formAction} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Username
+              {t("login.username")}
             </label>
             <input
               type="text"
@@ -62,7 +64,7 @@ export default function LoginPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Password
+              {t("login.password")}
             </label>
             <input
               type="password"
@@ -77,7 +79,7 @@ export default function LoginPage() {
             disabled={isPending}
             className="w-full rounded-md bg-blue-600 py-2 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-default disabled:opacity-70"
           >
-            {isPending ? "Signing in…" : "Sign In"}
+            {isPending ? t("login.submitting") : t("login.submit")}
           </button>
         </form>
       </div>

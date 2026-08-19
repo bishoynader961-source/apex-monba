@@ -17,12 +17,12 @@ from typing import Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.models import DrawerMovement, Receipt, ReceiptItem, SoldItem
+from app.core.models import DrawerMovement, Receipt, ReceiptItem, Refund, Shift, SoldItem
 from app.core.lock_manager import get_lock
 from app.core.repositories import AuditRepository, ProductRepository, SyncRepository
 from app.services.inventory_service import InventoryService
 from app.shared.config import settings
-from app.shared.exceptions import NotFoundError
+from app.shared.exceptions import AppException, NotFoundError
 from app.shared.logging_config import get_logger
 from app.shared.schemas import (
     CheckoutItemRead,
@@ -31,6 +31,14 @@ from app.shared.schemas import (
     CurrentUser,
     DrawerMovementCreate,
     DrawerMovementRead,
+    RefundRead,
+    RefundRequest,
+    SalesReport,
+    ShiftCloseRequest,
+    ShiftCloseResult,
+    ShiftOpenRequest,
+    ShiftPreviewResult,
+    ShiftRead,
 )
 
 logger = get_logger("pos")
@@ -249,3 +257,179 @@ class PosService:
             self.session.add(movement)
             await self.session.flush()
             return DrawerMovementRead.model_validate(movement)
+
+    async def open_shift(self, payload: ShiftOpenRequest, user: CurrentUser) -> ShiftRead:
+        """Open a cash-drawer shift with the counted opening float (A1)."""
+        server_dt = datetime.now(timezone.utc)
+        shift = Shift(
+            opening_float=payload.opening_float,
+            opened_at=server_dt.isoformat(timespec="seconds"),
+            status="open",
+            opened_by=user.username,
+        )
+        self.session.add(shift)
+        await self.session.commit()
+        return ShiftRead.model_validate(shift)
+
+    async def close_shift(self, payload: ShiftCloseRequest) -> ShiftCloseResult:
+        """Close a shift against a physically counted till and compute the variance.
+
+        ``expected = opening_float + cash_sales + float_add - drops - payouts - pickups``
+        where the cash flows are those recorded since the shift opened.
+        """
+        shift = await self.session.get(Shift, payload.shift_id)
+        if shift is None:
+            raise NotFoundError("Shift", str(payload.shift_id))
+        if shift.status == "closed":
+            raise AppException("Shift already closed", status_code=409, error_code="shift_closed")
+
+        opened_at = shift.opened_at
+        cash_sales = (
+            await self.session.execute(
+                select(func.coalesce(func.sum(Receipt.total_amount), 0)).where(
+                    Receipt.payment_method == "Cash",
+                    Receipt.server_created_at >= opened_at,
+                )
+            )
+        ).scalar() or Decimal("0")
+        movement_sum = (
+            await self.session.execute(
+                select(func.coalesce(func.sum(DrawerMovement.amount), 0)).where(
+                    DrawerMovement.server_created_at >= opened_at,
+                    DrawerMovement.reason.in_(["float_add", "cash_drop", "paid_out", "pickup"]),
+                )
+            )
+        ).scalar() or Decimal("0")
+
+        expected = _round2(shift.opening_float + cash_sales + movement_sum)
+        variance = _round2(payload.counted_cash - expected)
+
+        server_dt = datetime.now(timezone.utc)
+        shift.status = "closed"
+        shift.closed_at = server_dt.isoformat(timespec="seconds")
+        await self.session.commit()
+        return ShiftCloseResult(
+            shift_id=shift.id,
+            opening_float=_round2(shift.opening_float),
+            expected_cash=expected,
+            counted_cash=_round2(payload.counted_cash),
+            variance=variance,
+            status="closed",
+        )
+
+    async def preview_shift(self, shift_id: int) -> ShiftPreviewResult:
+        """Compute the expected till for an open shift without closing it (A1)."""
+        shift = await self.session.get(Shift, shift_id)
+        if shift is None:
+            raise NotFoundError("Shift", str(shift_id))
+
+        opened_at = shift.opened_at
+        cash_sales = (
+            await self.session.execute(
+                select(func.coalesce(func.sum(Receipt.total_amount), 0)).where(
+                    Receipt.payment_method == "Cash",
+                    Receipt.server_created_at >= opened_at,
+                )
+            )
+        ).scalar() or Decimal("0")
+        movement_sum = (
+            await self.session.execute(
+                select(func.coalesce(func.sum(DrawerMovement.amount), 0)).where(
+                    DrawerMovement.server_created_at >= opened_at,
+                    DrawerMovement.reason.in_(["float_add", "cash_drop", "paid_out", "pickup"]),
+                )
+            )
+        ).scalar() or Decimal("0")
+
+        expected = _round2(shift.opening_float + cash_sales + movement_sum)
+        return ShiftPreviewResult(
+            shift_id=shift.id,
+            opening_float=_round2(shift.opening_float),
+            expected_cash=expected,
+            status=shift.status,
+        )
+
+    async def refund(self, payload: RefundRequest, user: CurrentUser) -> RefundRead:
+        """Reverse a sale: restock inventory (FEFO), record a refund ledger entry.
+
+        A receipt may be refunded at most once (``refunds.receipt_id`` is UNIQUE).
+        """
+        receipt = await self.session.get(Receipt, payload.receipt_id)
+        if receipt is None:
+            raise NotFoundError("Receipt", str(payload.receipt_id))
+        existing = (
+            await self.session.execute(
+                select(Refund).where(Refund.receipt_id == payload.receipt_id)
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            raise AppException(
+                "Receipt already refunded", status_code=409, error_code="already_refunded"
+            )
+
+        items = (
+            await self.session.execute(
+                select(ReceiptItem).where(ReceiptItem.receipt_id == payload.receipt_id)
+            )
+        ).scalars().all()
+        inventory = InventoryService(self.session)
+        for item in items:
+            await inventory.return_stock(item.product_name, item.quantity)
+
+        server_dt = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        refund = Refund(
+            receipt_id=receipt.id,
+            total_amount=_round2(-receipt.total_amount),
+            reason=payload.reason,
+            cashier=user.username,
+            server_created_at=server_dt,
+        )
+        self.session.add(refund)
+        # Negative ledger receipt so financial reports net the reversal correctly.
+        ledger = Receipt(
+            timestamp=server_dt,
+            total_amount=_round2(-receipt.total_amount),
+            payment_method="Refund",
+            server_created_at=server_dt,
+            created_by=user.username,
+            cashier_attribution=user.username,
+        )
+        self.session.add(ledger)
+        await self.session.flush()
+        await AuditRepository(self.session).log(
+            action="pos.refund",
+            details=f"receipt={payload.receipt_id} amount={-receipt.total_amount}",
+            category="refund",
+            subject_type="receipt",
+            subject_id=payload.receipt_id,
+            user_pin=user.username,
+            role=user.role,
+        )
+        await self.session.commit()
+        return RefundRead.model_validate(refund)
+
+    async def sales_report(self) -> SalesReport:
+        """Aggregated sales + refunds for the reporting view (B5)."""
+        rows = (
+            await self.session.execute(select(Receipt))
+        ).scalars().all()
+        by_method: dict[str, Decimal] = {}
+        gross = Decimal("0")
+        count = 0
+        for r in rows:
+            if r.total_amount < 0:
+                continue  # ledger reversal rows are netted via refunds below
+            count += 1
+            gross += r.total_amount
+            by_method[r.payment_method] = by_method.get(r.payment_method, Decimal("0")) + r.total_amount
+        refunds = (
+            await self.session.execute(select(func.coalesce(func.sum(Refund.total_amount), 0)))
+        ).scalar() or Decimal("0")
+        net = _round2(gross + refunds)
+        return SalesReport(
+            receipt_count=count,
+            gross_revenue=_round2(gross),
+            refund_total=_round2(refunds),
+            net_revenue=net,
+            by_payment_method={k: _round2(v) for k, v in by_method.items()},
+        )

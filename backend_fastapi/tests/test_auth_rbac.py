@@ -76,7 +76,7 @@ async def test_register_requires_admin(client: AsyncClient, session) -> None:
 
     resp = await client.post(
         "/api/v1/auth/register",
-        json={"username": "newbie", "display_name": "New", "password": "password123", "role_id": role_id},
+        json={"username": "newbie", "display_name": "New", "password": "Password123!", "role_id": role_id},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403
@@ -88,7 +88,7 @@ async def test_register_requires_admin(client: AsyncClient, session) -> None:
     admin_token = admin_login.json()["access_token"]
     ok = await client.post(
         "/api/v1/auth/register",
-        json={"username": "newbie", "display_name": "New", "password": "password123", "role_id": admin_role},
+        json={"username": "newbie", "display_name": "New", "password": "Password123!", "role_id": admin_role},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert ok.status_code == 201

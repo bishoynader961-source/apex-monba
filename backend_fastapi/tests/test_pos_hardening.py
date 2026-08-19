@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import Base, build_engine, init_engine, migrate_schema
-from app.core.models import Permission, Product, Role, RolePermission
+from app.core.models import DrawerMovement, Permission, Product, Receipt, Role, RolePermission
 from app.core.repositories import SyncRepository, UserRepository
 from app.services.auth_service import AuthService
 from app.services.inventory_service import InventoryService
@@ -186,8 +186,8 @@ async def test_migration_idempotent(engine) -> None:
             r[0]
             for r in (await conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
         }
-    assert v1 == 3 and v2 == 3
-    assert {"drawer_movements", "receipts", "sync_outbox", "discrepancies"} <= tables
+    assert v1 == 6 and v2 == 6
+    assert {"drawer_movements", "receipts", "sync_outbox", "discrepancies", "shifts"} <= tables
 
 
 def test_read_session_fallback_for_memory(monkeypatch) -> None:
@@ -296,3 +296,138 @@ async def test_sync_push_dedups_on_client_txn_id(
     assert second.status_code == 200, second.text
     assert second.json()["deduped"] == 1
     assert second.json()["accepted"] == 0
+
+
+async def test_shift_close_variance_zero(
+    client: AsyncClient, session: AsyncSession, auth: dict[str, str]
+) -> None:
+    """A1: expected = opening_float + cash_sales + float_add - drops - payouts - pickups;
+    counted == expected -> variance 0."""
+    open_resp = await client.post(
+        "/api/v1/pos/shift/open", json={"opening_float": "100.00"}, headers=auth
+    )
+    assert open_resp.status_code == 201, open_resp.text
+    shift = open_resp.json()
+    opened_at = shift["opened_at"]
+    shift_id = shift["id"]
+
+    # Cash sale of 250 (inserted directly to isolate the variance calc from tax/checkout).
+    session.add(
+        Receipt(
+            timestamp=opened_at,
+            total_amount=Decimal("250.00"),
+            payment_method="Cash",
+            server_created_at=opened_at,
+            created_by="adminroot",
+            cashier_attribution="adminroot",
+        )
+    )
+    # Paid-out of 150 (cash removed from the drawer).
+    session.add(
+        DrawerMovement(
+            cashier="adminroot",
+            amount=Decimal("-150.00"),
+            reason="paid_out",
+            prior_balance=Decimal("0"),
+            new_balance=Decimal("-150.00"),
+            server_created_at=opened_at,
+            created_by="adminroot",
+        )
+    )
+    await session.commit()
+
+    close = await client.post(
+        "/api/v1/pos/shift/close",
+        json={"shift_id": shift_id, "counted_cash": "200.00"},
+        headers=auth,
+    )
+    assert close.status_code == 200, close.text
+    body = close.json()
+    assert body["expected_cash"] == "200.00"
+    assert body["counted_cash"] == "200.00"
+    assert body["variance"] == "0.00"
+
+
+async def test_shift_close_variance_computed(
+    client: AsyncClient, session: AsyncSession, auth: dict[str, str]
+) -> None:
+    """A1: close computes expected = float + cash_sales + movements and the variance."""
+    open_resp = await client.post(
+        "/api/v1/pos/shift/open", json={"opening_float": "100.00"}, headers=auth
+    )
+    assert open_resp.status_code == 201, open_resp.text
+    opened = open_resp.json()
+    shift_id = opened["id"]
+    opened_at = opened["opened_at"]
+
+    session.add(
+        Receipt(
+            timestamp=opened_at,
+            total_amount=Decimal("250.00"),
+            payment_method="Cash",
+            server_created_at=opened_at,
+            created_by="adminroot",
+            cashier_attribution="adminroot",
+        )
+    )
+    session.add(
+        DrawerMovement(
+            cashier="adminroot",
+            amount=Decimal("-150.00"),
+            reason="paid_out",
+            prior_balance=Decimal("0"),
+            new_balance=Decimal("-150.00"),
+            server_created_at=opened_at,
+            created_by="adminroot",
+        )
+    )
+    await session.commit()
+
+    resp = await client.post(
+        "/api/v1/pos/shift/close",
+        json={"shift_id": shift_id, "counted_cash": "205.00"},
+        headers=auth,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["expected_cash"] == "200.00"
+    assert body["counted_cash"] == "205.00"
+    assert body["variance"] == "5.00"
+
+
+async def test_paid_out_requires_approval_over_threshold(
+    client: AsyncClient, session: AsyncSession, auth: dict[str, str]
+) -> None:
+    """A1: routine small payouts/drops auto-approve; large ones require a token."""
+    # paid_out of 51 exceeds the 50 auto-approve ceiling -> 403 without a token.
+    no_token = await client.post(
+        "/api/v1/pos/drawer/movement",
+        json={"amount": "-51.00", "reason": "paid_out", "cashier": "adminroot"},
+        headers=auth,
+    )
+    assert no_token.status_code == 403
+
+    # paid_out of exactly 50 is auto-approved (no token required).
+    small = await client.post(
+        "/api/v1/pos/drawer/movement",
+        json={"amount": "-50.00", "reason": "paid_out", "cashier": "adminroot"},
+        headers=auth,
+    )
+    assert small.status_code == 201, small.text
+
+    # cash_drop of 400 meets the 400 auto-approve floor -> 403 without a token.
+    big_drop = await client.post(
+        "/api/v1/pos/drawer/movement",
+        json={"amount": "400.00", "reason": "cash_drop", "cashier": "adminroot"},
+        headers=auth,
+    )
+    assert big_drop.status_code == 403
+
+    # A valid approval token unlocks the large movement.
+    token = create_approval_token("adminroot", "drawer.move")
+    ok = await client.post(
+        "/api/v1/pos/drawer/movement",
+        json={"amount": "400.00", "reason": "cash_drop", "cashier": "adminroot"},
+        headers={**auth, "X-Approval-Token": token},
+    )
+    assert ok.status_code == 201, ok.text

@@ -21,6 +21,7 @@ from app.core.models import (
     ReceivingLog,
     RolePermission,
     Supplier,
+    SystemSetting,
     User,
 )
 from app.shared.exceptions import ValidationError
@@ -286,6 +287,13 @@ class UserRepository:
         user.password_hash = password_hash
         await self.session.commit()
 
+    async def mark_all_pins_for_rehash(self) -> None:
+        """Flag every user's PIN for a lazy re-hash after a pepper rotation."""
+        from sqlalchemy import update
+
+        await self.session.execute(update(User).values(pin_pepper_version=0))
+        await self.session.commit()
+
     async def permissions_for_role(self, role_id: int) -> list[str]:
         result = await self.session.execute(
             select(Permission.feature_key)
@@ -296,8 +304,57 @@ class UserRepository:
 
 
 class AuditRepository:
+    _CHAIN_HEAD_KEY = "audit_chain_head"
+    _CHAIN_SEED = "GENESIS_AUDIT_CHAIN"
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    @staticmethod
+    def _canonical(
+        *,
+        action: str,
+        user_pin: Optional[str],
+        category: Optional[str],
+        subject_type: Optional[str],
+        subject_id: Optional[int],
+        role: Optional[str],
+        details: Optional[str],
+    ) -> str:
+        return json.dumps(
+            {
+                "action": action,
+                "user_pin": user_pin,
+                "category": category,
+                "subject_type": subject_type,
+                "subject_id": subject_id,
+                "role": role,
+                "details": details,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+    async def _head(self) -> str:
+        row = (
+            await self.session.execute(
+                select(SystemSetting).where(SystemSetting.key == self._CHAIN_HEAD_KEY)
+            )
+        ).scalar_one_or_none()
+        if row is None or row.value is None:
+            return self._CHAIN_SEED
+        return row.value.decode("utf-8")
+
+    async def _set_head(self, head: str) -> None:
+        row = (
+            await self.session.execute(
+                select(SystemSetting).where(SystemSetting.key == self._CHAIN_HEAD_KEY)
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            self.session.add(SystemSetting(key=self._CHAIN_HEAD_KEY, value=head.encode("utf-8")))
+        else:
+            row.value = head.encode("utf-8")
 
     async def log(
         self,
@@ -310,6 +367,19 @@ class AuditRepository:
         subject_id: Optional[int] = None,
         role: Optional[str] = None,
     ) -> AuditLog:
+        import hashlib
+
+        prev = await self._head()
+        canonical = self._canonical(
+            action=action,
+            user_pin=user_pin,
+            category=category,
+            subject_type=subject_type,
+            subject_id=subject_id,
+            role=role,
+            details=details,
+        )
+        entry_hash = hashlib.sha256((prev + "|" + canonical).encode("utf-8")).hexdigest()
         entry = AuditLog(
             action=action,
             user_pin=user_pin,
@@ -318,10 +388,47 @@ class AuditRepository:
             subject_type=subject_type,
             subject_id=subject_id,
             role=role,
+            prev_hash=prev,
+            entry_hash=entry_hash,
         )
         self.session.add(entry)
+        await self._set_head(entry_hash)
         await self.session.commit()
         return entry
+
+    async def verify_chain(self) -> tuple[bool, Optional[int]]:
+        """Return (valid, first_broken_entry_id). Legacy rows without an
+        ``entry_hash`` are trusted as baseline and skipped."""
+        import hashlib
+
+        rows = (
+            await self.session.execute(select(AuditLog).order_by(AuditLog.id))
+        ).scalars().all()
+        prev = self._CHAIN_SEED
+        for row in rows:
+            if row.entry_hash is None:
+                continue
+            canonical = self._canonical(
+                action=row.action or "",
+                user_pin=row.user_pin,
+                category=row.category,
+                subject_type=row.subject_type,
+                subject_id=row.subject_id,
+                role=row.role,
+                details=row.details,
+            )
+            expected = hashlib.sha256((prev + "|" + canonical).encode("utf-8")).hexdigest()
+            if expected != row.entry_hash or (prev != self._CHAIN_SEED and row.prev_hash != prev):
+                return False, row.id
+            prev = row.entry_hash
+        return True, None
+
+    async def export_logs(self, limit: int = 1000, offset: int = 0) -> list[AuditLog]:
+        """Return audit entries (oldest first) for tamper-evident export."""
+        result = await self.session.execute(
+            select(AuditLog).order_by(AuditLog.id).limit(limit).offset(offset)
+        )
+        return list(result.scalars().all())
 
 
 class SyncRepository:

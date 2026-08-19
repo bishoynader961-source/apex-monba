@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.core.models import Role, User
-from app.core.repositories import UserRepository
+from app.core.repositories import AuditRepository, UserRepository
+from app.shared.config import settings
 from app.shared.exceptions import ConflictError, ForbiddenError, UnauthorizedError
 from app.shared.schemas import CurrentUser, PinLoginRequest, Token, UserCreate, UserPublic
 from app.shared.security import (
@@ -21,10 +22,12 @@ from app.shared.security import (
     create_refresh_token,
     decode_token,
     get_pin_pepper,
+    get_pin_peppers,
     hash_password,
     upgrade_legacy_hash,
+    validate_password_complexity,
     verify_password,
-    verify_pin,
+    verify_pin_multi,
     seal_lockout,
     verify_lockout,
     generate_pin_salt,
@@ -107,11 +110,18 @@ class AuthService:
             raise ConflictError(
                 "Username already registered", details={"username": payload.username}
             )
+        validate_password_complexity(payload.password)
         user = await repo.create(
             username=payload.username,
             display_name=payload.display_name,
             password_hash=hash_password(payload.password),
             role_id=payload.role_id,
+        )
+        await AuditRepository(self.session).log(
+            action="user.create",
+            subject_type="user",
+            subject_id=user.id,
+            details=f"username={payload.username}",
         )
         return UserPublic.model_validate(user)
 
@@ -127,6 +137,7 @@ class AuthService:
             raise UnauthorizedError("PIN setup unavailable on this device")
         user.pin_salt = generate_pin_salt()
         user.pin_hash = hash_pin(pin, user.pin_salt, pepper)
+        user.pin_pepper_version = settings.pin_pepper_version
         user.pin_failed_attempts = 0
         user.pin_locked_until = None
         user.lockout_hmac = seal_lockout(0, None, pepper)
@@ -144,15 +155,16 @@ class AuthService:
         if user is None or user.is_active != 1 or not user.pin_hash:
             raise UnauthorizedError("Invalid username or PIN")
 
-        pepper = get_pin_pepper().derive()
-        if pepper is None:
+        peppers = get_pin_peppers()
+        if not peppers:
             # Pepper unrecoverable off-machine (or DPAPI down) -> cannot verify.
             raise UnauthorizedError("PIN verification unavailable on this device")
+        seal_pepper = peppers[0]
 
         # Tamper-evidence: lockout counters must be HMAC-sealed by the pepper. An
         # offline-edited DB fails this -> force a lock (can't reset lockout offline).
         if not verify_lockout(
-            user.pin_failed_attempts or 0, user.pin_locked_until, user.lockout_hmac, pepper
+            user.pin_failed_attempts or 0, user.pin_locked_until, user.lockout_hmac, seal_pepper
         ):
             user.pin_locked_until = (
                 datetime.now(timezone.utc) + timedelta(minutes=PIN_LOCKOUT_MINUTES)
@@ -164,22 +176,28 @@ class AuthService:
         if locked is not None and locked > datetime.now(timezone.utc):
             raise ForbiddenError("Account locked due to too many failed attempts")
 
-        if not verify_pin(pin, user.pin_salt, user.pin_hash, pepper):
+        match_idx = verify_pin_multi(pin, user.pin_salt, user.pin_hash, peppers)
+        if match_idx < 0:
             user.pin_failed_attempts = (user.pin_failed_attempts or 0) + 1
             if user.pin_failed_attempts >= PIN_LOCKOUT_ATTEMPTS:
                 user.pin_locked_until = (
                     datetime.now(timezone.utc) + timedelta(minutes=PIN_LOCKOUT_MINUTES)
                 ).isoformat()
             user.lockout_hmac = seal_lockout(
-                user.pin_failed_attempts, user.pin_locked_until, pepper
+                user.pin_failed_attempts, user.pin_locked_until, seal_pepper
             )
             await self.session.commit()
             raise UnauthorizedError("Invalid username or PIN")
 
-        # Success: reset counters + reseal so a later offline tamper is detected.
+        # Success: rotation-safe lazy re-hash to the current pepper if the user's
+        # stored version lags (post-rotation), then reseal so offline tamper shows.
+        if user.pin_pepper_version != settings.pin_pepper_version:
+            assert user.pin_salt is not None  # verified non-None by verify_pin_multi above
+            user.pin_hash = hash_pin(pin, user.pin_salt, peppers[0])
+            user.pin_pepper_version = settings.pin_pepper_version
         user.pin_failed_attempts = 0
         user.pin_locked_until = None
-        user.lockout_hmac = seal_lockout(0, None, pepper)
+        user.lockout_hmac = seal_lockout(0, None, seal_pepper)
         await self.session.commit()
         return await self._build_token(user)
 
@@ -192,12 +210,13 @@ class AuthService:
         if user is None or user.is_active != 1 or not user.pin_hash:
             raise UnauthorizedError("Invalid username or PIN")
 
-        pepper = get_pin_pepper().derive()
-        if pepper is None:
+        peppers = get_pin_peppers()
+        if not peppers:
             raise UnauthorizedError("PIN verification unavailable on this device")
+        seal_pepper = peppers[0]
 
         if not verify_lockout(
-            user.pin_failed_attempts or 0, user.pin_locked_until, user.lockout_hmac, pepper
+            user.pin_failed_attempts or 0, user.pin_locked_until, user.lockout_hmac, seal_pepper
         ):
             user.pin_locked_until = (
                 datetime.now(timezone.utc) + timedelta(minutes=PIN_LOCKOUT_MINUTES)
@@ -209,21 +228,27 @@ class AuthService:
         if locked is not None and locked > datetime.now(timezone.utc):
             raise ForbiddenError("Account locked due to too many failed attempts")
 
-        if not verify_pin(pin, user.pin_salt, user.pin_hash, pepper):
+        match_idx = verify_pin_multi(pin, user.pin_salt, user.pin_hash, peppers)
+        if match_idx < 0:
             user.pin_failed_attempts = (user.pin_failed_attempts or 0) + 1
             if user.pin_failed_attempts >= PIN_LOCKOUT_ATTEMPTS:
                 user.pin_locked_until = (
                     datetime.now(timezone.utc) + timedelta(minutes=PIN_LOCKOUT_MINUTES)
                 ).isoformat()
             user.lockout_hmac = seal_lockout(
-                user.pin_failed_attempts, user.pin_locked_until, pepper
+                user.pin_failed_attempts, user.pin_locked_until, seal_pepper
             )
             await self.session.commit()
             raise UnauthorizedError("Invalid username or PIN")
 
+        # Rotation-safe lazy re-hash to the current pepper if the user's version lags.
+        if user.pin_pepper_version != settings.pin_pepper_version:
+            assert user.pin_salt is not None  # verified non-None by verify_pin_multi above
+            user.pin_hash = hash_pin(pin, user.pin_salt, peppers[0])
+            user.pin_pepper_version = settings.pin_pepper_version
         user.pin_failed_attempts = 0
         user.pin_locked_until = None
-        user.lockout_hmac = seal_lockout(0, None, pepper)
+        user.lockout_hmac = seal_lockout(0, None, seal_pepper)
         await self.session.commit()
         return create_approval_token(subject=user.username, scope=scope)
 

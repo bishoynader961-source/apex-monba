@@ -1,0 +1,3 @@
+# Placeholder so the repository follows the Next.js convention and the
+# standalone Docker build has a public/ directory to copy. Drop real static
+# assets (icons, images, etc.) here as needed.

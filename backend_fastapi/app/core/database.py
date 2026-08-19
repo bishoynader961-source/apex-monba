@@ -44,7 +44,8 @@ def _write_db_path() -> Optional[str]:
     Returns ``None`` for in-memory databases (no file to open read-only).
     """
     url = settings.database_url
-    if ":memory:" in url:
+    # Only SQLite uses an on-disk file path; PostgreSQL/others use a DSN.
+    if not url.startswith("sqlite") or ":memory:" in url:
         return None
     # sqlite+aiosqlite:///./pharmacy.db  ->  ./pharmacy.db
     path = url.split("///", 1)[-1]
@@ -65,17 +66,23 @@ def _configure_pragmas(dbapi_conn: Any, _record: Any) -> None:
 
 
 def build_engine(url: str) -> AsyncEngine:
+    is_sqlite = url.startswith("sqlite")
     if url == "sqlite+aiosqlite:///:memory:":
         engine: AsyncEngine = create_async_engine(
             url,
             poolclass=StaticPool,
             connect_args={"check_same_thread": False},
         )
-    else:
+    elif is_sqlite:
         engine = create_async_engine(url, connect_args={"check_same_thread": False})
-    from sqlalchemy import event
+    else:
+        # PostgreSQL / other server databases (B6). The driver is selected by the
+        # URL scheme, e.g. ``postgresql+asyncpg://user:pass@host:5432/db``.
+        engine = create_async_engine(url)
+    if is_sqlite:
+        from sqlalchemy import event
 
-    event.listen(engine.sync_engine, "connect", _configure_pragmas)
+        event.listen(engine.sync_engine, "connect", _configure_pragmas)
     return engine
 
 
@@ -169,9 +176,18 @@ async def create_schema() -> None:
     if _engine is None:
         init_engine()
     assert _engine is not None
+    dialect = _engine.dialect.name
     async with _engine.begin() as conn:
+        # Materialise every table/column declared on the ORM models. For a fresh
+        # database this alone produces the current schema (v{SCHEMA_VERSION}).
         await conn.run_sync(Base.metadata.create_all)
-        await migrate_schema(conn)
+        if dialect == "sqlite":
+            # SQLite has no ALTER-heavy migration framework here, so the PRAGMA
+            # user_version routine back-fills columns on pre-existing production
+            # databases and stamps the schema version.
+            await migrate_schema(conn)
+        # PostgreSQL (and other server RDBMS) are created at the latest schema by
+        # create_all above; no PRAGMA-based migration is required for a fresh DB.
 
 
 async def _table_has_column(conn: Any, table: str, column: str) -> bool:
@@ -309,8 +325,55 @@ async def migrate_schema(conn: Any) -> None:
                 )
         version = 3
 
+    # ── v4: cash-drawer shift lifecycle (A1) ────────────────────────────────
+    if version < 4:
+        if not await _table_exists(conn, "shifts"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE shifts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    opening_float NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    opened_at TEXT NOT NULL,
+                    closed_at TEXT,
+                    status TEXT NOT NULL DEFAULT 'open',
+                    opened_by TEXT
+                )
+                """
+            )
+        version = 4
+
+    # ── v5: B5 — refund ledger + tamper-evident audit hash chain ──────────
+    if version < 5:
+        if not await _table_exists(conn, "refunds"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE refunds (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    receipt_id INTEGER NOT NULL UNIQUE,
+                    total_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    reason TEXT,
+                    cashier TEXT,
+                    server_created_at TEXT
+                )
+                """
+            )
+        for col in ("prev_hash", "entry_hash"):
+            if not await _table_has_column(conn, "audit_logs", col):
+                await conn.exec_driver_sql(
+                    f"ALTER TABLE audit_logs ADD COLUMN {col} TEXT"
+                )
+        version = 5
+
+    # ── v6: B2 — PIN pepper version column (lazy re-hash after pepper rotation) ──
+    if version < 6:
+        if not await _table_has_column(conn, "users", "pin_pepper_version"):
+            await conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN pin_pepper_version INTEGER NOT NULL DEFAULT 1"
+            )
+        version = 6
+
     await conn.exec_driver_sql(f"PRAGMA user_version={SCHEMA_VERSION}")
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 6
 

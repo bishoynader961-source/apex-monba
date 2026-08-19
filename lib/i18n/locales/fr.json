@@ -1,0 +1,13 @@
+{
+  "login.heading": "Pharmacy Suite — Connexion",
+  "login.subtitle": "Saisissez vos identifiants pour continuer.",
+  "login.username": "Nom d'utilisateur",
+  "login.password": "Mot de passe",
+  "login.submit": "Se connecter",
+  "login.submitting": "Connexion…",
+  "common.language": "Langue",
+  "nav.dashboard": "Tableau de bord",
+  "nav.inventory": "Inventaire",
+  "nav.pos": "Caisse",
+  "nav.license": "Licence"
+}

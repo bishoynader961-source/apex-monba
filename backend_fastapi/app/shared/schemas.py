@@ -333,6 +333,73 @@ class DrawerMovementRead(BaseModel):
     client_created_at: Optional[str] = None
 
 
+# ── Shift lifecycle (Concern 1 / A1) ─────────────────────────────────────────
+class ShiftOpenRequest(BaseModel):
+    """Begin a cash-drawer shift with the counted opening float."""
+
+    opening_float: Decimal = Decimal("0")
+
+
+class ShiftRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    opening_float: Decimal
+    opened_at: str
+    closed_at: Optional[str] = None
+    status: str = "open"
+    opened_by: Optional[str] = None
+
+
+class ShiftCloseRequest(BaseModel):
+    """Close a shift against a physically counted till (Concern 1 / A1)."""
+
+    counted_cash: Decimal
+    shift_id: int
+
+
+class ShiftCloseResult(BaseModel):
+    shift_id: int
+    opening_float: Decimal
+    expected_cash: Decimal
+    counted_cash: Decimal
+    variance: Decimal
+    status: str = "closed"
+
+
+class ShiftPreviewResult(BaseModel):
+    """Computed expected till before a shift is closed (A1)."""
+
+    shift_id: int
+    opening_float: Decimal
+    expected_cash: Decimal
+    status: str = "open"
+
+
+# ── Refunds / Returns (B5) ───────────────────────────────────────────────────
+class RefundRequest(BaseModel):
+    receipt_id: int
+    reason: Optional[str] = None
+
+
+class RefundRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    receipt_id: int
+    total_amount: Decimal
+    reason: Optional[str] = None
+    cashier: Optional[str] = None
+    server_created_at: Optional[str] = None
+
+
+# ── Sales report (B5) ────────────────────────────────────────────────────────
+class SalesReport(BaseModel):
+    receipt_count: int
+    gross_revenue: Decimal
+    refund_total: Decimal
+    net_revenue: Decimal
+    by_payment_method: dict[str, Decimal]
+
+
 # ── Audit / Settings ────────────────────────────────────────────────────────
 class AuditLogRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -345,6 +412,11 @@ class AuditLogRead(BaseModel):
     subject_type: Optional[str] = None
     subject_id: Optional[int] = None
     role: Optional[str] = None
+
+
+class AuditVerifyResult(BaseModel):
+    valid: bool
+    broken_at: Optional[int] = None
 
 
 class SystemSettingRead(BaseModel):

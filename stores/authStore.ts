@@ -72,3 +72,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   isAuthenticated: () => get().token !== null,
 }));
+
+// Centralised, render-stable permission selector. Returns a boolean (not a new
+// array/function) so subscribed components only re-render when the *boolean*
+// flips — avoids the re-render churn of selecting the whole `permissions` array.
+export const useCan = (permission: string): boolean =>
+  useAuthStore((s) => (s.user?.permissions ?? []).includes(permission));

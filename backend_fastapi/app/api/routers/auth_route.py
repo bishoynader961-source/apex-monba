@@ -1,10 +1,14 @@
-"""Authentication routes: login, refresh, register (admin), me, logout."""
+"""Authentication routes: login, refresh, register (admin), me, logout, pepper rotation."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_permission
+from app.core.database import get_session
+from app.core.repositories import AuditRepository, UserRepository
 from app.services.auth_service import AuthService, get_auth_service
+from app.shared.config import settings
 from app.shared.rate_limit import get_auth_limit, get_pin_limit, limiter
 from app.shared.schemas import (
     CurrentUser,
@@ -15,6 +19,7 @@ from app.shared.schemas import (
     UserCreate,
     UserPublic,
 )
+from app.shared.security import rotate_pin_pepper
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -65,3 +70,22 @@ async def me(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
 async def logout(user: CurrentUser = Depends(get_current_user)) -> dict[str, str]:
     # Stateless JWT: logout is client-side (discard tokens). Endpoint confirms auth.
     return {"status": "ok", "message": f"Logged out {user.username}"}
+
+
+@router.post("/rotate-pepper", status_code=200)
+async def rotate_pepper(
+    user: CurrentUser = Depends(require_permission("pos.pepper.rotate")),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    """Rotate the device-bound PIN pepper (B2).
+
+    Persists the previous pepper, writes a fresh one, bumps the version, and flags
+    all users for a transparent lazy re-hash on their next successful PIN login.
+    Requires the ``pos.pepper.rotate`` permission."""
+    new_pepper = rotate_pin_pepper()
+    await UserRepository(session).mark_all_pins_for_rehash()
+    await AuditRepository(session).log(
+        action="pin_pepper.rotate",
+        details=f"pin_pepper_version={settings.pin_pepper_version}",
+    )
+    return {"rotated": True, "pin_pepper_version": settings.pin_pepper_version, "pepper_bytes": len(new_pepper)}

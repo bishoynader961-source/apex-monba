@@ -105,6 +105,7 @@ class User(Base):
     pin_failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     pin_locked_until: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     lockout_hmac: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    pin_pepper_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     role_id: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -196,6 +197,11 @@ class AuditLog(Base):
     new_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     role: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     gdpr_deleted: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # B5: tamper-evident hash chain. ``prev_hash`` links to the prior entry's
+    # ``entry_hash``; ``entry_hash`` binds this row's canonical payload. Verification
+    # recomputes and detects any post-hoc edit.
+    prev_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    entry_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 
 class SystemSetting(Base):
@@ -261,6 +267,24 @@ class SyncInventory(Base):
     on_hand: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
+class Shift(Base):
+    """Cash-drawer shift lifecycle (Concern 1 / A1).
+
+    A shift captures the ``opening_float`` and bounds the cash flows that roll up
+    into the shift-close variance (``expected = opening_float + cash_sales +
+    float_add - drops - payouts - pickups``). Closed shifts are immutable.
+    """
+
+    __tablename__ = "shifts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    opening_float: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    opened_at: Mapped[str] = mapped_column(String, nullable=False, default="")
+    closed_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="open")
+    opened_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
 class DrawerMovement(Base):
     """Cash-drawer cash-in / cash-out events with running balance (Concern 1).
 
@@ -280,3 +304,20 @@ class DrawerMovement(Base):
     ts_skew_confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     created_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     client_created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+class Refund(Base):
+    """Sale reversals (B5). A refund reverses the stock deduction (FEFO restock),
+    writes a negative ledger receipt, and is immutable once recorded.
+
+    ``receipt_id`` is unique so a sale can be refunded at most once.
+    """
+
+    __tablename__ = "refunds"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    receipt_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True, index=True)
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    cashier: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    server_created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)

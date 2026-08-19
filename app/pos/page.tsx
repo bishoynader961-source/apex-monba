@@ -20,10 +20,12 @@ import { useEffect, useRef } from "react";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { parseMoney, formatMoney, mulByQty, sumMoney } from "@/lib/decimalCurrency";
 import { searchMedicines } from "@/lib/api/inventory";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore, useCan } from "@/stores/authStore";
 import { usePosStore } from "@/stores/posStore";
 import { ManagerApprovalDialog } from "@/components/ManagerApprovalDialog";
 import { OfflineSyncBanner } from "@/components/OfflineSyncBanner";
+import { RefundDialog } from "@/components/RefundDialog";
+import { SalesReportModal } from "@/components/SalesReportModal";
 import { ShiftCloseDialog } from "@/components/ShiftCloseDialog";
 import type { ProductRead } from "@/types/contracts";
 import { useState } from "react";
@@ -44,6 +46,17 @@ export default function PosPage() {
   const setError = usePosStore((s) => s.setError);
   const hydrate = usePosStore((s) => s.hydrate);
   const recordDrawer = usePosStore((s) => s.recordDrawer);
+  const ensureShift = usePosStore((s) => s.ensureShift);
+  const recoverable = usePosStore((s) => s.recoverable);
+  const recoverCart = usePosStore((s) => s.recoverCart);
+  const discardRecoverable = usePosStore((s) => s.discardRecoverable);
+
+  // B5: permission-gated UI. `useCan` returns a stable boolean so these
+  // components only re-render when the permission bit actually flips.
+  const canRefund = useCan("pos.checkout");
+  const canReports = useCan("inventory.reports");
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerAmount, setDrawerAmount] = useState("");
@@ -55,11 +68,12 @@ export default function PosPage() {
 
   useEffect(() => {
     void hydrate();
+    void ensureShift();
     inputRef.current?.focus();
     const onFocusLost = () => inputRef.current?.focus();
     window.addEventListener("focus", onFocusLost);
     return () => window.removeEventListener("focus", onFocusLost);
-  }, [hydrate]);
+  }, [hydrate, ensureShift]);
 
   useEffect(() => {
     if (!scanned) return;
@@ -101,6 +115,23 @@ export default function PosPage() {
 
       <OfflineSyncBanner />
 
+      {recoverable.length > 0 && (
+        <div style={{ background: "#fef3c7", color: "#92400e", padding: "0.7rem 1rem", borderRadius: 6, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <span>
+            Recovered {recoverable.length} unsaved cart(s) from another terminal session (last active{" "}
+            {new Date(recoverable[0].updatedAt).toLocaleTimeString()}).
+          </span>
+          <span style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => void recoverCart(recoverable[0].tabId)} style={{ padding: "0.4rem 0.8rem", background: "#d97706", color: "#fff", border: "none", borderRadius: 6 }}>
+              Recover
+            </button>
+            <button onClick={() => void discardRecoverable(recoverable[0].tabId)} style={{ padding: "0.4rem 0.8rem", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff" }}>
+              Discard
+            </button>
+          </span>
+        </div>
+      )}
+
       <input
         ref={inputRef}
         type="text"
@@ -141,6 +172,16 @@ export default function PosPage() {
           <button onClick={() => setDrawerOpen(true)} style={{ padding: "0.6rem 1rem", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}>
             Cash Drop
           </button>
+          {canRefund && (
+            <button onClick={() => setRefundOpen(true)} style={{ padding: "0.6rem 1rem", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}>
+              Refund
+            </button>
+          )}
+          {canReports && (
+            <button onClick={() => setReportOpen(true)} style={{ padding: "0.6rem 1rem", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}>
+              Sales Report
+            </button>
+          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <strong style={{ fontSize: 18 }}>Total: ${net}</strong>
@@ -202,6 +243,8 @@ export default function PosPage() {
       )}
 
       <ShiftCloseDialog open={shiftOpen} onClose={() => setShiftOpen(false)} />
+      <RefundDialog open={refundOpen} onClose={() => setRefundOpen(false)} />
+      <SalesReportModal open={reportOpen} onClose={() => setReportOpen(false)} />
 
       {result && (
         <pre style={{ background: "#f3f4f6", padding: 12, borderRadius: 6, marginTop: 16, fontSize: 12, overflowX: "auto" }}>

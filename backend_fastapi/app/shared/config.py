@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     pepper_backend: str = Field(default="dpapi-local-machine", alias="POS_PEPPER_BACKEND")
     pepper_path: str = Field(default="pepper.store", alias="POS_PEPPER_PATH")
     pepper_env_key: str = Field(default="PHARMACY_PEPPER_KEY", alias="POS_PEPPER_ENV_KEY")
+    pin_pepper_version: int = Field(default=1, alias="POS_PIN_PEPPER_VERSION")
 
     # ── Rate limiting (F.1: network-layer brute-force protection) ──
     auth_rate_limit: str = Field(default="5/minute", alias="POS_AUTH_RATE_LIMIT")

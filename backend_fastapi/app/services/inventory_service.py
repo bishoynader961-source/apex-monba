@@ -4,10 +4,10 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.models import InventoryExtended, Product
+from app.core.models import InventoryExtended, Product, SyncInventory
 from app.core.repositories import BatchRepository
 from app.core.lock_manager import acquire_drug_lock
 from app.shared.exceptions import (
@@ -104,6 +104,29 @@ class InventoryService:
             )
             remaining -= take
         return consumed
+
+    async def return_stock(self, product_name: str, quantity: int) -> None:
+        """Restock ``quantity`` of ``product_name`` for a refund (B5).
+
+        Adds back to the oldest lot (preserving FEFO ordering) or creates a generic
+        restock lot when none exists, and bumps the hub-authoritative on_hand.
+        """
+        if quantity <= 0:
+            return
+        lots = sorted(
+            await BatchRepository(self.session).get_lots_for_product(product_name),
+            key=lambda l: (l.expiration_date or "", l.id),
+        )
+        target = lots[0] if lots else None
+        if target is None:
+            self.session.add(InventoryExtended(drug_name=product_name, on_hand=quantity))
+        else:
+            target.on_hand += quantity
+        await self.session.execute(
+            update(SyncInventory)
+            .where(SyncInventory.product_name == product_name)
+            .values(on_hand=SyncInventory.on_hand + quantity)
+        )
 
     async def low_stock(self, threshold_override: Optional[int] = None) -> list[ProductRead]:
         repo = BatchRepository(self.session)

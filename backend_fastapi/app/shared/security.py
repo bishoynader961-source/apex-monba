@@ -102,6 +102,31 @@ def upgrade_legacy_hash(password: str) -> bytes:
     return hash_password(password)
 
 
+def validate_password_complexity(password: str) -> None:
+    """Reject weak passwords (B2): >=12 chars with upper, lower, digit, symbol.
+
+    Raises ``AppException`` (400, ``weak_password``) on failure. Length-only checks
+    are enforced separately by the ``UserCreate`` schema.
+    """
+    if len(password) < 12:
+        raise AppException(
+            "Password must be at least 12 characters",
+            status_code=400,
+            error_code="weak_password",
+        )
+    if not (
+        any(c.isupper() for c in password)
+        and any(c.islower() for c in password)
+        and any(c.isdigit() for c in password)
+        and any(not c.isalnum() for c in password)
+    ):
+        raise AppException(
+            "Password must include uppercase, lowercase, digit, and symbol characters",
+            status_code=400,
+            error_code="weak_password",
+        )
+
+
 def create_access_token(
     subject: str,
     role: str,
@@ -243,6 +268,21 @@ def _dpapi_unprotect(blob: bytes) -> Optional[bytes]:
     return bytes(out.pbData[: out.cbData]) if out.cbData else None
 
 
+# ── PHI encryption (B5) ────────────────────────────────────────────────────
+# PHI is encrypted at rest to the local machine via the same DPAPI primitive
+# used for the PIN pepper. Off-machine the ciphertext is undecryptable, so a
+# stolen DB/backup does not expose patient data. Returns None when DPAPI is
+# unavailable (non-Windows/test), letting callers degrade safely.
+def phi_encrypt(plaintext: str) -> Optional[bytes]:
+    data = plaintext.encode("utf-8")
+    return _dpapi_protect(data)
+
+
+def phi_decrypt(blob: bytes) -> Optional[str]:
+    data = _dpapi_unprotect(blob)
+    return data.decode("utf-8") if data is not None else None
+
+
 class PinPepper:
     """Resolves the device-bound PIN pepper.
 
@@ -371,6 +411,93 @@ def verify_pin(
         return False
     actual = hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt + pepper, iters, _PIN_DKLEN)
     return hmac.compare_digest(actual, bytes(stored))
+
+
+def get_previous_pin_pepper() -> Optional[bytes]:
+    """Resolve the previous (pre-rotation) pepper from ``pepper_path.prev``.
+
+    Retained after a rotation so users whose PIN has not yet been re-hashed
+    against the new pepper can still authenticate (lazy re-hash)."""
+    path = Path(settings.pepper_path)
+    prev_path = path.parent / (path.name + ".prev")
+    if not prev_path.exists():
+        return None
+    if settings.pepper_backend == "file":
+        data = prev_path.read_bytes()
+        return data if len(data) == _PIN_SALT_LEN else None
+    return _dpapi_unprotect(prev_path.read_bytes())  # dpapi-local-machine
+
+
+def get_pin_peppers() -> list[bytes]:
+    """Ordered pepper candidates: [current, previous].
+
+    The current pepper is first so a successful match index of 0 means the PIN
+    is already on the latest pepper. The previous pepper (if any) only exists
+    between a rotation and the last lazy re-hash."""
+    current = get_pin_pepper().derive()
+    previous = get_previous_pin_pepper()
+    peppers: list[bytes] = []
+    if current is not None:
+        peppers.append(current)
+    if previous is not None and previous != current:
+        peppers.append(previous)
+    return peppers or ([] if current is None else [current])
+
+
+def verify_pin_multi(
+    pin: str,
+    salt: Optional[bytes],
+    stored: Optional[bytes],
+    peppers: list[bytes],
+    iters: int = _PBKDF2_PIN_ITERS,
+) -> int:
+    """Verify a PIN against multiple pepper candidates (rotation-safe).
+
+    Returns the index of the matching pepper (0 = current), or -1 if none match
+    (including when ``salt``/``stored`` are missing, so an off-machine DB cannot
+    confirm even the correct PIN)."""
+    if not salt or not stored:
+        return -1
+    for idx, pepper in enumerate(peppers):
+        if pepper is None:
+            continue
+        actual = hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt + pepper, iters, _PIN_DKLEN)
+        if hmac.compare_digest(actual, bytes(stored)):
+            return idx
+    return -1
+
+
+def rotate_pin_pepper() -> bytes:
+    """Rotate the device-bound PIN pepper (lazy re-hash friendly).
+
+    Persists the current pepper to ``pepper_path.prev`` and writes a fresh secret
+    as the current pepper, then bumps ``settings.pin_pepper_version``. Users keep
+    authenticating via :func:`verify_pin_multi` (previous pepper) until their next
+    successful login, when :func:`pin_login`/``approve_action`` transparently
+    re-hash to the new pepper.
+
+    Fail-closed: raises ``RuntimeError`` if the backend cannot persist a new
+    pepper (e.g. DPAPI unavailable) so a half-rotation never strands auth."""
+    backend = settings.pepper_backend
+    if backend not in ("file", "dpapi-local-machine"):
+        raise NotImplementedError(f"pepper rotation not supported for backend: {backend}")
+    path = Path(settings.pepper_path)
+    new_secret = secrets.token_bytes(_PIN_SALT_LEN)
+    if path.exists():
+        prev_path = path.parent / (path.name + ".prev")
+        prev_path.write_bytes(path.read_bytes())
+    if backend == "file":
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(new_secret)
+    else:  # dpapi-local-machine
+        blob = _dpapi_protect(new_secret)
+        if blob is None:
+            raise RuntimeError("DPAPI unavailable; cannot rotate PIN pepper")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(blob)
+    settings.pin_pepper_version = settings.pin_pepper_version + 1
+    reset_pin_pepper()  # force re-resolve so subsequent reads see the new pepper
+    return new_secret
 
 
 def generate_pin_salt() -> bytes:

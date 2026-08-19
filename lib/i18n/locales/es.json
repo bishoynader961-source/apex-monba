@@ -1,0 +1,13 @@
+{
+  "login.heading": "Pharmacy Suite — Iniciar sesión",
+  "login.subtitle": "Introduzca sus credenciales para continuar.",
+  "login.username": "Usuario",
+  "login.password": "Contraseña",
+  "login.submit": "Iniciar sesión",
+  "login.submitting": "Iniciando sesión…",
+  "common.language": "Idioma",
+  "nav.dashboard": "Panel",
+  "nav.inventory": "Inventario",
+  "nav.pos": "Punto de venta",
+  "nav.license": "Licencia"
+}

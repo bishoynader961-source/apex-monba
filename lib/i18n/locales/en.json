@@ -1,0 +1,13 @@
+{
+  "login.heading": "Pharmacy Suite — Sign In",
+  "login.subtitle": "Enter your credentials to continue.",
+  "login.username": "Username",
+  "login.password": "Password",
+  "login.submit": "Sign In",
+  "login.submitting": "Signing in…",
+  "common.language": "Language",
+  "nav.dashboard": "Dashboard",
+  "nav.inventory": "Inventory",
+  "nav.pos": "Point of Sale",
+  "nav.license": "License"
+}

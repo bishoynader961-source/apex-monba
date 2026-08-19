@@ -92,13 +92,13 @@ async def test_register_and_login(client: AsyncClient, session) -> None:
     token = await _admin_token(client, session)
     resp = await client.post(
         "/api/v1/auth/register",
-        json={"username": "dave", "display_name": "Dave", "password": "password123", "role_id": 3},
+        json={"username": "dave", "display_name": "Dave", "password": "Password123!", "role_id": 3},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 201
     assert resp.json()["username"] == "dave"
 
-    login = await client.post("/api/v1/auth/login", json={"username": "dave", "password": "password123"})
+    login = await client.post("/api/v1/auth/login", json={"username": "dave", "password": "Password123!"})
     assert login.status_code == 200
 
 

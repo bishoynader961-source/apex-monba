@@ -1,7 +1,15 @@
 // Typed POS API service.
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
-import type { CheckoutRequest, CheckoutResult, DrawerMovementCreate, DrawerMovementRead } from "@/types/contracts";
+import type {
+  CheckoutRequest,
+  CheckoutResult,
+  DrawerMovementCreate,
+  DrawerMovementRead,
+  RefundRead,
+  RefundRequest,
+  SalesReport,
+} from "@/types/contracts";
 
 const BASE = "/api/v1/pos";
 
@@ -31,5 +39,17 @@ export async function drawerMovement(
   const { data } = await api.post<DrawerMovementRead>(`${BASE}/drawer/movement`, enriched, {
     headers: { "X-Approval-Token": approvalToken, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });
+  return data;
+}
+
+// B5: reverse a sale. Requires the `pos.checkout` permission server-side.
+export async function refundSale(payload: RefundRequest): Promise<RefundRead> {
+  const { data } = await api.post<RefundRead>(`${BASE}/refund`, payload);
+  return data;
+}
+
+// B5: aggregated sales + refunds summary. Requires `inventory.reports`.
+export async function getSalesReport(): Promise<SalesReport> {
+  const { data } = await api.get<SalesReport>(`${BASE}/reports/sales`);
   return data;
 }

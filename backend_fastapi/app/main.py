@@ -14,6 +14,7 @@ from slowapi.errors import RateLimitExceeded
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.routers.auth_route import router as auth_router
+from app.api.routers.audit_route import router as audit_router
 from app.api.routers.health_route import router as health_router
 from app.api.routers.inventory_route import router as inventory_router
 from app.api.routers.license_route import router as license_router
@@ -38,8 +39,8 @@ logger = get_logger("fastapi")
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
-    "X-XSS-Protection": "1; mode=block",
     "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
 }
 
 
@@ -136,6 +137,7 @@ async def handle_unexpected(_request: Request, exc: Exception) -> JSONResponse:
 
 app.include_router(health_router)
 app.include_router(auth_router)
+app.include_router(audit_router)
 app.include_router(inventory_router)
 app.include_router(license_router)
 app.include_router(pos_router)

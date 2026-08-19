@@ -3,6 +3,17 @@
 import { useState } from "react";
 
 import { requestApproval } from "@/lib/api/approval";
+import {
+  provisionManagerPolicy,
+  verifyPinOffline,
+  type ManagerPolicy,
+} from "@/lib/offlineCrypto";
+import {
+  idbGet,
+  idbSet,
+  idbDelete,
+  STORE_MANAGER_POLICIES,
+} from "@/lib/db";
 
 interface Props {
   open: boolean;
@@ -22,15 +33,67 @@ export function ManagerApprovalDialog({ open, scope, title, onApproved, onClose 
 
   if (!open) return null;
 
+  // True only when the approval request could not reach the server (offline /
+  // ISP outage). We must NOT fall back on a 401 wrong-PIN — that is a real auth
+  // failure and must surface to the user.
+  const isNetworkError = (err: unknown): boolean => {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+    const msg = err instanceof Error ? err.message : String(err);
+    return /unable to reach|network|failed to fetch|err_network|timeout/i.test(msg);
+  };
+
+  // Locally-issued approval marker when /approve is unreachable. NOT server-
+  // validated; downstream offline handlers treat it as locally-authorized and
+  // audit-flag it on replay (Concern 1 offline path).
+  const makeOfflineToken = (user: string, sc: string): string =>
+    `offline:${user}:${sc}:${Date.now()}`;
+
   const submit = async () => {
     setError(null);
     setBusy(true);
     try {
       const { approval_token } = await requestApproval({ username, pin, scope });
+      // Best-effort cache of an offline policy so approval can fall back offline
+      // next time the server is unreachable. Derived from the PIN just verified.
+      try {
+        const policy = await provisionManagerPolicy(username, pin);
+        await idbSet(STORE_MANAGER_POLICIES, username, policy);
+      } catch {
+        // Non-fatal: offline cache is a convenience, not required for online approval.
+      }
       onApproved(approval_token);
       setPin("");
       setUsername("");
     } catch (err) {
+      if (isNetworkError(err)) {
+        const policy = await idbGet<ManagerPolicy>(STORE_MANAGER_POLICIES, username).catch(
+          () => undefined,
+        );
+        if (!policy) {
+          setError("Offline approval unavailable — connect to the network and try again.");
+          return;
+        }
+        try {
+          const result = await verifyPinOffline(pin, policy);
+          if (result.wiped) {
+            await idbDelete(STORE_MANAGER_POLICIES, username).catch(() => undefined);
+            setError("Too many offline attempts — online re-authentication required.");
+            return;
+          }
+          if (result.verified) {
+            onApproved(makeOfflineToken(username, scope));
+            setPin("");
+            setUsername("");
+            return;
+          }
+          await idbSet(STORE_MANAGER_POLICIES, username, result.policy).catch(() => undefined);
+          setError("Invalid manager PIN.");
+          return;
+        } catch {
+          setError("Offline approval failed.");
+          return;
+        }
+      }
       setError(err instanceof Error ? err.message : "Approval failed");
     } finally {
       setBusy(false);

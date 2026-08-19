@@ -1,0 +1,13 @@
+{
+  "login.heading": "Pharmacy-Suite — Anmelden",
+  "login.subtitle": "Geben Sie Ihre Anmeldedaten ein, um fortzufahren.",
+  "login.username": "Benutzername",
+  "login.password": "Passwort",
+  "login.submit": "Anmelden",
+  "login.submitting": "Anmelden…",
+  "common.language": "Sprache",
+  "nav.dashboard": "Übersicht",
+  "nav.inventory": "Inventar",
+  "nav.pos": "Kasse",
+  "nav.license": "Lizenz"
+}

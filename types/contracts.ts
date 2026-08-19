@@ -46,6 +46,20 @@ export interface LoginRequest {
   password: string;
 }
 
+// Kiosk PIN login (C.4). Mirrors backend PinLoginRequest.
+export interface PinLoginRequest {
+  username: string;
+  pin: string;
+}
+
+// Admin user creation. Mirrors backend UserCreate.
+export interface UserCreate {
+  username: string;
+  display_name?: string;
+  password: string;
+  role_id?: number;
+}
+
 export interface RefreshRequest {
   refresh_token: string;
 }
@@ -81,6 +95,22 @@ export interface MedicineUpdate {
   reorder_threshold?: number | null;
 }
 
+// Catalog create body (≡ legacy ProductCreate). Mirrors backend MedicineCreate
+// (which extends MedicineBase with the same fields).
+export interface MedicineCreate {
+  name: string;
+  price: Money;
+  manufacturer_barcode?: string;
+  internal_unique_barcode?: string;
+  status?: string;
+  expiry_date?: string;
+  manufacture_date?: string;
+  vendor_name?: string;
+  dea_schedule?: string | null;
+  wholesale_price?: Money | null;
+  reorder_threshold?: number | null;
+}
+
 export interface Batch {
   id: number;
   ndc_code?: string | null;
@@ -96,6 +126,8 @@ export interface Batch {
   supplier?: string | null;
   regional_metadata?: string | null;
 }
+
+export type BatchRead = Batch;
 
 export interface BatchUpdate {
   on_hand?: number;
@@ -124,7 +156,11 @@ export interface StockLevel {
   expiring_soon_count: number;
 }
 
+export type StockLevelRead = StockLevel;
+
 export type ProductRead = Medicine;
+
+export type MedicineRead = Medicine;
 
 export interface PaginatedProducts {
   items: ProductRead[];
@@ -151,6 +187,20 @@ export interface SupplierRead {
   address?: string | null;
   tax_id?: string | null;
   preferred: number;
+  sku?: string | null;
+  min_stock_level?: number | null;
+  lead_time_days?: number | null;
+}
+
+// Supplier create body. Mirrors backend SupplierCreate (extends SupplierBase).
+export interface SupplierCreate {
+  name: string;
+  contact_name?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  address?: string | null;
+  tax_id?: string | null;
+  preferred?: number;
   sku?: string | null;
   min_stock_level?: number | null;
   lead_time_days?: number | null;
@@ -244,6 +294,83 @@ export interface DrawerMovementRead {
   client_created_at?: string | null;
 }
 
+// ── Shift lifecycle (Concern 1 / A1) ──
+export interface ShiftOpenRequest {
+  opening_float: Money;
+}
+
+export interface ShiftRead {
+  id: number;
+  opening_float: Money;
+  opened_at: string;
+  closed_at?: string | null;
+  status: string;
+  opened_by?: string | null;
+}
+
+export interface ShiftCloseRequest {
+  shift_id: number;
+  counted_cash: Money;
+}
+
+export interface ShiftCloseResult {
+  shift_id: number;
+  opening_float: Money;
+  expected_cash: Money;
+  counted_cash: Money;
+  variance: Money;
+  status: string;
+}
+
+export interface ShiftPreviewResult {
+  shift_id: number;
+  opening_float: Money;
+  expected_cash: Money;
+  status: string;
+}
+
+// ── Refunds / Returns (B5) ──
+export interface RefundRequest {
+  receipt_id: number;
+  reason?: string | null;
+}
+
+export interface RefundRead {
+  id: number;
+  receipt_id: number;
+  total_amount: Money;
+  reason?: string | null;
+  cashier?: string | null;
+  server_created_at?: string | null;
+}
+
+// ── Sales report (B5) ──
+export interface SalesReport {
+  receipt_count: number;
+  gross_revenue: Money;
+  refund_total: Money;
+  net_revenue: Money;
+  by_payment_method: Record<string, Money>;
+}
+
+// ── Audit log (B2/B5) ──
+export interface AuditLogRead {
+  id: number;
+  timestamp?: string | null;
+  action?: string | null;
+  user_pin?: string | null;
+  details?: string | null;
+  category?: string | null;
+  subject_type?: string | null;
+  subject_id?: number | null;
+  role?: string | null;
+}
+
+export interface AuditVerifyResult {
+  valid: boolean;
+  broken_at?: number | null;
+}
+
 export interface HealthResponse {
   status: string;
   version: string;
@@ -293,4 +420,17 @@ export interface SyncPushResult {
   deduped: number;
   over_sells: number;
   merge_seq_max: number;
+}
+
+// Persisted sync discrepancy surfaced for manager review (A4). Mirrors the
+// backend DiscrepancyRead Pydantic schema (schemas.py).
+export interface DiscrepancyRead {
+  id: number;
+  reason: string;
+  device_id: string;
+  local_seq: number;
+  client_txn_id: string;
+  details?: string | null;
+  resolved: number;
+  created_at?: string | null;
 }

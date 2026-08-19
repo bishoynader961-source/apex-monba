@@ -1,0 +1,77 @@
+# Pharmacy Suite — local stack (B7)
+# Brings up backend (FastAPI) + frontend (Next.js standalone) + nginx edge.
+#
+#   docker compose up --build
+#   -> http://localhost:8080  (nginx routes /api -> backend, / -> frontend)
+#
+# PostgreSQL (B6) is optional. To use it instead of the default SQLite file,
+# uncomment the `db` service and set the backend environment:
+#   PHARMACY_DB_URL=postgresql+asyncpg://pharmacy:pharmacy@db:5432/pharmacy
+services:
+  backend:
+    build:
+      context: ./backend_fastapi
+      dockerfile: Dockerfile
+    environment:
+      PHARMACY_DB_URL: sqlite+aiosqlite:///./data/pharmacy.db
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      ACCESS_TOKEN_EXPIRE_MINUTES: "480"
+      TAX_RATE: "0.14"
+    volumes:
+      - backend_data:/app/data
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status == 200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: "http://localhost:8080"
+    environment:
+      PORT: "3000"
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # db:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_USER: pharmacy
+  #     POSTGRES_PASSWORD: pharmacy
+  #     POSTGRES_DB: pharmacy
+  #   volumes:
+  #     - pg_data:/var/lib/postgresql/data
+  #   expose:
+  #     - "5432"
+  #   restart: unless-stopped
+
+volumes:
+  backend_data:
+  # pg_data:

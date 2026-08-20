@@ -1,6 +1,6 @@
 // Typed License API service.
 import { api } from "@/lib/api";
-import type { LicenseValidationResult } from "@/types/contracts";
+import type { CreemCheckoutRequest, CreemCheckoutResponse, LicenseValidationResult } from "@/types/contracts";
 
 const BASE = "/api/v1/license";
 
@@ -12,5 +12,10 @@ export async function validateLicense(
     license_key: licenseKey,
     hardware_id: hardwareId,
   });
+  return data;
+}
+
+export async function initiateCheckout(payload: CreemCheckoutRequest): Promise<CreemCheckoutResponse> {
+  const { data } = await api.post<CreemCheckoutResponse>(`${BASE}/checkout`, payload);
   return data;
 }

@@ -108,6 +108,36 @@ ProductRead = MedicineRead
 ProductCreate = MedicineCreate
 
 
+# ── Creem MoR — Checkout & License ──────────────────────────────────────────
+class CreemCheckoutRequest(BaseModel):
+    """Body for POST /api/v1/checkout — creates a Creem hosted checkout session."""
+
+    product_id: Optional[str] = None  # Overrides CREEM_PRODUCT_ID env var if provided
+    success_url: str = "http://localhost:3000/license?activated=1"
+    cancel_url: str = "http://localhost:3000/license"
+    # Arbitrary key/value pairs forwarded as Creem metadata (e.g. device_id)
+    metadata: dict[str, str] = Field(default_factory=dict)
+
+
+class CreemCheckoutResponse(BaseModel):
+    checkout_id: str
+    checkout_url: str
+
+
+class LicenseValidationResult(BaseModel):
+    """Returned by POST /api/v1/license/validate — also imported in frontend types/contracts.ts."""
+
+    model_config = ConfigDict(from_attributes=True)
+    license_key: str
+    status: str  # 'active' | 'revoked' | 'expired' | 'grace'
+    email: Optional[str] = None
+    expires_at: Optional[str] = None
+    offline_until: Optional[str] = None  # ISO datetime — grace-period expiry
+    hardware_id: Optional[str] = None
+
+
+
+
 class SupplierBase(BaseModel):
     name: str
     contact_name: Optional[str] = None

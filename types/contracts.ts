@@ -18,6 +18,28 @@ export interface ErrorResponse {
   error: ErrorDetail;
 }
 
+// ── Creem MoR — Checkout & License ──────────────────────────────────────────
+export interface CreemCheckoutRequest {
+  product_id?: string;
+  success_url?: string;
+  cancel_url?: string;
+  metadata?: Record<string, string>;
+}
+
+export interface CreemCheckoutResponse {
+  checkout_id: string;
+  checkout_url: string;
+}
+
+export interface LicenseValidationResult {
+  license_key: string;
+  status: string; // 'active' | 'revoked' | 'expired' | 'grace'
+  email?: string;
+  expires_at?: string;
+  offline_until?: string; // ISO datetime
+  hardware_id?: string;
+}
+
 export interface CurrentUser {
   id: number;
   username: string;

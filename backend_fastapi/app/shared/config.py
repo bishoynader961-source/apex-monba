@@ -89,6 +89,17 @@ class Settings(BaseSettings):
     frontend_url: str = Field(default="http://localhost:3000", alias="FRONTEND_URL")
     tax_rate: float = Field(default=0.14, alias="TAX_RATE")
 
+    # ── Creem Merchant-of-Record (MoR) ──
+    creem_api_key: SecretStr = Field(
+        default=SecretStr(""), alias="CREEM_API_KEY"
+    )
+    creem_webhook_secret: SecretStr = Field(
+        default=SecretStr(""), alias="CREEM_WEBHOOK_SECRET"
+    )
+    creem_product_id: str = Field(default="", alias="CREEM_PRODUCT_ID")
+    # Hours the app continues working without a server re-check (offline grace)
+    license_offline_grace_hours: int = Field(default=72, alias="LICENSE_OFFLINE_GRACE_HOURS")
+
     @property
     def jwt_secret(self) -> str:
         return self.secret_key.get_secret_value()

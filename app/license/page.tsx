@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { useAuthStore } from "@/stores/authStore";
 import { useLicenseStore } from "@/stores/licenseStore";
+import { initiateCheckout } from "@/lib/api/license";
 
 export default function LicensePage() {
   const router = useRouter();
@@ -27,6 +28,21 @@ export default function LicensePage() {
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void validate(licenseKey, hardwareId);
+  };
+
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const handlePurchase = async () => {
+    setCheckoutLoading(true);
+    try {
+      const res = await initiateCheckout({
+        success_url: window.location.origin + "/license?activated=1",
+        cancel_url: window.location.origin + "/license"
+      });
+      window.location.href = res.checkout_url;
+    } catch (err) {
+      useLicenseStore.setState({ error: err instanceof Error ? err.message : "Checkout failed" });
+      setCheckoutLoading(false);
+    }
   };
 
   return (
@@ -69,12 +85,23 @@ export default function LicensePage() {
         )}
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || checkoutLoading}
           style={{ width: "100%", padding: "0.7rem", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}
         >
           {loading ? "Validating…" : "Validate License"}
         </button>
       </form>
+
+      <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #e5e7eb", textAlign: "center" }}>
+        <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>Need a new license or subscription renewal?</p>
+        <button
+          onClick={() => void handlePurchase()}
+          disabled={checkoutLoading || loading}
+          style={{ padding: "0.6rem 1.2rem", background: "#10b981", color: "#fff", border: "none", borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: checkoutLoading ? "default" : "pointer", opacity: checkoutLoading ? 0.7 : 1 }}
+        >
+          {checkoutLoading ? "Starting Checkout…" : "Purchase License via Creem"}
+        </button>
+      </div>
 
       {status && (
         <pre style={{ background: "#f3f4f6", padding: 12, borderRadius: 6, marginTop: 16, fontSize: 12, overflowX: "auto" }}>

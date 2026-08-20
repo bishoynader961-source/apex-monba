@@ -560,3 +560,97 @@ class SyncRepository:
         await self.session.commit()
         await self.session.refresh(disc)
         return disc
+
+
+# ── License Repository (Creem MoR fulfillment) ────────────────────────────────
+from app.core.models import License  # noqa: E402 — avoids circular at module top
+
+
+class LicenseRepository:
+    """Async CRUD for the ``licenses`` table.
+
+    All writes use ``session.begin()`` so callers don't need to manage
+    transactions explicitly; the webhook route wraps calls in ``async with
+    session.begin()``.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def get_by_key(self, license_key: str) -> Optional[License]:
+        result = await self.session.execute(
+            select(License).where(License.license_key == license_key)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_subscription_id(self, subscription_id: str) -> Optional[License]:
+        result = await self.session.execute(
+            select(License).where(License.subscription_id == subscription_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def create(
+        self,
+        *,
+        license_key: str,
+        email: str,
+        expires_at: str,
+        subscription_id: Optional[str] = None,
+        offline_grace_hours: int = 72,
+    ) -> License:
+        from datetime import datetime, timedelta, timezone
+
+        offline_until = (
+            datetime.now(timezone.utc) + timedelta(hours=offline_grace_hours)
+        ).isoformat()
+        lic = License(
+            license_key=license_key,
+            email=email,
+            status="active",
+            created_at=datetime.now(timezone.utc).isoformat(),
+            expires_at=expires_at,
+            subscription_id=subscription_id,
+            offline_until=offline_until,
+        )
+        self.session.add(lic)
+        await self.session.flush()
+        await self.session.refresh(lic)
+        return lic
+
+    async def update_status(self, license_key: str, status: str) -> Optional[License]:
+        lic = await self.get_by_key(license_key)
+        if lic is None:
+            return None
+        lic.status = status
+        await self.session.flush()
+        await self.session.refresh(lic)
+        return lic
+
+    async def extend_expires_at(
+        self, license_key: str, new_expires_at: str, offline_grace_hours: int = 72
+    ) -> Optional[License]:
+        from datetime import datetime, timedelta, timezone
+
+        lic = await self.get_by_key(license_key)
+        if lic is None:
+            return None
+        lic.expires_at = new_expires_at
+        lic.status = "active"
+        lic.offline_until = (
+            datetime.now(timezone.utc) + timedelta(hours=offline_grace_hours)
+        ).isoformat()
+        await self.session.flush()
+        await self.session.refresh(lic)
+        return lic
+
+    async def bind_hardware(self, license_key: str, hardware_id: str) -> Optional[License]:
+        """Bind a license to the first device that calls /validate — idempotent."""
+        lic = await self.get_by_key(license_key)
+        if lic is None:
+            return None
+        if lic.hardware_id is None:
+            lic.hardware_id = hardware_id
+            await self.session.flush()
+            await self.session.refresh(lic)
+        return lic
+

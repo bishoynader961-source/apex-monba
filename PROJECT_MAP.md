@@ -1202,3 +1202,10 @@ Phase A gate (per approved plan): `pytest tests/test_pos_hardening.py` (T23–T2
 - **R9 (final gate) — DONE:** `pytest` 102 passed · `mypy app` 32 files clean · `tsc --noEmit` 0 · `next build` exit 0 (12/12 pages; 2 benign Next 16.2.10 `location` framework warnings).
 - Carried-forward (explicit non-goals): PHI encryption-at-rest on all columns, audit-log append-only/chain, returns workflow, full users CRUD, desktop shell, coverage ≥90%, explicit per-line lot picker (Concern 4 multi-unit).
 - Multi-worker distributed locks: `asyncio.Lock` (single-process, `--workers 1`) remains canonical.
+
+### Milestone M94 (v1.0.0 Release & Creem MoR Integration) — DONE
+- **Creem Integration:** Added `POST /api/v1/checkout` and `POST /api/v1/webhook/creem` endpoints to FastAPI. Modified `config.py` to source `CREEM_API_KEY`, `CREEM_WEBHOOK_SECRET`, and `CREEM_PRODUCT_ID` strictly via environment variables. Added `License` ORM model and `LicenseRepository` to handle fulfillment and lifecycle (active, revoked, expired) with offline grace period logic.
+- **Frontend UI:** Wired `initiateCheckout` in `lib/api/license.ts` and added a "Purchase License via Creem" button to `app/license/page.tsx`. Synchronized backend schema with frontend `LicenseValidationResult` and `CreemCheckout*` types in `types/contracts.ts`.
+- **NSSM Architecture:** Registered `PharmacyLicense` (Gunicorn/Flask) as a dependent service for `PharmacyBackend` in `install.ps1`, bridging legacy keygen logic.
+- **Desktop Shell:** Initialized Tauri v2 (`cargo tauri init`) with `tauri.conf.json` proxying correctly to the local Vite dev server / standalone build output, wrapping the Next.js kiosk inside a native binary.
+- **Release:** Cleaned up stray files and prepared for `v1.0.0` repository tagging.

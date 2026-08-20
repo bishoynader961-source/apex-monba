@@ -16,6 +16,7 @@ $ErrorActionPreference = "Stop"
 $bin      = Join-Path $InstallDir "bin"
 $caddy    = Join-Path $bin "caddy\caddy.exe"
 $backend  = Join-Path $InstallDir "backend_fastapi"
+$license  = Join-Path $InstallDir "archive"
 $frontend = Join-Path $InstallDir ".next\standalone"
 $logDir   = Join-Path $InstallDir "logs"
 $nssm     = Join-Path $bin "nssm\nssm.exe"
@@ -33,14 +34,20 @@ function Register-Service {
     if ($Depends) { & $nssm set $Name DependOnService $Depends | Out-Null }
 }
 
-# 1) Backend (single worker — required for the in-process Lamport lock)
+# 1) License Backend (Flask/Gunicorn isolated process for key generation)
+Register-Service -Name "PharmacyLicense" -Exe $PythonExe `
+    -Args @("-m", "gunicorn", "server_app:app", "--bind", "127.0.0.1:5000", "--workers", "1") `
+    -Depends $null
+& $nssm set PharmacyLicense AppDirectory $license | Out-Null
+
+# 2) Backend (single worker — required for the in-process Lamport lock)
 Register-Service -Name "PharmacyBackend" -Exe $PythonExe `
     -Args @("-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000", "--workers", "1") `
-    -Depends $null
+    -Depends "PharmacyLicense"
 # point working directory to backend
 & $nssm set PharmacyBackend AppDirectory $backend | Out-Null
 
-# 2) Frontend (Next.js standalone server)
+# 3) Frontend (Next.js standalone server)
 Register-Service -Name "PharmacyFrontend" -Exe (Join-Path $frontend "server.js") `
     -Args @() -Depends "PharmacyBackend"
 & $nssm set PharmacyFrontend AppDirectory $frontend | Out-Null
@@ -52,5 +59,5 @@ Register-Service -Name "PharmacyCaddy" -Exe $caddy `
     -Depends "PharmacyFrontend"
 & $nssm set PharmacyCaddy AppDirectory $InstallDir | Out-Null
 
-Write-Host "Registered PharmacyBackend -> PharmacyFrontend -> PharmacyCaddy."
-Write-Host "Start with: nssm start PharmacyBackend; nssm start PharmacyFrontend; nssm start PharmacyCaddy"
+Write-Host "Registered PharmacyLicense -> PharmacyBackend -> PharmacyFrontend -> PharmacyCaddy."
+Write-Host "Start with: nssm start PharmacyLicense; nssm start PharmacyBackend; nssm start PharmacyFrontend; nssm start PharmacyCaddy"

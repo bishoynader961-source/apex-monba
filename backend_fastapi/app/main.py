@@ -22,6 +22,7 @@ from app.api.routers.pos_route import router as pos_router
 from app.api.routers.settings_route import router as settings_router
 from app.api.routers.sync_route import router as sync_router
 from app.api.routers.users_route import router as users_router
+from app.api.routers.webhook_route import router as webhook_router
 from app.core import database
 from app.core.database import create_schema, init_engine, vacuum_snapshot
 from app.services.seed_service import seed_admin_if_absent
@@ -144,3 +145,4 @@ app.include_router(pos_router)
 app.include_router(settings_router)
 app.include_router(sync_router)
 app.include_router(users_router)
+app.include_router(webhook_router)

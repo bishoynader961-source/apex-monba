@@ -321,3 +321,32 @@ class Refund(Base):
     reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     cashier: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     server_created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+class License(Base):
+    """Software license record fulfilled by the Creem MoR webhook.
+
+    Created by ``POST /api/v1/webhook/creem`` on ``checkout.completed``.
+    Updated by subsequent subscription lifecycle events (paid → extend,
+    canceled/expired/paused → revoke, active/resumed → reactivate).
+
+    ``offline_until`` enables grace-period operation: if set to a future ISO
+    datetime the client may continue working even when it cannot reach the
+    license endpoint (e.g. network outage on a thin-client kiosk).
+    """
+
+    __tablename__ = "licenses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    license_key: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
+    email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # 'active' | 'revoked' | 'expired' | 'grace'
+    status: Mapped[str] = mapped_column(String, nullable=False, default="active")
+    created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    expires_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    subscription_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    # Device binding — set on first /validate call from the kiosk
+    hardware_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Grace-period expiry — ISO 8601 UTC datetime
+    offline_until: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+

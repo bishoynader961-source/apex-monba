@@ -165,7 +165,27 @@
 - `async_ui.py` now imports `tkinter as tk`.
 - In `_make_done_callback._on_done()`, the `root.after(0, _invoke)` dispatch is
   guarded by `self._root.winfo_exists()` and wrapped in
-  `try/except (tk.TclError, RuntimeError): return` — silently discarding pending
+  try/except (tk.TclError, RuntimeError): return` — silently discarding pending
   callbacks when the root is destroyed during shutdown, with no stdout/error
   logging.  Note: `winfo_exists()` itself can raise `TclError` on a destroyed
   root, so the guard call is inside the same `try` block.
+
+## 10. Service Architecture & Creem MoR (v1.0.0)
+
+### 10.1 Creem Merchant-of-Record
+- `backend_fastapi/app/api/routers/license_route.py` exposes `POST /api/v1/checkout` to create Creem hosted checkout sessions via `api.creem.io/v1/checkouts`.
+- `webhook_route.py` implements `POST /api/v1/webhook/creem` to receive `checkout.completed` and subscription lifecycle events. Uses HMAC-SHA256 verification with `CREEM_WEBHOOK_SECRET`.
+- Licenses are persisted in `pharmacy.db` via `LicenseRepository`.
+- The `License` ORM model includes `offline_until` which provides a grace period (default 72 hours) during which the client can operate offline.
+
+### 10.2 Legacy Scripts Supersession
+- `archive/backup.py` and `archive/audit_log.py` are deprecated and superseded by the FastAPI service layer.
+- **Backup**: Handled entirely by `backend_fastapi/app/core/database.py:vacuum_snapshot()`, which runs periodically in the main loop to perform safe SQLite WAL backups.
+- **Audit**: Replaced by `AuditRepository` in FastAPI, utilizing tamper-evident hashing and a strict write-append model.
+
+### 10.3 Windows Service (NSSM)
+- `install.ps1` registers three primary components + Caddy proxy:
+  1. `PharmacyLicense` (Gunicorn/Flask) — Serves legacy keygen / isolated licensing on `127.0.0.1:5000`.
+  2. `PharmacyBackend` (Uvicorn/FastAPI) — Requires `PharmacyLicense`.
+  3. `PharmacyFrontend` (Next.js Standalone) — Requires `PharmacyBackend`.
+  4. `PharmacyCaddy` (Caddy) — Handles HTTPS/TLS loopback proxying.

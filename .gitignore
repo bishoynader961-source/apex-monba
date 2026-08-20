@@ -31,3 +31,4 @@ backend_fastapi/tests/.pytest_cache/
 backend_fastapi/*.sqlite
 backend_fastapi/*.sqlite-journal
 backend_fastapi/*.sqlite-wal
+backend_fastapi/.coverage

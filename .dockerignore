@@ -21,7 +21,6 @@ docs
 .idea
 .aider*
 labels
-hooks
 bin
 hwid-client
 deployment

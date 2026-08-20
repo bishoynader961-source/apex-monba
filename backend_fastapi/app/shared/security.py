@@ -54,9 +54,9 @@ _CRYPT_UNPROTECT_UI_FORBIDDEN = 0x1
 # ``file``/``env`` pepper backends.
 if sys.platform == "win32":
     # Windows-only native binding; ``ctypes.WinDLL`` is undefined on non-Windows.
-    _crypt32: Optional[Any] = None  # type: ignore[name-defined]
+    _crypt32: Optional[Any] = None 
     try:  # pragma: no cover - Windows-only native binding
-        _crypt32 = cast(Any, getattr(ctypes, "WinDLL", None))("crypt32")  # type: ignore[name-defined]
+        _crypt32 = cast(Any, getattr(ctypes, "WinDLL", None))("crypt32") 
     except OSError:
         _crypt32 = None
 else:

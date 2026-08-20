@@ -21,6 +21,7 @@ import hmac
 import os
 import platform
 import secrets
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional, cast
@@ -51,12 +52,15 @@ _CRYPT_UNPROTECT_UI_FORBIDDEN = 0x1
 
 # ``crypt32`` is loaded lazily — absent on non-Windows, which is handled by the
 # ``file``/``env`` pepper backends.
-_crypt32: Optional[ctypes.WinDLL] = None
-if platform.system() == "Windows":
+if sys.platform == "win32":
+    # Windows-only native binding; ``ctypes.WinDLL`` is undefined on non-Windows.
+    _crypt32: Optional[Any] = None  # type: ignore[name-defined]
     try:  # pragma: no cover - Windows-only native binding
-        _crypt32 = ctypes.WinDLL("crypt32")
+        _crypt32 = cast(Any, getattr(ctypes, "WinDLL", None))("crypt32")  # type: ignore[name-defined]
     except OSError:
         _crypt32 = None
+else:
+    _crypt32 = None
 
 
 def hash_password(password: str) -> bytes:

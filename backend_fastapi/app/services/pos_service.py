@@ -234,29 +234,28 @@ class PosService:
     ) -> DrawerMovementRead:
         """Persist a cash-drawer movement with running balance (Concern 1)."""
         server_dt = datetime.now(timezone.utc)
-        async with self.session.begin():
-            prior = (
-                await self.session.execute(
-                    select(func.coalesce(func.sum(DrawerMovement.amount), 0)).select_from(
-                        DrawerMovement
-                    )
+        prior = (
+            await self.session.execute(
+                select(func.coalesce(func.sum(DrawerMovement.amount), 0)).select_from(
+                    DrawerMovement
                 )
-            ).scalar() or Decimal("0")
-            new_balance = prior + payload.amount
-            movement = DrawerMovement(
-                cashier=payload.cashier or user.username,
-                amount=payload.amount,
-                reason=payload.reason,
-                prior_balance=prior,
-                new_balance=new_balance,
-                server_created_at=server_dt.isoformat(timespec="seconds"),
-                ts_skew_confidence=_skew_seconds(payload.client_timestamp, server_dt),
-                created_by=user.username,
-                client_created_at=payload.client_timestamp,
             )
-            self.session.add(movement)
-            await self.session.flush()
-            return DrawerMovementRead.model_validate(movement)
+        ).scalar() or Decimal("0")
+        new_balance = prior + payload.amount
+        movement = DrawerMovement(
+            cashier=payload.cashier or user.username,
+            amount=payload.amount,
+            reason=payload.reason,
+            prior_balance=prior,
+            new_balance=new_balance,
+            server_created_at=server_dt.isoformat(timespec="seconds"),
+            ts_skew_confidence=_skew_seconds(payload.client_timestamp, server_dt),
+            created_by=user.username,
+            client_created_at=payload.client_timestamp,
+        )
+        self.session.add(movement)
+        await self.session.commit()
+        return DrawerMovementRead.model_validate(movement)
 
     async def open_shift(self, payload: ShiftOpenRequest, user: CurrentUser) -> ShiftRead:
         """Open a cash-drawer shift with the counted opening float (A1)."""

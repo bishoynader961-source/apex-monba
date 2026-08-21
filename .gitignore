@@ -32,3 +32,6 @@ backend_fastapi/*.sqlite
 backend_fastapi/*.sqlite-journal
 backend_fastapi/*.sqlite-wal
 backend_fastapi/.coverage
+*.db-shm
+*.db-wal
+.pharmacy_device_id

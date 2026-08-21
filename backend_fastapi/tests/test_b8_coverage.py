@@ -97,6 +97,9 @@ async def admin_user(session, role_and_perms):
     user = await UserRepository(session).create(
         "adminroot", "Admin", hash_password("Password123!@#"), role_and_perms.id
     )
+    # create()'s trailing refresh() leaves an idle autobegun transaction open;
+    # close it so tests that open their own transaction start clean.
+    await session.commit()
     return user
 
 
@@ -191,6 +194,7 @@ async def test_pos_checkout_multi_terminal(monkeypatch, session):
 async def test_pos_record_drawer_movement(session, admin_user):
     payload = DrawerMovementCreate(amount=Decimal("50.00"), reason="cash-in", cashier="adminroot")
     user = CurrentUser(id=1, username="adminroot", role="admin", permissions=["pos.drawer"])
+    await session.commit()
     result = await PosService(session).record_drawer_movement(payload, user)
     assert result.amount == Decimal("50.00")
     assert result.new_balance == Decimal("50.00")

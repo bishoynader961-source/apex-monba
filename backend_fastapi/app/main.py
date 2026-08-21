@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         snapshot_task.cancel()
 
 
-app = FastAPI(title="Pharmacy Suite API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Pharmacy Suite API", version="1.0.0", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)

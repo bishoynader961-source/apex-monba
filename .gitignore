@@ -12,6 +12,9 @@ dist/
 .env.local
 .vercel
 .env*
+# Allow committed config templates (placeholders only — no secrets)
+!.env.example
+!**/.env.example
 dev_config.json
 hwid-client/target/
 archive/rust_crypto/target/

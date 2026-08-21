@@ -200,7 +200,11 @@ export const usePosStore = create<PosState>((set, get) => ({
       // Leave queue intact for the next attempt.
     } finally {
       set({ syncing: false });
-      await lock.release();
+      try {
+        await lock.release();
+      } catch {
+        // Lock release is best-effort; ignore failures here.
+      }
     }
   },
 

@@ -11,19 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permission
 from app.core.database import get_session
-from app.services.auth_service import AuthService, get_auth_service
-from app.services.pos_service import PosService
 from app.services.sync_service import SyncService
 from app.shared.config import settings
 from app.shared.exceptions import ForbiddenError
 from app.shared.schemas import (
-    ApprovalRequest,
-    CheckoutRequest,
-    CheckoutResult,
     CurrentUser,
     DiscrepancyRead,
-    DrawerMovementCreate,
-    DrawerMovementRead,
     SyncPushRequest,
     SyncPushResult,
 )

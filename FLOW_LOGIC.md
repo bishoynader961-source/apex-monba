@@ -431,7 +431,7 @@ Every pharmacy-facing money string goes through `CurrencyFormatter` (accessed as
 - ProductRepository.get_by_name is intentionally unfiltered - soft-deleted medicines remain resolvable by name so POS checkout + receive flows never break on historical drug names.
 - DELETE /medicines/{id} sets is_deleted = 1 (not a physical DELETE) - reversible.
 
-## 6. Edge Retail POS (Next.js + FastAPI) — ADDED
+## 6. Edge Retail POS (Next.js + FastAPI) ï¿½ ADDED
 This project also ships a web/kiosk POS. The data flow is:
 
 `barcode scan` -> `useBarcodeScanner` -> `searchMedicines` -> `posStore.addLine`
@@ -450,7 +450,7 @@ Key invariants (do not break):
 * Money is `Decimal`/`NUMERIC(10,2)` end-to-end; frontend uses bigint cents (`lib/decimalCurrency`), never float.
 * Over-sell / expired / recalled lots return **410 Gone** (never a silent 200).
 
-## 18. B8 — FastAPI Coverage Gate (backend_fastapi)
+## 18. B8 ï¿½ FastAPI Coverage Gate (backend_fastapi)
 
 **Goal:** project-wide line coverage ? 90% (`fail_under = 90` in `pyproject.toml`),
 enforced on every `pytest` run.
@@ -468,18 +468,26 @@ bodies (pos/auth/inventory/sync) under-counted.
 the existing `client`-based HTTP tests.
 
 **Tests added:**
-- `tests/test_b8_coverage.py` — direct-await unit tests for the four async
+- `tests/test_b8_coverage.py` ï¿½ direct-await unit tests for the four async
   services (`PosService`, `AuthService`, `InventoryService`, `SyncService`) ?
   pos_service 99%, auth_service 95%, inventory_service 97%, sync_service 96%.
-- `tests/test_b8_repos_extra.py` — direct-await tests for the remaining
+- `tests/test_b8_repos_extra.py` ï¿½ direct-await tests for the remaining
   repository methods (`ProductRepository`, `SupplierRepository`,
   `AuditRepository`, `SyncRepository`, `UserRepository`, `LicenseRepository`) +
   file-backend security paths (pin-pepper rotation, previous pepper, verification,
   lockout).
-- `tests/test_b8_routes_extra.py` — HTTP tests for the previously-untouched
+- `tests/test_b8_routes_extra.py` ï¿½ HTTP tests for the previously-untouched
   `webhook_route` (Creem signature + all event branches) and `license_route` /
   `deps.get_current_user` rejection branches.
 
-**Verification (2026-08-21):** `python -m pytest -q -p no:logging` ?
+**Verification (2026-08-21):** `python -m pytest -q -p no:logging`
+
+## 11. v1.0.0 Web Frontend & Desktop Notes (2026-08-21)
+- **`/portal` route:** `app/portal/page.tsx` is a public download/landing page (no auth guard), linked from `app/page.tsx` ("Download App") and `components/PricingCard.tsx`. Middleware intentionally does NOT protect `/portal`.
+- **Environment templates:**
+  - `backend_fastapi/.env.example` â€” FastAPI backend (Creem MoR + JWT; `SECRET_KEY` required in prod).
+  - root `.env.example` â€” frontend `NEXT_PUBLIC_*` vars (inlined into the Next bundle at build time).
+  - `backend/.env.example` â€” legacy Flask license server (`LEMON_SQUEEZEY_SIGNATURE_SECRET`, `ADMIN_SECRET`).
+- **Desktop (Tauri):** see PROJECT_MAP.md Â§M96 / Code Signing. The Next.js standalone server runs as a Tauri sidecar on `:3000`; the FastAPI backend must also run on `:8000`. Installers build unsigned; Windows Authenticode signing is configured via `src-tauri/sign.cmd` + `tauri.conf.json` `signCommand`. ?
 220 passed, 1 skipped; `coverage` TOTAL = 91.06% (? 90%); `mypy app --strict` ?
 Success. Committed config change: `pyproject.toml` `fail_under` 0 ? 90.

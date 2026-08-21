@@ -57,7 +57,7 @@ async def test_webhook_not_configured(client: AsyncClient, monkeypatch):
     from pydantic import SecretStr
     monkeypatch.setattr(config_mod.settings, "creem_webhook_secret", SecretStr(""))
     r = await client.post("/api/v1/webhook/creem", content=b"{}", headers={"creem-signature": "x"})
-    assert r.status_code == 500
+    assert r.status_code == 503
 
 
 async def test_webhook_missing_signature(client: AsyncClient, monkeypatch):

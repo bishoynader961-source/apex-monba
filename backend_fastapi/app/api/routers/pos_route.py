@@ -1,6 +1,6 @@
 """POS routes: checkout + cash-drawer movements + shift lifecycle (A1)."""
 from decimal import Decimal
-from fastapi import APIRouter, Depends, Header, status
+from fastapi import APIRouter, Depends, Header, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permission
@@ -8,6 +8,7 @@ from app.core.database import get_session
 from app.services.auth_service import AuthService, get_auth_service
 from app.services.pos_service import PosService
 from app.shared.exceptions import AppException, ForbiddenError
+from app.shared.rate_limit import get_pin_limit, limiter
 from app.shared.schemas import (
     ApprovalRequest,
     CheckoutRequest,
@@ -48,7 +49,9 @@ def _requires_approval(reason: str, amount: Decimal) -> bool:
 
 
 @router.post("/approve", status_code=status.HTTP_200_OK)
+@limiter.limit(get_pin_limit())
 async def approve(
+    request: Request,
     payload: ApprovalRequest,
     auth: AuthService = Depends(get_auth_service),
 ) -> dict[str, str]:

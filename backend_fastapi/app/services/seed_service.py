@@ -1,6 +1,8 @@
 """Default admin user seeding — idempotent, best-effort, startup-safe."""
 from __future__ import annotations
 
+import os
+
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,8 +12,8 @@ from app.shared.security import hash_password
 
 logger = get_logger("seeder")
 
-DEFAULT_ADMIN_USERNAME = "admin"
-DEFAULT_ADMIN_PASSWORD = "admin123"
+DEFAULT_ADMIN_USERNAME = os.getenv("INITIAL_ADMIN_USER", "admin")
+DEFAULT_ADMIN_PASSWORD = os.getenv("INITIAL_ADMIN_PASSWORD", "admin123")
 DEFAULT_ADMIN_DISPLAY_NAME = "Admin User"
 DEFAULT_ADMIN_ROLE_ID = 1
 
@@ -29,6 +31,14 @@ async def seed_admin_if_absent(session: AsyncSession) -> bool:
             logger.info("seed_admin_skipped", reason="user_exists", username=DEFAULT_ADMIN_USERNAME)
             return False
 
+        if (
+            os.getenv("APP_ENV", "development") == "production"
+            and DEFAULT_ADMIN_PASSWORD == "admin123"
+        ):
+            logger.warning(
+                "seed_admin_using_default_credentials_in_production",
+                hint="set INITIAL_ADMIN_USER/INITIAL_ADMIN_PASSWORD env to override",
+            )
         password_hash = hash_password(DEFAULT_ADMIN_PASSWORD)
         await repo.create(
             username=DEFAULT_ADMIN_USERNAME,

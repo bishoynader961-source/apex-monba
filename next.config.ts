@@ -2,8 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // Emit a self-contained server bundle for kiosk deployment (Phase 4). The
-  // standalone output under .next/standalone is copied by install.ps1.
+  // Emit a self-contained server bundle for web/kiosk deployment AND for the
+  // Tauri desktop app, which runs this standalone server as a sidecar (the
+  // frontend relies on Next.js BFF route handlers + httpOnly-cookie auth that
+  // cannot be statically exported). `scripts/prepare-standalone.mjs` copies the
+  // static assets next to `server.js` so Tauri can bundle the whole tree.
   output: "standalone",
   async headers() {
     return [

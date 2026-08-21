@@ -37,7 +37,7 @@ async def webhook_creem(
     """Handle Creem MoR webhooks (checkout completed, sub lifecycle)."""
     if not settings.creem_webhook_secret.get_secret_value():
         logger.warning("creem_webhook_secret_not_configured")
-        raise HTTPException(status_code=500, detail="Webhook not configured")
+        raise HTTPException(status_code=503, detail="Webhook not configured")
 
     if not creem_signature:
         raise HTTPException(status_code=400, detail="Missing creem-signature header")

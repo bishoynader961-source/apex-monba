@@ -7,7 +7,7 @@ import uuid
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -103,6 +103,16 @@ class Settings(BaseSettings):
     @property
     def jwt_secret(self) -> str:
         return self.secret_key.get_secret_value()
+
+    @model_validator(mode="after")
+    def _enforce_production_secrets(self) -> "Settings":
+        if self.app_env == "production":
+            placeholder = "replace-with-a-64-char-random-secret-key-in-production"
+            if self.secret_key.get_secret_value() == placeholder:
+                raise ValueError(
+                    "SECRET_KEY must be set to a strong random value when APP_ENV=production"
+                )
+        return self
 
 
 @lru_cache

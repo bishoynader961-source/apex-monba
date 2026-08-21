@@ -1,8 +1,8 @@
 import { PricingCard } from "@/components/PricingCard";
 
-// Interactive landing (Paddle SDK) — skip static prerender to avoid the
-// Node-SSR `location is not defined` quirk in Next's bundled script loader.
-export const dynamic = "force-dynamic";
+// Paddle SDK is initialized client-side inside PricingCard (guarded by
+// `typeof window`), so this page is safe to statically prerender for the
+// Tauri desktop build (output: "export" sets TAURI_BUILD=1).
 
 export default function Home() {
   return (

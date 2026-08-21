@@ -61,7 +61,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
       - name: Live Postgres verification
-        run: python -m pytest tests/test_postgres_live.py -q
+        run: python -m pytest tests/test_postgres_live.py -q --no-cov
 
   frontend:
     name: Frontend - tsc + vitest + build

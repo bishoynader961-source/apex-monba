@@ -384,6 +384,7 @@ Management & FIFO Basis` (`CHANGELOG.md` M3). Scope chosen by user: "Frontend fo
 - `test_b8_coverage.admin_user` fixture: close the idle autobegun transaction left by `UserRepository.create`'s trailing `refresh()` so the test's own `session.begin()` succeeds.
 - Retired obsolete `tests.yml` (archive/ Tkinter suite importing uninstalled `barcode`); `ci.yml` is authoritative.
 - B8 coverage hardening: `pyproject.toml` gate `fail_under=0 → 90`; added `test_b8_repos_extra.py` + `test_b8_routes_extra.py` (direct-await repo + HTTP route coverage) to clear the 90% project gate. `ci.yml` B8 job aligned to `--cov-fail-under=90`.
+- `backend-postgres` (R1) live-integration job runs `pytest tests/test_postgres_live.py --no-cov` so it is exempt from the 90% coverage gate (it only exercises one test file).
 - Stopped tracking SQLite WAL artifacts; `.gitignore` now ignores `*.db-shm`, `*.db-wal`, `.pharmacy_device_id`.
 - Removed a hardcoded `admin`/`admin123` login bypass that had leaked into the working tree.
 

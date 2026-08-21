@@ -368,4 +368,28 @@ Management & FIFO Basis` (`CHANGELOG.md` M3). Scope chosen by user: "Frontend fo
 
 **Pending (requires push — R4, not auto-run here):** `git push origin master` triggers the full pipeline; `backend-postgres`, `docker-build`, and `e2e` execute on GitHub runners (which have Docker + network). Working tree still holds the full A/B/C refactor uncommitted — commit/push is gated on explicit user go-ahead.
 
+---
+
+## M19 — v1.0.0 Final Release + CI Restoration (2026-08-20/21) ✅ VERIFIED
+
+**v1.0.0 final release (commit `cc55984`):**
+- Creem MoR: `POST /api/v1/checkout` + `POST /api/v1/webhook/creem` (constant-time HMAC-SHA256 signature check; lifecycle events `checkout.completed`, `subscription.paid/renewed`, `subscription.canceled/expired/paused`, `subscription.active/resumed`). `License` ORM model + `LicenseRepository` with offline-grace logic.
+- Frontend: "Purchase License via Creem" button (`app/license/page.tsx`) + `lib/api/license.ts.initiateCheckout`; contracts (`LicenseValidationResult`, `CreemCheckout*`) synced.
+- NSSM: `PharmacyLicense` (Gunicorn/Flask) registered as a dependent service of `PharmacyBackend` in `install.ps1`.
+- Desktop: Tauri v2 shell (`src-tauri/`) wraps the Next.js kiosk.
+
+**CI restoration (commit `333d924`) — full pipeline green:**
+- `license_route.py`: added missing `Any` typing import (mypy `--strict` had failed the Backend SQLite job).
+- `pos_service.record_drawer_movement`: commit-style transaction (consistent with siblings) — no longer double-begins when a transaction is already open.
+- `test_b8_coverage.admin_user` fixture: close the idle autobegun transaction left by `UserRepository.create`'s trailing `refresh()` so the test's own `session.begin()` succeeds.
+- Retired obsolete `tests.yml` (archive/ Tkinter suite importing uninstalled `barcode`); `ci.yml` is authoritative.
+- B8 coverage hardening: `pyproject.toml` gate `fail_under=0 → 90`; added `test_b8_repos_extra.py` + `test_b8_routes_extra.py` (direct-await repo + HTTP route coverage) to clear the 90% project gate. `ci.yml` B8 job aligned to `--cov-fail-under=90`.
+- Stopped tracking SQLite WAL artifacts; `.gitignore` now ignores `*.db-shm`, `*.db-wal`, `.pharmacy_device_id`.
+- Removed a hardcoded `admin`/`admin123` login bypass that had leaked into the working tree.
+
+**Verifiable goals — terminal results**
+- `cd backend_fastapi && python -m pytest -q` → **221 passed, 1 skipped**; total coverage **91%** (B8 gate `fail_under=90`, enforced in `ci.yml`).
+- `cd backend_fastapi && python -m mypy app --strict` → **Success: no issues found in 34 source files**.
+- CI run `32461445943`: **all 8 jobs green** (Backend SQLite, Backend Postgres R1, C3 contract parity, Frontend tsc+vitest+build, pip-audit, Docker R2, Playwright R3, Stack smoke).
+
 

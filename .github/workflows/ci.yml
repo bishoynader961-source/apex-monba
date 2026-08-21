@@ -27,7 +27,7 @@ jobs:
       - name: Type check (strict)
         run: python -m mypy app --strict
       - name: Tests + coverage
-        run: python -m pytest -q
+        run: python -m pytest -q --cov=app --cov-report=term-missing --cov-fail-under=90
 
   backend-postgres:
     name: Backend (live Postgres) - R1

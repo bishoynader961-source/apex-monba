@@ -18,4 +18,12 @@ The legacy checks above target the Tkinter desktop app. For the edge kiosk web P
 - [x] **Offline banner:** `OfflineSyncBanner` is visible whenever `offlineCount > 0`; manual "Sync now" triggers `flushQueue`.
 - [x] **Money safety:** pricing/tax/totals use `lib/decimalCurrency` (bigint cents) — no `float` in the money path (proven by grep + `decimalCurrency.test.ts`).
 - [x] **Manager approval:** drawer movement / shift close require `ManagerApprovalDialog` → `/api/v1/pos/approve` (PIN) → single-use `X-Approval-Token`.
-- [ ] **Build cleanliness:** `next build` exits 0 (12/12 pages); two benign `location is not defined` warnings are a Next.js 16.2.10 framework-internal artifact, not app code.
+- [ ] **Build cleanliness:** `next build` exits 0 (12/12 pages); two benign    `location is not defined` warnings are a Next.js 16.2.10 framework-internal artifact, not app code.
+
+## 4. Test Coverage Gate (FastAPI backend)
+
+Quality gate: `backend_fastapi/pyproject.toml` `[tool.coverage.report] fail_under = 90`.
+
+- [x] **Coverage gate:** `python -m pytest -q` exits 0 only when total line coverage ≥ 90%.
+- [x] **Async-trace correctness:** async service bodies (pos/auth/inventory/sync) and repository methods are covered via direct `await` in `async def` tests (the ASGI `AsyncClient` path under-coverage bodies are traced there), and route-handler lines via the existing HTTP `client` tests.
+- [x] **mypy:** `python -m mypy app --strict` → Success (0 issues), no regressions from added tests.

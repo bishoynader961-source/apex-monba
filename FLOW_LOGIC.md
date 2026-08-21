@@ -449,3 +449,37 @@ Key invariants (do not break):
 * Single Uvicorn worker (`--workers 1`); in-process `asyncio.Lock` + Lamport `local_seq` are single-process.
 * Money is `Decimal`/`NUMERIC(10,2)` end-to-end; frontend uses bigint cents (`lib/decimalCurrency`), never float.
 * Over-sell / expired / recalled lots return **410 Gone** (never a silent 200).
+
+## 18. B8 — FastAPI Coverage Gate (backend_fastapi)
+
+**Goal:** project-wide line coverage ? 90% (`fail_under = 90` in `pyproject.toml`),
+enforced on every `pytest` run.
+
+**Async-trace behavior (root cause of the 4-service gap):** under this env's
+coverage.py (7.15.4) + aiosqlite, coroutine *bodies* driven through the HTTP/ASGI
+`AsyncClient` transport are **not** traced, whereas the *route-handler* frames and
+**direct `await`** of the same coroutines inside a test coroutine **are** traced.
+Consequence: HTTP integration tests cover route handlers but leave service method
+bodies (pos/auth/inventory/sync) under-counted.
+
+**Testing pattern (verified):** exercise service/repository method bodies via
+**direct `await` inside `async def` tests** against the shared in-memory
+`session` fixture, so the bodies are counted. Route-handler lines are covered by
+the existing `client`-based HTTP tests.
+
+**Tests added:**
+- `tests/test_b8_coverage.py` — direct-await unit tests for the four async
+  services (`PosService`, `AuthService`, `InventoryService`, `SyncService`) ?
+  pos_service 99%, auth_service 95%, inventory_service 97%, sync_service 96%.
+- `tests/test_b8_repos_extra.py` — direct-await tests for the remaining
+  repository methods (`ProductRepository`, `SupplierRepository`,
+  `AuditRepository`, `SyncRepository`, `UserRepository`, `LicenseRepository`) +
+  file-backend security paths (pin-pepper rotation, previous pepper, verification,
+  lockout).
+- `tests/test_b8_routes_extra.py` — HTTP tests for the previously-untouched
+  `webhook_route` (Creem signature + all event branches) and `license_route` /
+  `deps.get_current_user` rejection branches.
+
+**Verification (2026-08-21):** `python -m pytest -q -p no:logging` ?
+220 passed, 1 skipped; `coverage` TOTAL = 91.06% (? 90%); `mypy app --strict` ?
+Success. Committed config change: `pyproject.toml` `fail_under` 0 ? 90.

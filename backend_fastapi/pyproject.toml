@@ -41,7 +41,7 @@ ignore_missing_imports = true
 source = ["app"]
 
 [tool.coverage.report]
-fail_under = 0
+fail_under = 90
 show_missing = true
 
 [build-system]

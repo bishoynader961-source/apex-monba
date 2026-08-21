@@ -5,7 +5,7 @@
 > Pharmacy Management & Label Design Suite — desktop application for
 > serialized inventory management, data storage, barcode/label generation, and custom label design.
 > Auto-generated from the codebase at `E:\my progam pharmacy`.
-> Last synced: 2026-08-04
+> Last synced: 2026-08-21
 
 ---
 
@@ -442,6 +442,7 @@ my progam pharmacy/
 | M92 | Phase 17: POS UI Overhaul & Modal Wiring — Created `archive/ui_pos_panels.py` with 10 interactive classes (`InsurancePanel`, `NotesPanel`, `CouponPanel`, `ReceiptHistoryPanel`, `CustomerHistoryPanel`, `DiscountDialog`, `ReturnDialog`, `MemoDialog`, `SplitPaymentDialog`, `EODDialog`). Eliminated all 17 placeholder `messagebox.showinfo` stubs from `archive/ui_pos_retail.py`. Wired `_on_side_trigger` and `_on_quick_action` to launch real modals or perform tab navigation. Added `_sale_type_badge` and `_sale_memo` state to `EnterprisePosFrame`. | Complete | 2026-08-06 |
 | M93 | **Runtime Bug Fixes — 2026-08-06:** (1) **DB migration**: `patients` table missing `insurance_provider`/`policy_number`/`group_number` columns (queried by `ui_pos_retail.py` patient fetch + `ui_pos_panels.py` InsurancePanel, causing `no such column: insurance_provider`). Added idempotent `PRAGMA table_info` + `ALTER TABLE` migration in `database.py:init_db()`, `db.py:init_db()` (ORM model + SQLite path), `rx_database.py:init_rx_tables()`, and `rx_db.py:init_rx_tables()`. Queries wrapped with `COALESCE(col, '')` for graceful NULL fallback. (2) **TabViewCompat shim**: `TabViewCompat` lacked `_tab_dict` (queried by `InsurancePanel._edit` + POS quick actions for prescription/refill tab navigation). Added `_tab_dict` property delegating to `self.frames`. (3) **AsyncUI shutdown**: `root.after()` dispatch on destroyed root raised `tk.TclError`/`RuntimeError`. Added `winfo_exists()` guard + `except (tk.TclError, RuntimeError)` silent discard. Verified: py_compile clean; 92/92 existing tests pass (phase16 25/25, phase17 28/28, rx_database 17/17, enterprise_edge 12/12). | Verified | 2026-08-06 |
 | M3-FL | Frontend Core Libraries (Next.js) — Zustand foundation stores (`cartStore`, `inventoryStore`, `licenseStore`, `uiStore`) + typed per-domain API service layer (`lib/api/{inventory,pos,auth,license,users,settings}.ts`); `hooks/useInventory.ts` refactored to back the store with byte-compatible public API (`app/dashboard/inventory/page.tsx` untouched). `tsc --noEmit` → 0 errors; `next build` → 13/13 pages. | Verified | 2026-08-17 |
+| B8 | FastAPI coverage gate restoration — direct-await unit tests for the 4 async services + repos/security/routes so the `fail_under = 90` gate holds (91.06%) | Verified | 2026-08-21 |
 
 ---
 
@@ -1203,9 +1204,21 @@ Phase A gate (per approved plan): `pytest tests/test_pos_hardening.py` (T23–T2
 - Carried-forward (explicit non-goals): PHI encryption-at-rest on all columns, audit-log append-only/chain, returns workflow, full users CRUD, desktop shell, coverage ≥90%, explicit per-line lot picker (Concern 4 multi-unit).
 - Multi-worker distributed locks: `asyncio.Lock` (single-process, `--workers 1`) remains canonical.
 
+### Remaining (post-v1.0.0) actions
+- **npm audit:** 3 high-severity advisories in `next` (transitive `postcss`, `sharp`); `npm audit fix` available but may bump the Next major — requires a controlled upgrade + re-run of the Frontend CI job.
+- **Tauri release readiness:** `src-tauri/tauri.conf.json` still uses placeholder `identifier: "com.tauri.dev"` and `version: "0.1.0"` — set the real bundle identifier and v1.0.0 before desktop signing.
+- **Creem live validation:** production `CREEM_API_KEY` / `CREEM_WEBHOOK_SECRET` / `CREEM_PRODUCT_ID` must be supplied; the webhook signature scheme must be validated against Creem's documented format.
+- **PROJECT_MAP sections 1–7** still describe the legacy Tkinter app; a modernization pass to reflect the FastAPI + Next.js + Tauri stack (section 8) is still outstanding.
+
 ### Milestone M94 (v1.0.0 Release & Creem MoR Integration) — DONE
 - **Creem Integration:** Added `POST /api/v1/checkout` and `POST /api/v1/webhook/creem` endpoints to FastAPI. Modified `config.py` to source `CREEM_API_KEY`, `CREEM_WEBHOOK_SECRET`, and `CREEM_PRODUCT_ID` strictly via environment variables. Added `License` ORM model and `LicenseRepository` to handle fulfillment and lifecycle (active, revoked, expired) with offline grace period logic.
 - **Frontend UI:** Wired `initiateCheckout` in `lib/api/license.ts` and added a "Purchase License via Creem" button to `app/license/page.tsx`. Synchronized backend schema with frontend `LicenseValidationResult` and `CreemCheckout*` types in `types/contracts.ts`.
 - **NSSM Architecture:** Registered `PharmacyLicense` (Gunicorn/Flask) as a dependent service for `PharmacyBackend` in `install.ps1`, bridging legacy keygen logic.
 - **Desktop Shell:** Initialized Tauri v2 (`cargo tauri init`) with `tauri.conf.json` proxying correctly to the local Vite dev server / standalone build output, wrapping the Next.js kiosk inside a native binary.
+
+### Milestone M95 (CI Green + Hygiene) — DONE (2026-08-21)
+- Restored the full `ci.yml` pipeline to green (run `32461445943`, all 8 jobs). Fixed a mypy `--strict` failure (`license_route.py` missing `Any` import) and a drawer-movement double-transaction bug (`pos_service.record_drawer_movement` + `test_b8_coverage.admin_user` fixture).
+- Retired the obsolete legacy `tests.yml` (archive/ Tkinter suite).
+- Stopped tracking SQLite WAL artifacts; `.gitignore` now ignores `*.db-shm`, `*.db-wal`, `.pharmacy_device_id`.
+- Removed a hardcoded `admin`/`admin123` login bypass that had leaked into the working tree.
 - **Release:** Cleaned up stray files and prepared for `v1.0.0` repository tagging.

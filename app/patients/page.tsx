@@ -41,6 +41,19 @@ function GeneralTab({ patient, onUpdate, canWrite }: {
       <Field label="Email" value={patient.email} canWrite={canWrite} onChange={(v) => onUpdate({ email: v })} />
       <div style={{ gridColumn: "1 / -1" }}>
         <Field label="Patient Allergies" value={patient.patient_allergies} canWrite={canWrite} onChange={(v) => onUpdate({ patient_allergies: v })} placeholder="e.g. Penicillin, Sulfa" />
+        <div style={{ marginTop: 8 }}>
+          {patient.allergy_alerts && patient.allergy_alerts.length > 0 ? (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {patient.allergy_alerts.map((tag: string, i: number) => (
+                <span key={i} style={{ background: "#fee2e2", color: "#991b2b", padding: "2px 8px", borderRadius: 12, fontSize: 12, fontWeight: 500 }}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span style={{ fontSize: 12, color: "#9ca3af" }}>No documented allergies</span>
+          )}
+        </div>
       </div>
     </div>
   );

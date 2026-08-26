@@ -495,6 +495,7 @@ export interface PatientRead extends PatientBase {
   id: number;
   created_at?: string | null;
   is_deleted: boolean;
+  allergy_alerts: string[];
 }
 
 export interface PatientUpdate {
@@ -661,6 +662,7 @@ export interface DispenseRead extends DispenseBase {
   receipt_id?: number | null;
   server_created_at?: string | null;
   items: DispenseItemRead[];
+  allergy_flags: string[];
 }
 
 export interface PatientHistoryEntry {

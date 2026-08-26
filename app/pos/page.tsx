@@ -30,7 +30,7 @@ import { OfflineSyncBanner } from "@/components/OfflineSyncBanner";
 import { RefundDialog } from "@/components/RefundDialog";
 import { SalesReportModal } from "@/components/SalesReportModal";
 import { ShiftCloseDialog } from "@/components/ShiftCloseDialog";
-import type { PatientRead, ProductRead, SigCodeParseResult } from "@/types/contracts";
+import type { DispenseRead, PatientRead, ProductRead, SigCodeParseResult } from "@/types/contracts";
 
 export default function PosPage() {
   const router = useRouter();
@@ -74,7 +74,7 @@ export default function PosPage() {
   const [dispenseMode, setDispenseMode] = useState(false);
   const [sigResult, setSigResult] = useState<SigCodeParseResult | null>(null);
   const [dispenseError, setDispenseError] = useState<string | null>(null);
-  const [dispenseResult, setDispenseResult] = useState<any>(null);
+  const [dispenseResult, setDispenseResult] = useState<DispenseRead | null>(null);
   const [ndcError, setNdcError] = useState<string | null>(null);
   const clientTxIdRef = useRef<string | null>(null);
 
@@ -453,6 +453,21 @@ export default function PosPage() {
       {dispenseError && (
         <div style={{ background: "#fee2e2", color: "#991b2b", padding: "0.7rem 1rem", borderRadius: 6, marginTop: 12 }}>
           {dispenseError}
+        </div>
+      )}
+
+      {dispenseResult?.allergy_flags && dispenseResult.allergy_flags.length > 0 && (
+        <div style={{ background: "#fef3c7", color: "#92400e", padding: "0.7rem 1rem", borderRadius: 6, marginTop: 12, border: "1px solid #f59e0b" }}>
+          <strong>Clinical Alert</strong>
+          <ul style={{ margin: "0.25rem 0 0 1rem", paddingLeft: 0 }}>
+            {dispenseResult.allergy_flags.map((flag: string, i: number) => (
+              <li key={i}>{flag}</li>
+            ))}
+          </ul>
+          <label style={{ display: "block", marginTop: 8, fontSize: 12 }}>
+            <input type="checkbox" style={{ marginRight: 6 }} />
+            Acknowledge — proceeding overrides the alert (logged to audit).
+          </label>
         </div>
       )}
 

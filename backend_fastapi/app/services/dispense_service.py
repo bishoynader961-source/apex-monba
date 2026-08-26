@@ -33,6 +33,7 @@ from app.core.models import (
 )
 from app.core.lock_manager import get_lock
 from app.core.audit_log import write_audit
+from app.services.drug_db import check_allergy_match
 from app.services.inventory_service import InventoryService
 from app.services.pos_service import _round2, _TAX_RATE
 from app.shared.exceptions import (
@@ -81,7 +82,14 @@ class DispenseService:
                         client_tx_id=payload.client_tx_id,
                         dispense_id=existing.id,
                     )
-                    return await self._build_read(existing, items)
+                    read = await self._build_read(existing, items)
+                    # Re-check allergies against the patient's current profile (idempotent hit).
+                    existing_patient = await patient_repo.get(existing.patient_id)
+                    if existing_patient is not None:
+                        read.allergy_flags = check_allergy_match(
+                            payload.product_name, existing_patient.patient_allergies
+                        )
+                    return read
 
                 # Resolve patient (404 if soft-deleted / missing).
                 patient = await patient_repo.get_strict(payload.patient_id)
@@ -187,6 +195,9 @@ class DispenseService:
 
                 items = await self._items_for(dispense.id)
                 read = await self._build_read(dispense, items)
+                read.allergy_flags = check_allergy_match(
+                    payload.product_name, patient.patient_allergies
+                )
                 logger.info(
                     "dispense_created",
                     dispense_id=dispense.id,

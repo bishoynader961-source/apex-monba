@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Any, Optional
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, computed_field
 
 
 class HealthResponse(BaseModel):
@@ -569,6 +569,13 @@ class PatientRead(BaseModel):
     created_at: Optional[ISOTime] = None
     is_deleted: bool = False
 
+    @computed_field(return_type=list[str])  # type: ignore[prop-decorator]
+    @property
+    def allergy_alerts(self) -> list[str]:
+        """Parsed allergy tags from the free-text patient_allergies field (M98-B)."""
+        from app.services.drug_db import parse_allergies
+        return parse_allergies(self.patient_allergies)
+
 
 class PatientUpdate(BaseModel):
     """All-optional partial update (Liskov-safe standalone model, mirrors ``MedicineUpdate``)."""
@@ -799,3 +806,4 @@ class DispenseRead(BaseModel):
     client_tx_id: str
     server_created_at: Optional[ISOTime] = None
     items: list[DispenseItemRead] = Field(default_factory=list)
+    allergy_flags: list[str] = Field(default_factory=list)

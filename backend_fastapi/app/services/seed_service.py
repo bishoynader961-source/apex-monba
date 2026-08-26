@@ -41,8 +41,9 @@ _ALL_PERMISSIONS = [
     "members.write",
     "dictionaries.read",
     "dictionaries.write",
-    "dispense.create",
-    "backup.create",
+     "dispense.create",
+     "analytics.read",
+     "backup.create",
 ]
 
 _DEFAULT_SIG_CODES = [

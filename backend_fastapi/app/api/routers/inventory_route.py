@@ -10,15 +10,18 @@ from app.api.deps import require_permission
 from app.core.database import get_session
 from app.core.repositories import (
     BatchRepository,
+    InventoryAdjustmentRepository,
     ProductRepository,
     SupplierRepository,
 )
 from app.services.inventory_service import InventoryService
+from app.services.movement_service import MovementService
 from app.shared.schemas import (
     BatchRead,
     BatchUpdate,
     CurrentUser,
     MedicineUpdate,
+    MovementLogResponse,
     PaginatedProducts,
     ProductCreate,
     ProductRead,
@@ -228,3 +231,57 @@ async def create_supplier(
         )
     supplier = await SupplierRepository(session).create(payload)
     return SupplierRead.model_validate(supplier)
+
+
+@router.get("/movements", response_model=MovementLogResponse)
+async def list_movements(
+    product_id: Optional[int] = Query(default=None, ge=1),
+    batch_number: Optional[str] = Query(default=None, min_length=1),
+    movement_type: Optional[str] = Query(
+        default=None, pattern="^(RECEIVE|SALE|DISPENSE|ADJUSTMENT)$"
+    ),
+    start_date: Optional[str] = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    end_date: Optional[str] = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    _auth: CurrentUser = Depends(require_permission("inventory.read")),
+    session: AsyncSession = Depends(get_session),
+) -> MovementLogResponse:
+    """Unified stock ledger: receives, POS sales, clinical dispenses, adjustments.
+
+    All four sources are soft-delete-safe (only events whose product is not
+    deleted appear). RBAC-gated by ``inventory.read``.
+    """
+    return await MovementService(session).list_movements(
+        product_id=product_id,
+        batch_number=batch_number,
+        movement_type=movement_type,
+        start_date=start_date,
+        end_date=end_date,
+        page=page,
+        page_size=limit,
+    )
+
+
+@router.post("/adjustments", status_code=status.HTTP_201_CREATED)
+async def create_adjustment(
+    product_id: int = Query(ge=1),
+    quantity_change: int = Query(...),
+    reason: str = Query(..., min_length=1, max_length=500),
+    _auth: CurrentUser = Depends(require_permission("inventory.write")),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    """Create a manual inventory adjustment (stock take, damage, recount).
+
+    ``quantity_change`` is signed: positive adds stock, negative removes.
+    RBAC-gated by ``inventory.write``. The adjustment appears in the movement
+    history as an ``ADJUSTMENT`` event.
+    """
+    from app.services.movement_service import MovementService
+    adj = await InventoryAdjustmentRepository(session).create(
+        product_id=product_id,
+        quantity_change=quantity_change,
+        reason=reason,
+    )
+    svc = MovementService(session)
+    return {"id": adj.id, "product_id": adj.product_id, "quantity_change": adj.quantity_change}

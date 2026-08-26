@@ -109,6 +109,7 @@ export interface Medicine {
   dea_schedule?: string | null;
   wholesale_price?: Money | null;
   reorder_threshold?: number | null;
+  category?: string | null;
   is_deleted: boolean;
   recalled?: boolean;
 }
@@ -678,4 +679,63 @@ export interface BackupResult {
   path: string;
   compressed: boolean;
   size_bytes: number;
+}
+
+// ── Movement History (M99) ────────────────────────────────────────────────────
+
+export type MovementType = "RECEIVE" | "SALE" | "DISPENSE" | "ADJUSTMENT";
+
+export interface MovementLogItem {
+  id: number;
+  timestamp: string;
+  product_id?: number | null;
+  product_name: string;
+  ndc_code?: string | null;
+  batch_number: string;
+  movement_type: MovementType;
+  quantity_change: number;
+  remaining_stock_snapshot?: number | null;
+  reference_id?: number | null;
+  user_name?: string | null;
+}
+
+export interface MovementLogResponse {
+  items: MovementLogItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface MovementFilters {
+  product_id?: string;
+  batch_number?: string;
+  movement_type?: string;
+  start_date?: string;
+  end_date?: string;
+  page?: number;
+  limit?: number;
+}
+
+// ── Demand Analytics (M99) ────────────────────────────────────────────────────
+
+export type VelocityCategory = "FAST_MOVING" | "MODERATE_MOVING" | "SLOW_MOVING" | "NON_MOVING";
+
+export interface DemandAnalyticsItem {
+  product_id: number;
+  product_name: string;
+  category?: string | null;
+  total_quantity_demanded: number;
+  total_revenue: Money;
+  avg_daily_consumption: number;
+  velocity_category: VelocityCategory;
+  reorder_suggestion: number;
+}
+
+export interface DemandAnalyticsSummary {
+  window_start: string;
+  window_end: string;
+  total_items: number;
+  total_revenue: Money;
+  by_velocity: Record<string, number>;
+  items: DemandAnalyticsItem[];
 }

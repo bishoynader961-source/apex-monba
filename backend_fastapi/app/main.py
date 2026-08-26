@@ -25,6 +25,7 @@ from app.api.routers.dictionaries_route import router as dictionaries_router
 from app.api.routers.dispense_route import router as dispense_router
 from app.api.routers.health_route import router as health_router
 from app.api.routers.inventory_route import router as inventory_router
+from app.api.routers.analytics_route import router as analytics_router
 from app.api.routers.insurance_route import router as insurance_router
 from app.api.routers.license_route import router as license_router
 from app.api.routers.license_file_route import router as license_file_router
@@ -208,6 +209,7 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(audit_router)
 app.include_router(inventory_router)
+app.include_router(analytics_router)
 app.include_router(insurance_router)
 app.include_router(license_router)
 app.include_router(license_file_router)

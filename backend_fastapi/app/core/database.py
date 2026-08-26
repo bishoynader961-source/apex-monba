@@ -509,8 +509,29 @@ async def migrate_schema(conn: Any) -> None:
             )
         version = 7
 
+    # ── v8: Movement History & Demand Analytics ────────────────────────────────
+    if version < 8:
+        if not await _table_has_column(conn, "products", "category"):
+            await conn.exec_driver_sql(
+                "ALTER TABLE products ADD COLUMN category TEXT NOT NULL DEFAULT 'Uncategorized'"
+            )
+        if not await _table_exists(conn, "inventory_adjustments"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE inventory_adjustments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    product_id INTEGER NOT NULL REFERENCES products(id),
+                    quantity_change INTEGER NOT NULL,
+                    reason TEXT NOT NULL DEFAULT '',
+                    timestamp TEXT NOT NULL,
+                    user_id INTEGER REFERENCES users(id)
+                )
+                """
+            )
+        version = 8
+
     await conn.exec_driver_sql(f"PRAGMA user_version={SCHEMA_VERSION}")
 
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 

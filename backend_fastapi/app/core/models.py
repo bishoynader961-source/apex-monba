@@ -39,6 +39,7 @@ class Product(Base):
     dea_schedule: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     wholesale_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
     reorder_threshold: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    category: Mapped[str] = mapped_column(String, nullable=False, default="Uncategorized")
     is_deleted: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
 
@@ -477,4 +478,25 @@ class DispenseItem(Base):
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     awp_at_time: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
     mac_at_time: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+
+
+class InventoryAdjustment(Base):
+    """Manual inventory adjustment record (stock take, damage, recount).
+
+    ``quantity_change`` is a signed integer: positive adds stock, negative
+    removes. Every adjustment is attributable to a user for auditability.
+    """
+
+    __tablename__ = "inventory_adjustments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("products.id"), nullable=False
+    )
+    quantity_change: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(String, nullable=False, default="")
+    timestamp: Mapped[str] = mapped_column(String, nullable=False, default="")
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
 

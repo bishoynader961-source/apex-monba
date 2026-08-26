@@ -186,20 +186,21 @@ async def test_migration_idempotent(engine) -> None:
             r[0]
             for r in (await conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
         }
-    assert v1 == 7 and v2 == 7
-    assert {
-        "drawer_movements",
-        "receipts",
-        "sync_outbox",
-        "discrepancies",
-        "shifts",
-        "patients",
-        "insurance_plans",
-        "members_groups",
-        "sig_codes",
-        "price_codes",
-        "dispenses",
-        "dispense_items",
+        assert v1 == 8 and v2 == 8
+        assert {
+          "drawer_movements",
+          "receipts",
+          "sync_outbox",
+          "discrepancies",
+          "shifts",
+          "patients",
+          "insurance_plans",
+          "members_groups",
+          "sig_codes",
+          "price_codes",
+          "dispenses",
+          "dispense_items",
+          "inventory_adjustments",
     } <= tables
 
 

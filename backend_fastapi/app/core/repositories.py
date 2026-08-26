@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
-from sqlalchemy import ColumnElement, and_, func, select, update
+import sqlalchemy as sa
+from sqlalchemy import ColumnElement, and_, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.models import (
@@ -18,6 +19,7 @@ from app.core.models import (
     Dispense,
     DispenseItem,
     InsurancePlan,
+    InventoryAdjustment,
     InventoryExtended,
     MembersGroup,
     Patient,
@@ -28,6 +30,7 @@ from app.core.models import (
     Refund,
     RolePermission,
     SigCode,
+    SoldItem,
     Supplier,
     SystemSetting,
     User,
@@ -959,11 +962,245 @@ class DispenseRepository:
         return dispense
 
 
+class InventoryMovementRepository:
+    """Unified movement-history query across all inventory event sources.
+
+    Uses a UNION ALL raw SQL query combining:
+      - receiving_log  -> RECEIVE  (IN,  +quantity, source = vendor_name)
+      - sold_items      -> SALE     (OUT, -quantity, source = item_name)
+      - dispenses        -> DISPENSE (OUT, -quantity, source = product_name)
+      - inventory_adjustments -> ADJUSTMENT (direction from sign of quantity_change)
+
+    Each branch applies the soft-delete guard:
+      EXISTS (SELECT 1 FROM products p WHERE p.name = <src_name> AND p.is_deleted = 0)
+    so movements for soft-deleted products are excluded.
+    """
+
+    _UNION_SQL = """
+    SELECT
+        'RECEIVE' AS src_type,
+        rl.id AS source_id,
+        rl.date_received || 'T00:00:00Z' AS ts,
+        rl.product_name AS product_name,
+        (SELECT MAX(ie.ndc_code) FROM inventory_extended ie WHERE ie.drug_name = rl.product_name) AS ndc_code,
+        rl.barcode AS batch_number,
+        '+RECEIVE' AS movement_type,
+        rl.quantity AS quantity_change,
+        NULL AS remaining_stock_snapshot,
+        rl.id AS reference_id,
+        rl.vendor_name AS user_name,
+        (SELECT MIN(p.id) FROM products p WHERE p.name = rl.product_name AND p.is_deleted = 0) AS product_id
+    FROM receiving_log rl
+    WHERE EXISTS (SELECT 1 FROM products p WHERE p.name = rl.product_name AND p.is_deleted = 0)
+
+    UNION ALL
+
+    SELECT
+        'SALE' AS src_type,
+        si.id AS source_id,
+        REPLACE(si.timestamp_of_sale, ' ', 'T') || 'Z' AS ts,
+        si.item_name AS product_name,
+        (SELECT MAX(ie.ndc_code) FROM inventory_extended ie WHERE ie.drug_name = si.item_name) AS ndc_code,
+        si.internal_barcode AS batch_number,
+        '-SALE' AS movement_type,
+        -1 AS quantity_change,
+        NULL AS remaining_stock_snapshot,
+        (SELECT MAX(ri.receipt_id) FROM receipt_items ri WHERE ri.internal_barcode LIKE '%' || si.internal_barcode || '%') AS reference_id,
+        (SELECT MAX(r.cashier_attribution) FROM receipt_items ri LEFT JOIN receipts r ON r.id = ri.receipt_id WHERE ri.internal_barcode LIKE '%' || si.internal_barcode || '%') AS user_name,
+        (SELECT MIN(p.id) FROM products p WHERE p.name = si.item_name AND p.is_deleted = 0) AS product_id
+    FROM sold_items si
+    WHERE EXISTS (SELECT 1 FROM products p WHERE p.name = si.item_name AND p.is_deleted = 0)
+
+    UNION ALL
+
+    SELECT
+        'DISPENSE' AS src_type,
+        d.id AS source_id,
+        COALESCE(d.server_created_at, d.fill_date || 'T00:00:00Z') AS ts,
+        d.product_name AS product_name,
+        (SELECT MAX(ie.ndc_code) FROM inventory_extended ie WHERE ie.drug_name = d.product_name) AS ndc_code,
+        d.internal_barcode AS batch_number,
+        '-DISPENSE' AS movement_type,
+        -d.quantity AS quantity_change,
+        NULL AS remaining_stock_snapshot,
+        d.id AS reference_id,
+        d.cashier AS user_name,
+        (SELECT MIN(p.id) FROM products p WHERE p.name = d.product_name AND p.is_deleted = 0) AS product_id
+    FROM dispenses d
+    WHERE EXISTS (SELECT 1 FROM products p WHERE p.name = d.product_name AND p.is_deleted = 0)
+
+    UNION ALL
+
+    SELECT
+        'ADJUSTMENT' AS src_type,
+        a.id AS source_id,
+        a.timestamp AS ts,
+        p.name AS product_name,
+        (SELECT MAX(ie.ndc_code) FROM inventory_extended ie WHERE ie.drug_name = p.name) AS ndc_code,
+        '' AS batch_number,
+        '+/-ADJUSTMENT' AS movement_type,
+        a.quantity_change AS quantity_change,
+        NULL AS remaining_stock_snapshot,
+        a.id AS reference_id,
+        COALESCE(u.username, u.display_name, '') AS user_name,
+        a.product_id AS product_id
+    FROM inventory_adjustments a
+    JOIN products p ON p.id = a.product_id
+    LEFT JOIN users u ON u.id = a.user_id
+    WHERE p.is_deleted = 0
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def list_movements(
+        self,
+        *,
+        product_id: Optional[int] = None,
+        batch_number: Optional[str] = None,
+        movement_type: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Return raw movement rows with optional filters.
+
+        ``start_date``/``end_date`` are ISO date strings (``YYYY-MM-DD``).
+        Returns ``(rows, total_count)``.
+        """
+        params: dict[str, Any] = {}
+        where: list[str] = []
+        if movement_type is not None:
+            where.append("m.src_type = :movement_type")
+            params["movement_type"] = movement_type
+        if product_id is not None:
+            where.append("m.product_id = :product_id")
+            params["product_id"] = product_id
+        if batch_number is not None:
+            where.append("m.batch_number LIKE :batch_number")
+            params["batch_number"] = f"%{batch_number}%"
+        if start_date is not None:
+            where.append("m.ts >= :start_iso")
+            params["start_iso"] = f"{start_date}T00:00:00Z"
+        if end_date is not None:
+            where.append("m.ts <= :end_iso")
+            params["end_iso"] = f"{end_date}T23:59:59Z"
+        where_clause = (" WHERE " + " AND ".join(where)) if where else ""
+
+        count_sql = f"SELECT COUNT(*) FROM ({self._UNION_SQL}) m {where_clause}"
+        total = int((await self.session.execute(text(count_sql), params)).scalar() or 0)
+
+        offset = (max(1, page) - 1) * page_size
+        data_sql = (
+            f"SELECT * FROM ({self._UNION_SQL}) m {where_clause} "
+            f"ORDER BY m.ts DESC, m.source_id DESC LIMIT :limit OFFSET :offset"
+        )
+        params["limit"] = page_size
+        params["offset"] = offset
+        rows = (await self.session.execute(text(data_sql), params)).mappings().all()
+        return [dict(r) for r in rows], total
+
+
+class InventoryAdjustmentRepository:
+    """Create and query manual inventory adjustments."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def create(
+        self, product_id: int, quantity_change: int, reason: str, user_id: Optional[int] = None
+    ) -> InventoryAdjustment:
+        from datetime import timezone
+        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        adjustment = InventoryAdjustment(
+            product_id=product_id,
+            quantity_change=quantity_change,
+            reason=reason,
+            timestamp=now_str,
+            user_id=user_id,
+        )
+        self.session.add(adjustment)
+        await self.session.commit()
+        await self.session.refresh(adjustment)
+        return adjustment
+
+    async def list(
+        self, product_id: Optional[int] = None, limit: int = 200, offset: int = 0
+    ) -> list[InventoryAdjustment]:
+        stmt = select(InventoryAdjustment)
+        if product_id is not None:
+            stmt = stmt.where(InventoryAdjustment.product_id == product_id)
+        stmt = stmt.order_by(InventoryAdjustment.timestamp.desc()).limit(limit).offset(offset)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+
+class DemandAnalyticsRepository:
+    """Aggregate demand signals from sold_items and dispenses, grouped by product."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def demand_aggregates(
+        self, start_date: str, end_date: str, category: Optional[str] = None
+    ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {
+            "s1": f"{start_date} 00:00:00",
+            "e1": f"{end_date} 23:59:59",
+            "s2": f"{start_date}T00:00:00Z",
+            "e2": f"{end_date}T23:59:59Z",
+            "category": category,
+        }
+        moving = """
+            SELECT si.item_name AS product_name, 1 AS qty, si.price AS rev, 0 AS is_pos
+            FROM sold_items si
+            WHERE si.timestamp_of_sale BETWEEN :s1 AND :e1
+              AND EXISTS (SELECT 1 FROM products p WHERE p.name = si.item_name AND p.is_deleted = 0)
+            UNION ALL
+            SELECT d.product_name AS product_name, d.quantity AS qty, d.price_at_time AS rev, 1 AS is_pos
+            FROM dispenses d
+            WHERE COALESCE(d.server_created_at, d.fill_date || 'T00:00:00Z') BETWEEN :s2 AND :e2
+              AND EXISTS (SELECT 1 FROM products p WHERE p.name = d.product_name AND p.is_deleted = 0)
+        """
+        # Base the report on EVERY active product (LEFT JOIN the windowed
+        # aggregates) so zero-demand items surface as NON_MOVING rather than
+        # being silently dropped from the ledger.
+        sql = f"""
+            WITH moving AS ({moving}),
+            agg AS (
+                SELECT product_name,
+                    SUM(CASE WHEN is_pos = 0 THEN qty ELSE 0 END) AS pos_units,
+                    SUM(CASE WHEN is_pos = 1 THEN qty ELSE 0 END) AS dispense_units,
+                    SUM(CASE WHEN is_pos = 0 THEN rev ELSE 0 END) AS pos_rev,
+                    SUM(CASE WHEN is_pos = 1 THEN rev ELSE 0 END) AS dispense_rev
+                FROM moving GROUP BY product_name
+            )
+            SELECT
+                p.name AS product_name,
+                COALESCE(a.pos_units, 0) AS pos_units,
+                COALESCE(a.dispense_units, 0) AS dispense_units,
+                COALESCE(a.pos_rev, 0) AS pos_rev,
+                COALESCE(a.dispense_rev, 0) AS dispense_rev,
+                p.id AS product_id,
+                p.price AS unit_price,
+                p.category AS category,
+                (SELECT MAX(ie.ndc_code) FROM inventory_extended ie WHERE ie.drug_name = p.name) AS ndc_code,
+                COALESCE((SELECT SUM(ie2.on_hand) FROM inventory_extended ie2 WHERE ie2.drug_name = p.name), 0) AS current_on_hand
+            FROM products p
+            LEFT JOIN agg a ON a.product_name = p.name
+            WHERE p.is_deleted = 0
+              AND (:category IS NULL OR p.category = :category)
+        """
+        rows = (await self.session.execute(text(sql), params)).mappings().all()
+        return [dict(r) for r in rows]
+
+
+
 def _now() -> str:
     """Canonical server timestamp (B.8: server is the time authority).
 
     Emits strict ``YYYY-MM-DDTHH:MM:SSZ`` UTC to match the ``ISOTime`` validator
-    in schemas.py (#5 date precision — event timestamps must be ``Z`` suffix).
+    in schemas.py (#5 date precision - event timestamps must be ``Z`` suffix).
     """
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-

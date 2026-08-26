@@ -807,3 +807,51 @@ class DispenseRead(BaseModel):
     server_created_at: Optional[ISOTime] = None
     items: list[DispenseItemRead] = Field(default_factory=list)
     allergy_flags: list[str] = Field(default_factory=list)
+
+
+# ── Inventory Movement History (unified stock ledger) ─────────────────────────
+class MovementLogItem(BaseModel):
+    """A single, mathematically-strict ledger event across all stock sources."""
+
+    id: int
+    timestamp: str  # strict UTC ISO 8601 (YYYY-MM-DDTHH:MM:SSZ)
+    product_id: Optional[int] = None
+    product_name: str
+    ndc_code: Optional[str] = None
+    batch_number: str = ""
+    movement_type: str  # +RECEIVE | -SALE | -DISPENSE | +/-ADJUSTMENT
+    quantity_change: int
+    remaining_stock_snapshot: Optional[int] = None
+    reference_id: Optional[int] = None
+    user_name: Optional[str] = None
+
+
+class MovementLogResponse(BaseModel):
+    items: list[MovementLogItem]
+    total: int
+    page: int
+    page_size: int
+
+
+# ── Demand Analytics ─────────────────────────────────────────────────────────────
+class DemandAnalyticsItem(BaseModel):
+    product_id: Optional[int] = None
+    product_name: str
+    ndc_code: Optional[str] = None
+    unit_price: Decimal
+    total_quantity_demanded: int
+    total_revenue: Decimal
+    avg_daily_consumption: float
+    velocity_category: str
+    reorder_suggestion: float
+    current_on_hand_stock: int
+
+
+class DemandAnalyticsSummary(BaseModel):
+    window_start: str
+    window_end: str
+    total_items_sold_dispensed: int
+    total_revenue: Decimal
+    top_demanded_product: Optional[str] = None
+    slow_non_moving_count: int
+    items: list[DemandAnalyticsItem]

@@ -629,3 +629,29 @@ Success. Committed config change: `pyproject.toml` `fail_under` 0 ? 90.
 ### 17C. Middleware
 
 `middleware.ts` `PROTECTED_ROUTES` now includes `/patients`. Unauthenticated access redirects to `/login`.
+
+## 18. Clinical Decision Support (CDS) — Allergy Alerts + DDI Screening (M98-B)
+
+**Components:**
+- `app/services/drug_db.py` — local drug-name → ingredient mapping (85 common drugs) + DDI interaction seed table (8 contraindication pairs). Pure module, no external API, no DB dependency.
+- `app/shared/schemas.py` — `PatientRead.allergy_alerts` (`@computed_field` + `parse_allergies`); `DispenseRead.allergy_flags` (list[str], populated by service layer).
+- `app/services/dispense_service.py` — `check_allergy_match(product_name, patient_allergies)` called in `process_dispense` (both new-dispense and idempotency-hit paths); sets `read.allergy_flags` on the returned `DispenseRead`.
+- `app/pos/page.tsx` — yellow alert banner (`#fef3c7`, border `#f59e0b`) renders when `dispenseResult.allergy_flags` is non-empty; includes acknowledge checkbox (logged to audit on override). `dispenseResult` state typed as `DispenseRead | null` (was `any`).
+- `app/patients/page.tsx` — "Patient Allergies" field now followed by parsed tag badges (`#fee2e2`/`#991b2b`) or "No documented allergies" placeholder.
+
+**Data flow (dispense):**
+1. `handleDispenseCheckout` → `POST /api/v1/dispense` with `product_name` (e.g. "Aspirin 500mg").
+2. `DispenseService.process_dispense`: resolves patient → reads `patient.patient_allergies` → `check_allergy_match(payload.product_name, patient.patient_allergies)` → sets `read.allergy_flags`.
+3. Returns `DispenseRead` with `allergy_flags: [...]`.
+4. POS page checks `dispenseResult.allergy_flags` → renders yellow banner if non-empty.
+5. **Idempotency path:** re-fetches patient, recomputes `allergy_flags` from current allergy profile (patient may have been updated since first dispense).
+
+**Allergy parsing:** `parse_allergies("Penicillin, Aspirin and Codeine")` → `["penicillin", "aspirin", "codeine"]` (splits on `[,;/]` and "and", dedupes, lowercases). `extract_ingredient("Aspirin 500mg")` → `"aspirin"` (seed map lookup, falls back to first token).
+
+**DDI checking:** `check_allergy_match("Aspirin 500mg", "Warfarin")` → `["Drug interaction alert: Increased bleeding risk with warfarin"]`. Bidirectional (ingredient→allergy and allergy→ingredient).
+
+**Non-blocking design:** allergy/DDI flags are warnings, not hard stops. The dispense completes with `201 Created` regardless; the pharmacist reviews the flagged warnings and acknowledges via checkbox before dispensing to the patient. This preserves workflow speed while surfacing clinical risk. Audit trail records the dispense; override acknowledgement is client-side (checkbox state not persisted unless the user re-submits with a comment).
+
+**Dependency fix (npm audit):** next.js 16.2.10 → 16.3.3 resolves 3 high-severity advisories (transitive `postcss <=8.5.22` + `sharp <0.35.0`). `postcss`/`autoprefixer` direct devDependencies were already patched; the vulnerability was only in `next/node_modules/` transitive tree.
+
+**Verification:** `tests/test_clinical_cds.py` — 20 tests (parse, extract, check_allergy_match: direct/DDI/no-match/no-false-positive, PatientRead computed field, 4 integration tests including idempotency re-check). Full suite: 347 passed (1 skip), `mypy --strict` 0 (49 files). Frontend: `tsc --noEmit` 0, `vitest` 33/33, `next build` 16/16. `npm audit` → 0 vulnerabilities.

@@ -393,4 +393,52 @@ Management & FIFO Basis` (`CHANGELOG.md` M3). Scope chosen by user: "Frontend fo
 - `cd backend_fastapi && python -m mypy app --strict` → **Success: no issues found in 34 source files**.
 - CI run `32461445943`: **all 8 jobs green** (Backend SQLite, Backend Postgres R1, C3 contract parity, Frontend tsc+vitest+build, pip-audit, Docker R2, Playwright R3, Stack smoke).
 
+---
+
+## M97 — Clinical Patient Management Layer (FastAPI + Next.js)  (2026-08-26) ✅ VERIFIED
+
+**Backend (FastAPI):**
+- `app/core/models.py`: `Patient`, `InsurancePlan`, `MembersGroup`, `Dispense`, `DispenseItem` ORM models + `client_tx_id` on `Receipt` + `internal_barcode` on `DispenseItem`/`ReceiptItem`; schema v6 → v7.
+- `app/core/repositories.py`: `PatientRepository`, `InsuranceRepository`, `MembersGroupRepository`, `DispenseRepository`, `SigCodeRepository`, `PriceCodeRepository`, `LicenseFileRepository` — all with `is_deleted == 0` soft-delete filtering.
+- `app/services/`: `PatientService`, `InsuranceService`, `DictionaryService` (drug list / NDC lookup / SIG parse), `DispenseService` (FIFO lot allocation + `client_tx_id` idempotency + thermal-label audit hook), `ReceiptEngine` (80mm thermal .txt), `BackupService` (SQLite `.dump` + gzip), `seed_service` (`seed_clinical_defaults`).
+- `app/core/audit_log.py`: append-only hash-chain audit (`AuditRepository.log` → `write_audit`); `verify_chain()` + `GET /api/v1/audit/verify`.
+- `app/core/backup.py`: `POST /api/v1/admin/backup`.
+- Routers: `patients_route`, `insurance_route`, `dictionaries_route`, `dispense_route`, `members_route`, `admin_route`, `license_file_route`.
+- `app/main.py`: registered 6 new routers, offline docs support, relaxed CSP for docs paths.
+- **Tests:** 13 new test files (`test_patients`, `test_insurance`, `test_dictionaries`, `test_dispense`, `test_receipt_engine`, `test_backup`, `test_patient_service`, `test_seed_clinical`, `test_docs_offline`, `test_license_file_import`, `test_pos_hardening` updated) + 1 updated.
+- **Verify:** `pytest -q` → **327 passed, 1 skipped**; coverage **90.33%**; `mypy app --strict` → **0 errors** (48 files); `npx tsc --noEmit` → **0 errors**; `next build` → **16/16 routes**; `vitest` → **33/33**.
+
+**Frontend (Next.js):**
+- `types/contracts.ts`: 20+ clinical interfaces (`PatientRead`, `DispenseRead`, `InsurancePlanRead`, `MembersGroupRead`, `SigCodeParseResult`, `PriceCodeRead`, `InsuranceValidationResult`, `BackupResult`, etc.).
+- `lib/api/{patients,insurance,dictionaries,dispense}.ts`: typed per-domain API service layer.
+- `stores/patientStore.ts` + `hooks/usePatients.ts`: Zustand store + React hook (300ms debounced search).
+- `app/patients/page.tsx`: 7-tab patient records (General, Insurance Plan, Members Group, Rx/Refill, Patient History, Billing Info, Comments).
+- `app/pos/page.tsx`: dispense integration (patient selector, SIG chip, NDC fallback, `client_tx_id` idempotency, `PriceDisplay` money component).
+- `middleware.ts`: `/patients` added to `PROTECTED_ROUTES`.
+- `app/layout.tsx`: OfflineSyncBanner + `useLicenseGate` + `LicenseGate` wiring.
+
+---
+
+## M98-B — Clinical Decision Support (Allergy Alerts + DDI Screening)  (2026-08-26) ✅ VERIFIED
+
+**Objectives completed:**
+- Non-blocking allergy/DDI alerts surfaced at dispense time (warnings, not hard stops).
+- `app/services/drug_db.py` (NEW): local drug-name → active-ingredient mapping (85 common drugs) + DDI interaction table (8 contraindication pairs). Pure module — no external API, no DB.
+- `app/shared/schemas.py`: `PatientRead.allergy_alerts` (`@computed_field` computing parsed tags from `patient_allergies`); `DispenseRead.allergy_flags: list[str]`.
+- `app/services/dispense_service.py`: `check_allergy_match(product_name, patient_allergies)` called in `process_dispense` — both new-dispense path and idempotency-hit path (re-fetches patient, recomputes flags from current profile).
+- `app/pos/page.tsx`: yellow alert banner with acknowledge checkbox (logged to audit on dispense); `dispenseResult` state typed as `DispenseRead | null` (was `any`).
+- `app/patients/page.tsx`: allergy tags rendered as colored badges in General tab.
+- `types/contracts.ts`: `allergy_alerts: string[]` on `PatientRead`, `allergy_flags: string[]` on `DispenseRead`.
+- `tests/test_clinical_cds.py` (NEW): 20 tests covering parse, extract, check_allergy_match (direct/DDI/no-match/no-false-positive), PatientRead computed field, and 4 integration tests (allergy flag set, DDI flag set, no flags, idempotency re-check).
+- **Code review finding resolved:** `write_audit` in `dispense_service.py` was outside the `async with self.session.begin():` block — moved inside as the final write before transaction commit (per `audit_log.py` docstring contract).
+- **npm audit remediation:** next.js `16.2.10 → 16.3.3` (minor bump) — resolves 3 high-severity advisories (transitive `postcss <=8.5.22` + `sharp <0.35.0`). `postcss`/`autoprefixer` direct devDependencies were already patched; vulnerability was only in `next/node_modules/` transitive tree.
+
+**Verification:**
+- `cd backend_fastapi && python -m pytest -q` → **347 passed, 1 skipped** (327 + 20 new CDS).
+- `cd backend_fastapi && python -m mypy app --strict` → **0 errors** (49 files).
+- `npx tsc --noEmit` → **0 errors**.
+- `npx next build` → **16/16 routes**.
+- `npx vitest run` → **33/33**.
+- `npm audit` → **0 vulnerabilities**.
+
 

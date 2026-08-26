@@ -491,3 +491,141 @@ the existing `client`-based HTTP tests.
 - **Desktop (Tauri):** see PROJECT_MAP.md §M96 / Code Signing. The Next.js standalone server runs as a Tauri sidecar on `:3000`; the FastAPI backend must also run on `:8000`. Installers build unsigned; Windows Authenticode signing is configured via `src-tauri/sign.cmd` + `tauri.conf.json` `signCommand`. ?
 220 passed, 1 skipped; `coverage` TOTAL = 91.06% (? 90%); `mypy app --strict` ?
 Success. Committed config change: `pyproject.toml` `fail_under` 0 ? 90.
+
+
+---
+
+## 19. License Gate & Offline File Import Flow (2026-08-22)
+
+### 19A. Frontend License Gate (Next.js + Tauri)
+
+**Components:**
+- `components/LicenseGate.tsx` (Client Component) — wraps `{children}` in `app/layout.tsx`.
+- `hooks/useLicenseGate.ts` — pure `computeLicenseGateState()` + React `useLicenseGate()` hook.
+- `components/LoadingSplash.tsx` — spinner shown while validating.
+
+**Data flow:**
+1. `app/layout.tsx` → `<LicenseGate>{children}</LicenseGate>` wraps all page content (after the header).
+2. `useLicenseGate()` reads:
+   - `process.env.NEXT_PUBLIC_REQUIRE_LICENSE` — **build-time inlined** Next.js env var. `"true"` (default) or `"false"`.
+   - `usePathname()` — current route.
+   - `localStorage["pp_license_key"]` — persisted validated license key.
+3. Decision tree (`computeLicenseGateState`):
+   - **Flag = "false"** → `shouldGate=false, licensed=true` → renders children (no gate).
+   - **Flag = "true" + non-gated path** (`/login`, `/license`, `/`, `/portal`, etc.) → `shouldGate=false, licensed=true` → renders children.
+   - **Flag = "true" + gated path** (`/dashboard`, `/pos`, or sub-routes) + **no key** → `shouldGate=true, loading=false, licensed=false` → `LicenseGate` returns `null` + `useEffect` redirects to `/license`.
+   - **Flag = "true" + gated path + key present** → `shouldGate=true, loading=true, licensed=false` → renders `<LoadingSplash>`, `useEffect` calls `validateLicense(key, getDeviceId())` (GET `/api/v1/license/validate`) → on success: `licensed=true` (renders children); on failure: `licensed=false` (redirects to `/license`).
+4. `LicenseGate` also checks: `shouldGate && !loading && !licensed` → `router.replace("/license")`.
+
+**Feature flag note:** `NEXT_PUBLIC_REQUIRE_LICENSE` is inlined at `next build` time, NOT read at runtime. The pure function `computeLicenseGateState` is unit-tested via `hooks/useLicenseGate.test.ts` (7 tests, node environment — no jsdom needed).
+
+**Test build profile** (`.env.test` + `src-tauri/tauri.dev.config.json`):
+- `.env.test` sets `NEXT_PUBLIC_REQUIRE_LICENSE=false` (inlined into the Next.js bundle at build time / read by Turbopack at dev time).
+- `tauri.dev.config.json` overrides `productName` -> "Pharmacy POS Test", `identifier` -> "com.pharmacy.pos.test", `app.windows.title` -> "Pharmacy POS Test", and `bundle.resources` -> null (dev mode doesn't need the standalone build artifacts).
+- Run with: `$env:NEXT_PUBLIC_REQUIRE_LICENSE="false"; npx tauri dev -c src-tauri/tauri.dev.config.json`
+
+### 19B. Backend: `POST /api/v1/licenses/activate-file`
+
+**File:** `backend_fastapi/app/api/routers/license_file_route.py` (separate router from `license_route.py` to use the plural `/api/v1/licenses` prefix per spec).
+
+**Data flow:**
+1. Client → `POST /api/v1/licenses/activate-file` `{"hardware_id": "...", "file_content": "<JSON text>"}`.
+2. Auth: requires JWT bearer (`get_current_user` dependency).
+3. Parse `file_content` as JSON -> `400 license_file_malformed` on `JSONDecodeError` or non-dict.
+4. Pop `signature` from the parsed dict **before** HMAC computation.
+5. HMAC-SHA256 validation:
+   - `_canonicalize()`: `json.dumps(payload, sort_keys=True, separators=(",", ":"))` — canonical JSON (sorted keys, compact separators).
+   - `_verify_signature()`: `hmac.new(secret, canonical, hashlib.sha256).hexdigest()` compared via `hmac.compare_digest` (constant-time).
+   - Secret from `settings.license_signing_secret` (SecretStr, env `LICENSE_SIGNING_SECRET`).
+   - Empty secret -> `503 license_signing_unavailable`.
+   - Missing `signature` field -> `400 license_file_missing_signature`.
+   - Mismatch -> `403 license_signature_invalid`.
+6. Validate `license_key` — must be present and non-empty -> `400 license_key_missing`.
+7. Check expiry (G3: UTC-aware via `datetime.now(timezone.utc)`):
+   - `expires_at` parsed via `_parse_iso_utc()` -> `datetime.fromisoformat(ts.replace("Z", "+00:00"))`.
+   - Invalid format -> `400 license_expires_invalid`.
+   - Past expiry -> `403 license_expired`.
+8. Check `status` field — only "active" or "grace" accepted -> `403 license_status_rejected` otherwise.
+9. Check `hardware_id` in file (if present) must match request `hardware_id` -> `403 hardware_mismatch`.
+10. Persist via `LicenseRepository`:
+    - **Key exists:** `update_status()` + `bind_hardware()` (idempotent).
+    - **New key:** `create()` sets `offline_until = now + LICENSE_OFFLINE_GRACE_HOURS` (72h default) + `bind_hardware()`.
+11. Returns `LicenseValidationResult` (mirrors backend Pydantic schema, frontend `types/contracts.ts`).
+
+**License file format:**
+```json
+{
+  "license_key": "PHARM-A1B2-C3D4-E5F6",
+  "email": "customer@example.com",
+  "expires_at": "2027-01-01T00:00:00Z",
+  "status": "active",
+  "hardware_id": "device-fingerprint",
+  "issued_at": "2026-08-22T00:00:00Z",
+  "signature": "abcdef0123456789..."
+}
+```
+**Canonical JSON for HMAC:** all fields except `signature` serialized as `json.dumps(payload, sort_keys=True, separators=(",", ":"))`. Signature = `hex(hmac_sha256(LICENSE_SIGNING_SECRET, canonical))`.
+
+### 19C. Tauri Desktop Integration
+
+**Files modified:**
+- `src-tauri/Cargo.toml` — added `tauri-plugin-dialog = "2"`, `tauri-plugin-fs = "2"`.
+- `src-tauri/src/lib.rs` — `.plugin(tauri_plugin_dialog::init())` + `.plugin(tauri_plugin_fs::init())`.
+- `src-tauri/tauri.conf.json` — unchanged (hardcoded `"productName": "PharmacySuite"`, `"identifier": "com.pharmacy.suite"`); test builds use `src-tauri/tauri.dev.config.json` override via `npx tauri dev -c src-tauri/tauri.dev.config.json`.
+- `src-tauri/tauri.dev.config.json` (new) — dev/test config override: `productName` -> "Pharmacy POS Test", `identifier` -> "com.pharmacy.pos.test", `app.windows.title` -> "Pharmacy POS Test", `bundle.resources` -> null.
+- `src-tauri/capabilities/default.json` — added `dialog:allow-open`, `fs:allow-read-text-file`, `fs:scope` allow-list (`$DOWNLOAD/*`, `$DESKTOP/*`, `$DOCUMENT/*`).
+- `next.config.ts` — added `allowedDevOrigins: ["127.0.0.1", "localhost"]` (required for Tauri WebView2 dev server access).
+
+**Frontend:** `app/license/page.tsx` — "Import License File (.json / .lic)" button (visible only in Tauri via `__TAURI__ in window`):
+1. Dynamic imports `@tauri-apps/plugin-dialog` (`open()`) + `@tauri-apps/plugin-fs` (`readTextFile()`).
+2. `open({ multiple: false, filters: [{ name: "License File", extensions: ["json", "lic"] }] })` -> returns file path string or `null`.
+3. `readTextFile(filePath)` -> returns file content string (no `baseDir` — the dialog auto-adds the path to the fs scope).
+4. `importLicenseFile(hardwareId, fileContent)` -> POST `/api/v1/licenses/activate-file`.
+5. On success: `localStorage["pp_license_key"] = result.license_key` + `useLicenseStore.setState({ status: result })` + `router.replace("/dashboard")`.
+6. On error: `useLicenseStore.setState({ error: ... })` -> shown in the error block.
+7. Non-Tauri (web browser): button hidden, message "License file import is only available in the desktop app."
+
+### 19D. Gotchas Applied
+
+- **G1 (Env-var substitution):** `${env:VAR:default}` syntax in `tauri.conf.json` was attempted for `productName` and `identifier`, but Tauri v2's CLI schema validation rejects it — the `:` character violates the `^[^/:*?"<>|]+$` pattern applied before substitution. Workaround: hardcoded production values in `tauri.conf.json`; dev/test builds use `src-tauri/tauri.dev.config.json` merged via `npx tauri dev -c src-tauri/tauri.dev.config.json`. Verified: window title "Pharmacy POS Test" + `/dashboard` returns 200 with license bypass (no redirect to `/license`).
+- **G2 (Tauri v2 capabilities):** `tauri-plugin-dialog` and `tauri-plugin-fs` are **separate npm packages** (`@tauri-apps/plugin-dialog`, `@tauri-apps/plugin-fs`), NOT in `@tauri-apps/api`. The `fs:allow-read-text-file` permission (not `fs:allow-read`) must be granted, plus `fs:scope` allow-list for user directories.
+- **G3 (UTC timestamps):** `datetime.now(timezone.utc)` used for all expiry checks and `offline_until` calculation.
+- **G4 (offline grace):** `LicenseRepository.create()` sets `offline_until = now + LICENSE_OFFLINE_GRACE_HOURS` (72h default). The existing `POST /api/v1/license/validate` endpoint respects this by checking `offline_until` against server time.
+
+---
+
+## 17. Clinical / Patient Management Flow (M97 — Frontend)
+
+**Frontend entry point:** `app/patients/page.tsx` (7-tab UI) + `app/pos/page.tsx` (dispense integration).
+
+### 17A. Patient Records Page Data Flow
+
+1. `app/patients/page.tsx` renders a patient search bar (300ms debounced `usePatients.search` → `GET /api/v1/patients?page=1&q=`).
+2. Patient list shows name/DOB/phone/insurance provider; clicking a row sets `selected` and resets tab to "General".
+3. **Tab navigation:** 7 tabs (General, Insurance Plan, Members Group, Rx/Refill, Patient History, Billing Info, Comments). Each tab component is co-located in `page.tsx`.
+4. **General tab:** editable `Field` components (only rendered when `canWrite` = `useCan("patients.write")`). `onBlur` triggers `PUT /api/v1/patients/{id}`.
+5. **Insurance Plan tab:** `GET /api/v1/insurance/plans` loads plan list; "Validate" calls `POST /api/v1/insurance/plans/validate` → `InsuranceValidationResult` (active/copay/coverage). "Bind" calls `POST /api/v1/patients/{id}/insurance` → sets `insurance_plan_id`.
+6. **Members Group tab:** `GET /api/v1/members-groups?patient_id={id}` lists dependents; "Add" calls `POST /api/v1/members-groups`.
+7. **Rx/Refill tab:** `GET /api/v1/patients/{id}/dispenses` → `DispenseRead[]`. Free-text Rx number input (no prescriptions table — deferred per §2 scope decision).
+8. **Patient History tab:** `GET /api/v1/patients/{id}/history` → `PatientHistoryEntry[]` (receipts + dispense IDs joined by patient_id).
+9. **Billing Info tab:** summary of insurance provider/policy/cumulative spending from history.
+10. **Comments tab:** free-text `textarea` persisted via `PUT /api/v1/patients/{id}` (`patients.comments` column).
+
+### 17B. POS Dispense Integration Data Flow
+
+1. Barcode scan → `useBarcodeScanner` `scan` event fires.
+2. Scan handler tries `GET /api/v1/dictionaries/ndc/lookup?q=<barcode>` (NDC lookup):
+   - **If found:** product auto-added to cart; if `dispenseMode` is ON, `GET /api/v1/dictionaries/sig-codes/parse?code=<barcode>` parses the SIG code → `SigCodeParseResult` displayed as a chip.
+   - **A (NDC fallback):** if `found=false` (200 `{found:false,q}`), `setNdcError(barcode)` triggers inline "NDC not found in stock — Add to Inventory?" action linking to `/dashboard/inventory`. Falls back to `GET /api/v1/inventory/medicines/search?q=` for POS cart items.
+3. **Patient-link selector:** debounced search (`GET /api/v1/patients/search?q=`) → dropdown → `selectedPatient`.
+4. **Dispense / Rx toggle:** `dispenseMode` boolean. Only renders when `useCan("dispense.create")`.
+5. **Dispense checkout** (`handleDispenseCheckout`):
+   - Generates a stable `client_tx_id` via `crypto.randomUUID()` (stored in `clientTxIdRef`).
+   - `POST /api/v1/dispense` with `DispenseCreate` payload (patient_id, product_name, sig_code, quantity, fill_date, price_at_time, insurance_copay, insurance_amount, internal_barcode, cashier, client_tx_id).
+   - **#11 (LAN idempotency):** on network error, the same `client_tx_id` is retried — the backend returns the cached result without double-deducting stock.
+   - **#6 (money float):** all price math uses `lib/decimalCurrency` (integer cents); `unit_price` is a Money string from the backend.
+6. Normal `Checkout` button calls `usePosStore.checkout()` → `POST /api/v1/pos/checkout` (unchanged).
+
+### 17C. Middleware
+
+`middleware.ts` `PROTECTED_ROUTES` now includes `/patients`. Unauthenticated access redirects to `/login`.

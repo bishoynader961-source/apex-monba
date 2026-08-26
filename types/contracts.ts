@@ -40,6 +40,16 @@ export interface LicenseValidationResult {
   hardware_id?: string;
 }
 
+// Request body for offline license file import (POST /api/v1/licenses/activate-file).
+// Mirrors the backend LicenseFileRequest Pydantic schema.
+export interface LicenseFileRequest {
+  hardware_id: string;
+  file_content: string; // raw JSON text of the .json/.lic license file
+}
+
+// Response shape is identical to LicenseValidationResult.
+export type LicenseFileResponse = LicenseValidationResult
+
 export interface CurrentUser {
   id: number;
   username: string;
@@ -272,6 +282,9 @@ export interface CheckoutRequest {
   // server can attribute the sale and measure clock skew.
   cashier_token?: string | null;
   client_timestamp?: string | null;
+  // #11 (LAN idempotency): stable UUID the UI keeps across retries so a
+  // network retry after commit returns the cached result (no double-deduct).
+  client_tx_id?: string | null;
 }
 
 // Frontend cart line (extends CheckoutLineIn with display price in Money string).
@@ -455,4 +468,212 @@ export interface DiscrepancyRead {
   details?: string | null;
   resolved: number;
   created_at?: string | null;
+}
+
+// ── Clinical / Patient Management (mirrors backend schemas.py §5) ───────────
+
+export interface PatientBase {
+  name: string;
+  dob: string; // ISODate "YYYY-MM-DD"
+  address: string;
+  driver_license: string;
+  sex: string;
+  employer_id: string;
+  contact_phone: string;
+  email: string;
+  insurance_provider: string;
+  policy_number: string;
+  group_number: string;
+  insurance_plan_id?: number | null;
+  patient_allergies: string;
+  comments: string;
+}
+
+export type PatientCreate = PatientBase;
+
+export interface PatientRead extends PatientBase {
+  id: number;
+  created_at?: string | null;
+  is_deleted: boolean;
+}
+
+export interface PatientUpdate {
+  name?: string;
+  dob?: string;
+  address?: string;
+  driver_license?: string;
+  sex?: string;
+  employer_id?: string;
+  contact_phone?: string;
+  email?: string;
+  insurance_provider?: string;
+  policy_number?: string;
+  group_number?: string;
+  insurance_plan_id?: number | null;
+  patient_allergies?: string;
+  comments?: string;
+}
+
+export interface PaginatedPatients {
+  items: PatientRead[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface InsurancePlanBase {
+  plan_name: string;
+  carrier_id: string;
+  bin: string;
+  pcn: string;
+  group_number: string;
+  copay_tier: string;
+  copay_amount: Money;
+  active: number;
+}
+
+export type InsurancePlanCreate = InsurancePlanBase;
+
+export interface InsurancePlanRead {
+  id: number;
+  plan_name: string;
+  carrier_id: string;
+  bin: string;
+  pcn: string;
+  group_number: string;
+  copay_tier: string;
+  copay_amount: Money;
+  active: boolean;
+  created_at?: string | null;
+}
+
+export interface MembersGroupBase {
+  patient_id: number;
+  member_name: string;
+  relationship: string;
+  dob: string; // ISODate
+}
+
+export type MembersGroupCreate = MembersGroupBase;
+
+export interface MembersGroupRead {
+  id: number;
+  patient_id: number;
+  member_name: string;
+  relationship: string;
+  dob: string;
+  created_at?: string | null;
+}
+
+export interface MembersGroupUpdate {
+  member_name?: string;
+  relationship?: string;
+  dob?: string;
+}
+
+export interface SigCodeBase {
+  code: string;
+  full_text: string;
+}
+
+export type SigCodeCreate = SigCodeBase;
+
+export interface SigCodeRead {
+  id: number;
+  code: string;
+  full_text: string;
+}
+
+export interface SigCodeParseResult {
+  code: string;
+  matched: boolean;
+  full_text?: string | null;
+  detail?: string | null;
+}
+
+export interface PriceCodeBase {
+  code: string;
+  description: string;
+  price: Money;
+}
+
+export type PriceCodeCreate = PriceCodeBase;
+
+export interface PriceCodeRead {
+  id: number;
+  code: string;
+  description: string;
+  price: Money;
+}
+
+export interface InsuranceValidationResult {
+  plan_id: number;
+  plan_name: string;
+  active: boolean;
+  copay_tier: string;
+  copay_amount: Money;
+  coverage_percentage: number;
+}
+
+export interface InsuranceBindRequest {
+  plan_id: number;
+}
+
+export interface InsuranceValidateRequest {
+  plan_id: number;
+}
+
+// ── Dispense ────────────────────────────────────────────────────────────────
+
+export interface DispenseItemRead {
+  id: number;
+  dispense_id: number;
+  lot_id?: number | null;
+  lot_number: string;
+  expiration_date: string;
+  quantity: number;
+  awp_at_time?: Money | null;
+  mac_at_time?: Money | null;
+}
+
+export interface DispenseBase {
+  patient_id: number;
+  product_name: string;
+  ndc_code: string;
+  sig_code: string;
+  quantity: number;
+  fill_date: string; // ISODate
+  price_at_time: Money;
+  insurance_copay: Money;
+  insurance_amount: Money;
+  internal_barcode: string;
+  cashier: string;
+}
+
+export interface DispenseCreate extends DispenseBase {
+  client_tx_id: string;
+  price_code?: string | null;
+  insurance_plan_id?: number | null;
+}
+
+export interface DispenseRead extends DispenseBase {
+  id: number;
+  receipt_id?: number | null;
+  server_created_at?: string | null;
+  items: DispenseItemRead[];
+}
+
+export interface PatientHistoryEntry {
+  receipt_id: number;
+  receipt_number: string;
+  timestamp: string;
+  total_amount: Money;
+  payment_method: string;
+  dispense_ids: number[];
+}
+
+export interface BackupResult {
+  path: string;
+  compressed: boolean;
+  size_bytes: number;
 }

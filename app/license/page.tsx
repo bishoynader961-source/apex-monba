@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+  import { useEffect, useState } from "react";
 
 import { useAuthStore } from "@/stores/authStore";
 import { useLicenseStore } from "@/stores/licenseStore";
-import { initiateCheckout } from "@/lib/api/license";
+import { getDeviceId } from "@/lib/deviceId";
+import { importLicenseFile, initiateCheckout } from "@/lib/api/license";
 
 export default function LicensePage() {
   const router = useRouter();
@@ -20,10 +21,16 @@ export default function LicensePage() {
   const error = useLicenseStore((s) => s.error);
   const validate = useLicenseStore((s) => s.validate);
 
-  if (!isAuthenticated()) {
-    router.replace("/login");
-    return null;
-  }
+  const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
+  const [importLoading, setImportLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.replace("/login");
+    }
+  }, [isAuthenticated, router]);
+
+  if (!isAuthenticated()) return null;
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +49,35 @@ export default function LicensePage() {
     } catch (err) {
       useLicenseStore.setState({ error: err instanceof Error ? err.message : "Checkout failed" });
       setCheckoutLoading(false);
+    }
+  };
+
+  const handleImportFile = async () => {
+    if (!isTauri) return;
+    setImportLoading(true);
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const { readTextFile } = await import("@tauri-apps/plugin-fs");
+
+      const selected = await open({
+        multiple: false,
+        filters: [{ name: "License File", extensions: ["json", "lic"] }],
+      });
+
+      if (!selected) return;
+
+      const fileContent = await readTextFile(selected as string);
+      const hwId = hardwareId || getDeviceId();
+      const result = await importLicenseFile(hwId, fileContent);
+
+      useLicenseStore.setState({ status: result, loading: false });
+      localStorage.setItem("pp_license_key", result.license_key);
+      router.replace("/dashboard");
+    } catch (err) {
+      useLicenseStore.setState({
+        error: err instanceof Error ? err.message : "File import failed",
+      });
+      setImportLoading(false);
     }
   };
 
@@ -101,6 +137,25 @@ export default function LicensePage() {
         >
           {checkoutLoading ? "Starting Checkout…" : "Purchase License via Creem"}
         </button>
+      </div>
+
+      <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #e5e7eb", textAlign: "center" }}>
+        {isTauri ? (
+          <>
+            <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>Or import a license file</p>
+            <button
+              onClick={() => void handleImportFile()}
+              disabled={importLoading || loading}
+              style={{ padding: "0.6rem 1.2rem", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: importLoading ? "default" : "pointer", opacity: importLoading ? 0.7 : 1 }}
+            >
+              {importLoading ? "Importing…" : "Import License File (.json / .lic)"}
+            </button>
+          </>
+        ) : (
+          <p style={{ fontSize: 13, color: "#9ca3af" }}>
+            License file import is only available in the desktop app.
+          </p>
+        )}
       </div>
 
       {status && (

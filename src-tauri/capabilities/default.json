@@ -9,6 +9,16 @@
     "core:default",
     "shell:allow-execute",
     "shell:allow-spawn",
-    "shell:allow-stdin-write"
+    "shell:allow-stdin-write",
+    "dialog:allow-open",
+    "fs:allow-read-text-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$DOWNLOAD/*" },
+        { "path": "$DESKTOP/*" },
+        { "path": "$DOCUMENT/*" }
+      ]
+    }
   ]
 }

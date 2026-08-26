@@ -15,17 +15,37 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.models import (
     AuditLog,
     Discrepancy,
+    Dispense,
+    DispenseItem,
+    InsurancePlan,
     InventoryExtended,
+    MembersGroup,
+    Patient,
     Permission,
+    PriceCode,
     Product,
     ReceivingLog,
+    Refund,
     RolePermission,
+    SigCode,
     Supplier,
     SystemSetting,
     User,
 )
-from app.shared.exceptions import ValidationError
-from app.shared.schemas import BatchUpdate, MedicineUpdate, ProductCreate, SupplierCreate
+from app.shared.exceptions import NotFoundError, ValidationError
+from app.shared.schemas import (
+    BatchUpdate,
+    InsurancePlanCreate,
+    MembersGroupCreate,
+    MembersGroupUpdate,
+    MedicineUpdate,
+    PatientCreate,
+    PatientUpdate,
+    PriceCodeCreate,
+    ProductCreate,
+    SigCodeCreate,
+    SupplierCreate,
+)
 
 
 class ProductRepository:
@@ -653,4 +673,297 @@ class LicenseRepository:
             await self.session.flush()
             await self.session.refresh(lic)
         return lic
+
+
+# ── Patient / Clinical Repositories ────────────────────────────────────────────
+class PatientRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def get(self, patient_id: int) -> Optional[Patient]:
+        # Soft-delete guard: a discharged patient resolves to 404 at the route.
+        result = await self.session.execute(
+            select(Patient).where(Patient.id == patient_id, Patient.is_deleted == 0)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_strict(self, patient_id: int) -> Patient:
+        patient = await self.get(patient_id)
+        if patient is None:
+            raise NotFoundError("Patient", patient_id)
+        return patient
+
+    async def search(self, query: str) -> list[Patient]:
+        pattern = f"%{query}%"
+        result = await self.session.execute(
+            select(Patient)
+            .where(
+                (Patient.name.like(pattern) | Patient.policy_number.like(pattern)),
+                Patient.is_deleted == 0,
+            )
+            .order_by(Patient.name)
+            .limit(50)
+        )
+        return list(result.scalars().all())
+
+    async def all(
+        self, page: int = 1, page_size: int = 50, *, q: Optional[str] = None
+    ) -> tuple[list[Patient], int]:
+        page = max(1, page)
+        clause: ColumnElement[bool] = Patient.is_deleted == 0
+        if q is not None:
+            pattern = f"%{q}%"
+            clause = and_(clause, (Patient.name.like(pattern) | Patient.policy_number.like(pattern)))
+        total = await self.session.scalar(select(func.count()).select_from(Patient).where(clause)) or 0
+        result = await self.session.execute(
+            select(Patient)
+            .where(clause)
+            .order_by(Patient.name)
+            .limit(page_size)
+            .offset((page - 1) * page_size)
+        )
+        return list(result.scalars().all()), int(total)
+
+    async def active_count(self) -> int:
+        # #4 (soft-delete referential integrity): never count discharged patients.
+        total = await self.session.scalar(
+            select(func.count()).where(Patient.is_deleted == 0)
+        )
+        return int(total or 0)
+
+    async def create(self, data: PatientCreate) -> Patient:
+        patient = Patient(**{**data.model_dump(), "created_at": _now()})
+        self.session.add(patient)
+        await self.session.commit()
+        await self.session.refresh(patient)
+        return patient
+
+    async def update(self, patient: Patient, data: PatientUpdate) -> Patient:
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(patient, field, value)
+        self.session.add(patient)
+        await self.session.commit()
+        await self.session.refresh(patient)
+        return patient
+
+    async def soft_delete(self, patient_id: int) -> Optional[Patient]:
+        patient = await self.session.get(Patient, patient_id)
+        if patient is None:
+            return None
+        patient.is_deleted = 1
+        await self.session.commit()
+        await self.session.refresh(patient)
+        return patient
+
+
+class InsuranceRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def all(self) -> list[InsurancePlan]:
+        result = await self.session.execute(
+            select(InsurancePlan).order_by(InsurancePlan.plan_name)
+        )
+        return list(result.scalars().all())
+
+    async def get(self, plan_id: int) -> Optional[InsurancePlan]:
+        result = await self.session.execute(
+            select(InsurancePlan).where(InsurancePlan.id == plan_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_name(self, plan_name: str) -> Optional[InsurancePlan]:
+        result = await self.session.execute(
+            select(InsurancePlan).where(InsurancePlan.plan_name == plan_name)
+        )
+        return result.scalar_one_or_none()
+
+    async def validate(self, plan_id: int) -> Optional[InsurancePlan]:
+        """Resolution + active gate used by coverage validation (F4)."""
+        plan = await self.get(plan_id)
+        if plan is None or plan.active != 1:
+            return None
+        return plan
+
+    async def create(self, data: "InsurancePlanCreate") -> InsurancePlan:
+        plan = InsurancePlan(**{**data.model_dump(), "created_at": _now()})
+        self.session.add(plan)
+        await self.session.commit()
+        await self.session.refresh(plan)
+        return plan
+
+    async def update(self, plan: InsurancePlan, data: InsurancePlanCreate) -> InsurancePlan:
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(plan, field, value)
+        self.session.add(plan)
+        await self.session.commit()
+        await self.session.refresh(plan)
+        return plan
+
+    async def deactivate(self, plan_id: int) -> Optional[InsurancePlan]:
+        plan = await self.get(plan_id)
+        if plan is None:
+            return None
+        plan.active = 0
+        await self.session.commit()
+        await self.session.refresh(plan)
+        return plan
+
+
+class MembersGroupRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def for_patient(self, patient_id: int) -> list[MembersGroup]:
+        # #4: JOIN patients so soft-deleted dependents-of-deleted patients drop out
+        # of patient-linked views (defensive against orphan member rows).
+        result = await self.session.execute(
+            select(MembersGroup)
+            .join(Patient, Patient.id == MembersGroup.patient_id)
+            .where(MembersGroup.patient_id == patient_id, Patient.is_deleted == 0)
+            .order_by(MembersGroup.member_name)
+        )
+        return list(result.scalars().all())
+
+    async def get(self, member_id: int) -> Optional[MembersGroup]:
+        result = await self.session.execute(select(MembersGroup).where(MembersGroup.id == member_id))
+        return result.scalar_one_or_none()
+
+    async def all(self) -> list[MembersGroup]:
+        result = await self.session.execute(select(MembersGroup).order_by(MembersGroup.member_name))
+        return list(result.scalars().all())
+
+    async def create(self, data: MembersGroupCreate) -> MembersGroup:
+        # #4: refuse dependents for a soft-deleted patient (referential integrity).
+        patient = await self.session.get(Patient, data.patient_id)
+        if patient is None or patient.is_deleted == 1:
+            raise NotFoundError("Patient", data.patient_id)
+        member = MembersGroup(**{**data.model_dump(), "created_at": _now()})
+        self.session.add(member)
+        await self.session.commit()
+        await self.session.refresh(member)
+        return member
+
+    async def update(self, member: MembersGroup, data: "MembersGroupUpdate") -> MembersGroup:
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(member, field, value)
+        self.session.add(member)
+        await self.session.commit()
+        await self.session.refresh(member)
+        return member
+
+    async def delete(self, member_id: int) -> Optional[MembersGroup]:
+        member = await self.session.get(MembersGroup, member_id)
+        if member is None:
+            return None
+        await self.session.delete(member)
+        await self.session.commit()
+        return member
+
+
+class SigCodeRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def all(self) -> list[SigCode]:
+        result = await self.session.execute(select(SigCode).order_by(SigCode.code))
+        return list(result.scalars().all())
+
+    async def get_by_code(self, code: str) -> Optional[SigCode]:
+        result = await self.session.execute(select(SigCode).where(SigCode.code == code))
+        return result.scalar_one_or_none()
+
+    async def parse(self, code: str) -> Optional[SigCode]:
+        return await self.get_by_code(code)
+
+    async def create(self, data: SigCodeCreate) -> SigCode:
+        sig = SigCode(**data.model_dump())
+        self.session.add(sig)
+        await self.session.commit()
+        await self.session.refresh(sig)
+        return sig
+
+    async def seed_defaults(self) -> None:
+        defaults = [
+            ("BID", "Take one tablet twice daily"),
+            ("TID", "Take one tablet three times daily"),
+            ("QID", "Take one tablet four times daily"),
+            ("QD", "Take one tablet once daily"),
+            ("QHS", "Take one tablet at bedtime"),
+            ("PRN", "Take as needed"),
+            ("PO", "Take by mouth"),
+        ]
+        for code, text in defaults:
+            existing = await self.get_by_code(code)
+            if existing is None:
+                self.session.add(SigCode(code=code, full_text=text))
+        await self.session.commit()
+
+
+class PriceCodeRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def all(self) -> list[PriceCode]:
+        result = await self.session.execute(select(PriceCode).order_by(PriceCode.code))
+        return list(result.scalars().all())
+
+    async def get_by_code(self, code: str) -> Optional[PriceCode]:
+        result = await self.session.execute(select(PriceCode).where(PriceCode.code == code))
+        return result.scalar_one_or_none()
+
+    async def create(self, data: PriceCodeCreate) -> PriceCode:
+        code = PriceCode(**data.model_dump())
+        self.session.add(code)
+        await self.session.commit()
+        await self.session.refresh(code)
+        return code
+
+
+class DispenseRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def get(self, dispense_id: int) -> Optional[Dispense]:
+        # #4: JOIN patients + filter soft-deleted so discharged patients'
+        # dispenses never surface in active patient views.
+        result = await self.session.execute(
+            select(Dispense)
+            .join(Patient, Patient.id == Dispense.patient_id)
+            .where(Dispense.id == dispense_id, Patient.is_deleted == 0)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_client_tx_id(self, client_tx_id: str) -> Optional[Dispense]:
+        # #11 idempotency: a matched recent dispense is the cached result.
+        result = await self.session.execute(
+            select(Dispense).where(Dispense.client_tx_id == client_tx_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def for_patient(
+        self, patient_id: int, *, limit: int = 100
+    ) -> list[Dispense]:
+        result = await self.session.execute(
+            select(Dispense)
+            .where(Dispense.patient_id == patient_id)
+            .order_by(Dispense.server_created_at.desc().nullslast(), Dispense.id.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def create(self, dispense: Dispense) -> Dispense:
+        self.session.add(dispense)
+        await self.session.commit()
+        await self.session.refresh(dispense)
+        return dispense
+
+
+def _now() -> str:
+    """Canonical server timestamp (B.8: server is the time authority).
+
+    Emits strict ``YYYY-MM-DDTHH:MM:SSZ`` UTC to match the ``ISOTime`` validator
+    in schemas.py (#5 date precision — event timestamps must be ``Z`` suffix).
+    """
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 

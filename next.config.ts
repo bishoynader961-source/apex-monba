@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   // cannot be statically exported). `scripts/prepare-standalone.mjs` copies the
   // static assets next to `server.js` so Tauri can bundle the whole tree.
   output: "standalone",
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   async headers() {
     return [
       {

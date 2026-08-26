@@ -18,7 +18,7 @@ The legacy checks above target the Tkinter desktop app. For the edge kiosk web P
 - [x] **Offline banner:** `OfflineSyncBanner` is visible whenever `offlineCount > 0`; manual "Sync now" triggers `flushQueue`.
 - [x] **Money safety:** pricing/tax/totals use `lib/decimalCurrency` (bigint cents) — no `float` in the money path (proven by grep + `decimalCurrency.test.ts`).
 - [x] **Manager approval:** drawer movement / shift close require `ManagerApprovalDialog` → `/api/v1/pos/approve` (PIN) → single-use `X-Approval-Token`.
-- [ ] **Build cleanliness:** `next build` exits 0 (12/12 pages); two benign    `location is not defined` warnings are a Next.js 16.2.10 framework-internal artifact, not app code.
+- [x] **Build cleanliness:** `next build` (`next build && node scripts/prepare-standalone.mjs`) exits 0 (15/15 routes, exit 0); only benign `location is not defined` warnings (Next.js 16.2.10 framework-internal, not app code). Standalone assets (`.next/standalone/` + static + public) emitted and ready for Tauri sidecar bundling.
 
 ## 4. Test Coverage Gate (FastAPI backend)
 

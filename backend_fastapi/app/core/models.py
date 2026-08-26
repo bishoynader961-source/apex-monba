@@ -12,6 +12,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     Float,
+    ForeignKey,
     Integer,
     LargeBinary,
     Numeric,
@@ -153,6 +154,9 @@ class Receipt(Base):
     # B.7: every sale is attributed to the cashier who initiated it.
     created_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     cashier_attribution: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # #11 (LAN idempotency): stable UUID persisted so a retried submit returns the
+    # cached receipt instead of double-deducting stock / double-charging.
+    client_tx_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, unique=True)
 
 
 class ReceiptItem(Base):
@@ -349,4 +353,128 @@ class License(Base):
     hardware_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # Grace-period expiry — ISO 8601 UTC datetime
     offline_until: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+class Patient(Base):
+    """Patient master record (mirrors the Tkinter patients schema + FK binding).
+
+    ``is_deleted`` enables soft-delete so a discharged patient's dispenses remain
+    auditable; aggregations JOIN ``patients`` and filter ``is_deleted = 0``.
+    """
+
+    __tablename__ = "patients"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    dob: Mapped[str] = mapped_column(String, nullable=False, default="")
+    address: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    driver_license: Mapped[str] = mapped_column(String, nullable=False, default="")
+    sex: Mapped[str] = mapped_column(String, nullable=False, default="")
+    employer_id: Mapped[str] = mapped_column(String, nullable=False, default="")
+    contact_phone: Mapped[str] = mapped_column(String, nullable=False, default="")
+    email: Mapped[str] = mapped_column(String, nullable=False, default="")
+    insurance_provider: Mapped[str] = mapped_column(String, nullable=False, default="")
+    policy_number: Mapped[str] = mapped_column(String, nullable=False, default="")
+    group_number: Mapped[str] = mapped_column(String, nullable=False, default="")
+    insurance_plan_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("insurance_plans.id"), nullable=True
+    )
+    patient_allergies: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    comments: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    is_deleted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class InsurancePlan(Base):
+    """Payer/insurance plan reference bound to patients (copay tier gate)."""
+
+    __tablename__ = "insurance_plans"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    carrier_id: Mapped[str] = mapped_column(String, nullable=False, default="")
+    bin: Mapped[str] = mapped_column(String, nullable=False, default="")
+    pcn: Mapped[str] = mapped_column(String, nullable=False, default="")
+    group_number: Mapped[str] = mapped_column(String, nullable=False, default="")
+    copay_tier: Mapped[str] = mapped_column(String, nullable=False, default="")
+    copay_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+class MembersGroup(Base):
+    """Dependent / family member linked to a patient."""
+
+    __tablename__ = "members_groups"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"), nullable=False)
+    member_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    relationship: Mapped[str] = mapped_column(String, nullable=False, default="")
+    dob: Mapped[str] = mapped_column(String, nullable=False, default="")
+    created_at: Mapped[str] = mapped_column(String, nullable=False, default="")
+
+
+class SigCode(Base):
+    """Standardized SIG code → human-readable instruction (e.g. BID → twice daily)."""
+
+    __tablename__ = "sig_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String, nullable=False, unique=True, default="")
+    full_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+
+class PriceCode(Base):
+    """Auxiliary price-tier code (e.g. brand/generic differential)."""
+
+    __tablename__ = "price_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String, nullable=False, unique=True, default="")
+    description: Mapped[str] = mapped_column(String, nullable=False, default="")
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+
+
+class Dispense(Base):
+    """A single prescription dispense (patient-linked, FIFO-deducted).
+
+    ``client_tx_id`` is the LAN-idempotency key (T2/#11): a UI retry that re-sends
+    the same UUID returns the cached result instead of re-running FIFO deduction.
+    """
+
+    __tablename__ = "dispenses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"), nullable=False)
+    receipt_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    product_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    ndc_code: Mapped[str] = mapped_column(String, nullable=False, default="")
+    sig_code: Mapped[str] = mapped_column(String, nullable=False, default="")
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    fill_date: Mapped[str] = mapped_column(String, nullable=False, default="")
+    price_at_time: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    insurance_copay: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    insurance_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    internal_barcode: Mapped[str] = mapped_column(String, nullable=False, default="")
+    cashier: Mapped[str] = mapped_column(String, nullable=False, default="")
+    client_tx_id: Mapped[str] = mapped_column(String, nullable=False, unique=True, default="")
+    server_created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+class DispenseItem(Base):
+    """Lot-level consumption lines for a dispense (FIFO audit trail)."""
+
+    __tablename__ = "dispense_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dispense_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("dispenses.id"), nullable=False
+    )
+    lot_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    lot_number: Mapped[str] = mapped_column(String, nullable=False, default="")
+    expiration_date: Mapped[str] = mapped_column(String, nullable=False, default="")
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    awp_at_time: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    mac_at_time: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
 

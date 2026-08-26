@@ -1,10 +1,11 @@
 """Pydantic v2 schemas — the single source of truth for typed contracts."""
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 
 class HealthResponse(BaseModel):
@@ -134,6 +135,17 @@ class LicenseValidationResult(BaseModel):
     expires_at: Optional[str] = None
     offline_until: Optional[str] = None  # ISO datetime — grace-period expiry
     hardware_id: Optional[str] = None
+
+
+class LicenseFileRequest(BaseModel):
+    """Request body for POST /api/v1/licenses/activate-file — offline license file import.
+
+    ``file_content`` is the raw JSON text of the .json/.lic license file, which
+    contains a signed payload + HMAC ``signature`` field.
+    """
+
+    hardware_id: str
+    file_content: str
 
 
 
@@ -301,6 +313,7 @@ class ReceiptRead(BaseModel):
     patient_id: Optional[int] = None
     server_created_at: Optional[str] = None
     cashier_attribution: Optional[str] = None
+    client_tx_id: Optional[str] = None
     items: list[ReceiptItemRead] = Field(default_factory=list)
 
 
@@ -327,6 +340,7 @@ class CheckoutResult(BaseModel):
     server_created_at: Optional[str] = None
     ts_skew_confidence: Optional[float] = None
     cashier_attribution: Optional[str] = None
+    client_tx_id: Optional[str] = None
     items: list[CheckoutItemRead] = Field(default_factory=list)
 
 
@@ -338,6 +352,9 @@ class CheckoutRequest(BaseModel):
     # attribute the sale and measure clock skew. Both are untrusted inputs.
     cashier_token: Optional[str] = None
     client_timestamp: Optional[str] = None
+    # #11 (LAN idempotency): stable UUID per submit, kept across retries so a
+    # network flicker after commit-but-before-200 returns the cached result.
+    client_tx_id: Optional[str] = None
 
 
 class DrawerMovementCreate(BaseModel):
@@ -481,3 +498,304 @@ class ErrorDetail(BaseModel):
 
 class ErrorResponse(BaseModel):
     error: ErrorDetail
+
+
+# ── Clinical / Patient Management ──────────────────────────────────────────────
+_ISO_DATE_FMT = "%Y-%m-%d"
+_ISO_UTC_FMT = "%Y-%m-%dT%H:%M:%SZ"
+
+
+def _require_iso_date(value: Any) -> Any:
+    """Strict ``YYYY-MM-DD`` — rejects localized (DD/MM/YYYY) or timestamp inputs (#5)."""
+    if not isinstance(value, str):
+        raise ValueError("date must be a string in YYYY-MM-DD format")
+    datetime.strptime(value, _ISO_DATE_FMT)
+    return value
+
+
+def _require_iso_utc(value: Any) -> Any:
+    """Strict ``YYYY-MM-DDTHH:MM:SSZ`` UTC timestamp; None passes through for optional fields."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("timestamp must be a string in YYYY-MM-DDTHH:MM:SSZ format")
+    datetime.strptime(value, _ISO_UTC_FMT)
+    return value
+
+
+# Reusable strict-typed string annotations (DRY: shared across clinical schemas).
+ISODate = Annotated[str, BeforeValidator(_require_iso_date)]
+ISOTime = Annotated[str, BeforeValidator(_require_iso_utc)]
+
+
+class PatientBase(BaseModel):
+    name: str
+    dob: ISODate
+    address: str = ""
+    driver_license: str = ""
+    sex: str = ""
+    employer_id: str = ""
+    contact_phone: str = ""
+    email: str = ""
+    insurance_provider: str = ""
+    policy_number: str = ""
+    group_number: str = ""
+    insurance_plan_id: Optional[int] = None
+    patient_allergies: str = ""
+    comments: str = ""
+
+
+class PatientCreate(PatientBase):
+    pass
+
+
+class PatientRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    dob: str
+    address: str
+    driver_license: str
+    sex: str
+    employer_id: str
+    contact_phone: str
+    email: str
+    insurance_provider: str
+    policy_number: str
+    group_number: str
+    insurance_plan_id: Optional[int] = None
+    patient_allergies: str
+    comments: str
+    created_at: Optional[ISOTime] = None
+    is_deleted: bool = False
+
+
+class PatientUpdate(BaseModel):
+    """All-optional partial update (Liskov-safe standalone model, mirrors ``MedicineUpdate``)."""
+
+    name: Optional[str] = None
+    dob: Optional[ISODate] = None
+    address: Optional[str] = None
+    driver_license: Optional[str] = None
+    sex: Optional[str] = None
+    employer_id: Optional[str] = None
+    contact_phone: Optional[str] = None
+    email: Optional[str] = None
+    insurance_provider: Optional[str] = None
+    policy_number: Optional[str] = None
+    group_number: Optional[str] = None
+    insurance_plan_id: Optional[int] = None
+    patient_allergies: Optional[str] = None
+    comments: Optional[str] = None
+
+
+class InsurancePlanBase(BaseModel):
+    plan_name: str
+    carrier_id: str = ""
+    bin: str = ""
+    pcn: str = ""
+    group_number: str = ""
+    copay_tier: str = ""
+    copay_amount: Decimal = Decimal("0")
+    active: int = 1
+
+
+class InsurancePlanCreate(InsurancePlanBase):
+    pass
+
+
+class InsurancePlanRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    plan_name: str
+    carrier_id: str
+    bin: str
+    pcn: str
+    group_number: str
+    copay_tier: str
+    copay_amount: Decimal
+    active: bool
+    created_at: Optional[ISOTime] = None
+
+
+class MembersGroupBase(BaseModel):
+    patient_id: int
+    member_name: str
+    relationship: str = ""
+    dob: ISODate
+
+
+class MembersGroupCreate(MembersGroupBase):
+    pass
+
+
+class MembersGroupRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    patient_id: int
+    member_name: str
+    relationship: str
+    dob: str
+    created_at: Optional[ISOTime] = None
+
+
+class SigCodeBase(BaseModel):
+    code: str
+    full_text: str
+
+
+class SigCodeCreate(SigCodeBase):
+    pass
+
+
+class SigCodeRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    code: str
+    full_text: str
+
+
+class PriceCodeBase(BaseModel):
+    code: str
+    description: str = ""
+    price: Decimal = Decimal("0")
+
+
+class PriceCodeCreate(PriceCodeBase):
+    pass
+
+
+class PriceCodeRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    code: str
+    description: str
+    price: Decimal
+
+
+class SigCodeParseResult(BaseModel):
+    """Result of parsing a SIG code into a human-readable instruction (T8 dictionaries)."""
+
+    code: str
+    matched: bool
+    full_text: Optional[str] = None
+    detail: Optional[str] = None
+
+
+class InsuranceValidationResult(BaseModel):
+    """Coverage validation result surfaced by the Insurance Plan tab (F4)."""
+
+    plan_id: int
+    plan_name: str
+    active: bool
+    copay_tier: str
+    copay_amount: Decimal
+    coverage_percentage: int = 80
+
+
+class NDCLookupResult(BaseModel):
+    """NDC dictionary lookup (A: never a bare 404 — ``found=False`` lets the UI offer
+    an inline 'Add to Inventory?' action instead of blocking the pharmacist)."""
+
+    found: bool
+    q: str
+    item: Optional[BatchRead] = None
+
+
+class PatientHistoryEntry(BaseModel):
+    """A receipt (sale) with the dispatched IDs, for the patient history tab."""
+
+    model_config = ConfigDict(from_attributes=True)
+    receipt_id: int
+    receipt_number: str
+    timestamp: str
+    total_amount: Decimal
+    payment_method: str
+    dispense_ids: list[int] = Field(default_factory=list)
+
+
+class PaginatedPatients(BaseModel):
+    items: list[PatientRead]
+    total: int
+    page: int
+    page_size: int
+
+
+class MembersGroupUpdate(BaseModel):
+    member_name: Optional[str] = None
+    relationship: Optional[str] = None
+    dob: Optional[ISODate] = None
+
+
+class BackupResult(BaseModel):
+    """Result of an admin-triggered compressed local backup (T7)."""
+
+    path: str
+    compressed: bool
+    size_bytes: int
+
+
+class InsuranceBindRequest(BaseModel):
+    """Bind (or rebind) an insurance plan to a patient (F4 Insurance tab)."""
+
+    plan_id: int
+
+
+class InsuranceValidateRequest(BaseModel):
+    """Body for POST /insurance/plans/validate (F4 coverage gate)."""
+
+    plan_id: int
+
+
+class DispenseItemRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    dispense_id: int
+    lot_id: Optional[int] = None
+    lot_number: str
+    expiration_date: str
+    quantity: int
+    awp_at_time: Optional[Decimal] = None
+    mac_at_time: Optional[Decimal] = None
+
+
+class DispenseBase(BaseModel):
+    patient_id: int
+    product_name: str
+    ndc_code: str = ""
+    sig_code: str
+    quantity: int = Field(gt=0)
+    fill_date: ISODate
+    price_at_time: Decimal = Decimal("0")
+    insurance_copay: Decimal = Decimal("0")
+    insurance_amount: Decimal = Decimal("0")
+    internal_barcode: str = ""
+    cashier: str = ""
+
+
+class DispenseCreate(DispenseBase):
+    # #11 (LAN idempotency): stable UUID the UI keeps across retries.
+    client_tx_id: str
+    # optional price-code override for the dispense price.
+    price_code: Optional[str] = None
+    insurance_plan_id: Optional[int] = None
+
+
+class DispenseRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    patient_id: int
+    receipt_id: Optional[int] = None
+    product_name: str
+    ndc_code: str
+    sig_code: str
+    quantity: int
+    fill_date: str
+    price_at_time: Decimal
+    insurance_copay: Decimal
+    insurance_amount: Decimal
+    internal_barcode: str
+    cashier: str
+    client_tx_id: str
+    server_created_at: Optional[ISOTime] = None
+    items: list[DispenseItemRead] = Field(default_factory=list)

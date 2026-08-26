@@ -1,8 +1,8 @@
 import { PricingCard } from "@/components/PricingCard";
 
-// Paddle SDK is initialized client-side inside PricingCard (guarded by
-// `typeof window`), so this page is safe to statically prerender for the
-// Tauri desktop build (output: "export" sets TAURI_BUILD=1).
+// PricingCard performs checkout client-side only (via the Creem MoR API
+// through the Next.js standalone server), so this page is safe to statically
+// prerender for the Tauri desktop build (output: "export" sets TAURI_BUILD=1).
 
 export default function Home() {
   return (

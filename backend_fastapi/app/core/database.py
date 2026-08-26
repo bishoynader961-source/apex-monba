@@ -52,14 +52,30 @@ def _write_db_path() -> Optional[str]:
     return str(Path(path).resolve())
 
 def _configure_pragmas(dbapi_conn: Any, _record: Any) -> None:
-    """Enable WAL + busy_timeout + synchronous=NORMAL on file-backed connections (skip in-memory)."""
+    """Per-connection SQLite pragmas (runs once per pooled connection — Concern 10).
+
+    ``PRAGMA foreign_keys=ON`` is set here (not only in ``migrate_schema``) because
+    SQLite resets FK enforcement to OFF on every fresh connection; a one-off set at
+    startup would leave later pool checkouts silently ignoring FK constraints,
+    orphaning ``patient_id`` / ``insurance_plan_id``. ``BEGIN IMMEDIATE`` is applied
+    on file-backed write connections (T1.5) to convert the deferred-read-then-upgrade
+    deadlock into an up-front RESERVE lock that ``busy_timeout`` queues cleanly.
+    In-memory connections (single StaticPool in tests) are left at the default.
+    """
     try:  # pragma: no cover - exercised only against real SQLite connections
+        # FK enforcement is connection-scoped and must be set outside any active
+        # transaction; ``connect`` fires on a fresh connection so this is safe.
+        dbapi_conn.execute("PRAGMA foreign_keys=ON")
         cur = dbapi_conn.cursor()
         cur.execute("PRAGMA busy_timeout=30000")
         dsn = str(getattr(dbapi_conn, "name", ""))
         if ":memory:" not in dsn:
             cur.execute("PRAGMA journal_mode=WAL")
             cur.execute("PRAGMA synchronous=NORMAL")
+            # Force BEGIN IMMEDIATE on file-backed write connections (T1.5) so
+            # concurrent writers queue via busy_timeout rather than deadlocking on
+            # a read->write lock upgrade.
+            dbapi_conn.isolation_level = "IMMEDIATE"
         cur.close()
     except Exception:  # pragma: no cover - defensive: never break a connection
         pass
@@ -372,8 +388,129 @@ async def migrate_schema(conn: Any) -> None:
             )
         version = 6
 
+    # ── v7: clinical/patient management layer (patients, insurance, members, sig, price, dispenses) ──
+    if version < 7:
+        # receipts is a pre-existing legacy table; backfill the idempotency key (#11).
+        if not await _table_has_column(conn, "receipts", "client_tx_id"):
+            await conn.exec_driver_sql("ALTER TABLE receipts ADD COLUMN client_tx_id TEXT")
+        # insurance_plans must exist before patients reference it.
+        if not await _table_exists(conn, "insurance_plans"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE insurance_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_name TEXT NOT NULL,
+                    carrier_id TEXT NOT NULL DEFAULT '',
+                    bin TEXT NOT NULL DEFAULT '',
+                    pcn TEXT NOT NULL DEFAULT '',
+                    group_number TEXT NOT NULL DEFAULT '',
+                    copay_tier TEXT NOT NULL DEFAULT '',
+                    copay_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    active INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT
+                )
+                """
+            )
+        if not await _table_exists(conn, "patients"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE patients (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    dob TEXT NOT NULL DEFAULT '',
+                    address TEXT NOT NULL DEFAULT '',
+                    driver_license TEXT NOT NULL DEFAULT '',
+                    sex TEXT NOT NULL DEFAULT '',
+                    employer_id TEXT NOT NULL DEFAULT '',
+                    contact_phone TEXT NOT NULL DEFAULT '',
+                    email TEXT NOT NULL DEFAULT '',
+                    insurance_provider TEXT NOT NULL DEFAULT '',
+                    policy_number TEXT NOT NULL DEFAULT '',
+                    group_number TEXT NOT NULL DEFAULT '',
+                    insurance_plan_id INTEGER REFERENCES insurance_plans(id),
+                    patient_allergies TEXT NOT NULL DEFAULT '',
+                    comments TEXT NOT NULL DEFAULT '',
+                    created_at TEXT,
+                    is_deleted INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+        if not await _table_exists(conn, "members_groups"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE members_groups (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id INTEGER NOT NULL REFERENCES patients(id),
+                    member_name TEXT NOT NULL,
+                    relationship TEXT NOT NULL DEFAULT '',
+                    dob TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+        if not await _table_exists(conn, "sig_codes"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE sig_codes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    code TEXT NOT NULL UNIQUE,
+                    full_text TEXT NOT NULL
+                )
+                """
+            )
+        if not await _table_exists(conn, "price_codes"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE price_codes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    code TEXT NOT NULL UNIQUE,
+                    description TEXT NOT NULL DEFAULT '',
+                    price NUMERIC(10,2) NOT NULL DEFAULT 0
+                )
+                """
+            )
+        if not await _table_exists(conn, "dispenses"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE dispenses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id INTEGER NOT NULL REFERENCES patients(id),
+                    receipt_id INTEGER,
+                    product_name TEXT NOT NULL,
+                    ndc_code TEXT NOT NULL DEFAULT '',
+                    sig_code TEXT NOT NULL DEFAULT '',
+                    quantity INTEGER NOT NULL DEFAULT 0,
+                    fill_date TEXT NOT NULL,
+                    price_at_time NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    insurance_copay NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    insurance_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    internal_barcode TEXT NOT NULL DEFAULT '',
+                    cashier TEXT NOT NULL DEFAULT '',
+                    client_tx_id TEXT NOT NULL,
+                    server_created_at TEXT,
+                    UNIQUE(client_tx_id)
+                )
+                """
+            )
+        if not await _table_exists(conn, "dispense_items"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE dispense_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    dispense_id INTEGER NOT NULL REFERENCES dispenses(id),
+                    lot_id INTEGER,
+                    lot_number TEXT NOT NULL,
+                    expiration_date TEXT NOT NULL,
+                    quantity INTEGER NOT NULL,
+                    awp_at_time NUMERIC(10,2),
+                    mac_at_time NUMERIC(10,2)
+                )
+                """
+            )
+        version = 7
+
     await conn.exec_driver_sql(f"PRAGMA user_version={SCHEMA_VERSION}")
 
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 

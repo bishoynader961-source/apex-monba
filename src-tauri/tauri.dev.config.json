@@ -1,0 +1,19 @@
+{
+  "productName": "Pharmacy POS Test",
+  "identifier": "com.pharmacy.pos.test",
+  "app": {
+    "windows": [
+      {
+        "title": "Pharmacy POS Test",
+        "url": "http://127.0.0.1:3000",
+        "width": 800,
+        "height": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ]
+  },
+  "bundle": {
+    "resources": null
+  }
+}

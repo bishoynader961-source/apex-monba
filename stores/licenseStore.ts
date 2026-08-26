@@ -27,6 +27,7 @@ export const useLicenseStore = create<LicenseState>((set) => ({
     try {
       const status = await validateLicense(licenseKey, hardwareId);
       set({ status, loading: false });
+      localStorage.setItem("pp_license_key", licenseKey);
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : "Validation failed",
@@ -35,5 +36,8 @@ export const useLicenseStore = create<LicenseState>((set) => ({
     }
   },
 
-  reset: () => set({ status: null, loading: false, error: null }),
+  reset: () => {
+    localStorage.removeItem("pp_license_key");
+    set({ status: null, loading: false, error: null });
+  },
 }));

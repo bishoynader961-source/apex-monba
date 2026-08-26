@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PROTECTED_ROUTES = ["/dashboard", "/pos", "/inventory", "/users", "/reports", "/settings", "/license"];
+const PROTECTED_ROUTES = ["/dashboard", "/pos", "/inventory", "/users", "/reports", "/settings", "/license", "/patients"];
 
 export function middleware(request: NextRequest) {
   const country = request.headers.get("x-vercel-ip-country") || "US";

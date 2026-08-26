@@ -1,80 +1,26 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 
-declare global {
-  interface Window {
-    Paddle: {
-      Initialize: (config: { token: string; environment: string; eventCallback: (event: any) => void }) => void;
-      Checkout: {
-        open: (config: { items: Array<{ priceId: string; quantity: number }>; settings?: Record<string, string> }) => void;
-      };
-    };
-  }
-}
-
-const PADDLE_PRICE_ID = "pri_01kyweg4y7hjxvv4ppg33x422y";
+import { useAuthStore } from "@/stores/authStore";
+import { initiateCheckout } from "@/lib/api/license";
 
 export function PricingCard() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [paddleReady, setPaddleReady] = useState(false);
   const [testingMode, setTestingMode] = useState(false);
   const mountedRef = useRef(true);
   const checkoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
+    if (!process.env.NEXT_PUBLIC_API_BASE_URL) {
+      setTestingMode(true);
+    }
     return () => {
       mountedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
-    const env = process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT;
-
-    if (!token || typeof window === "undefined") {
-      if (mountedRef.current) {
-        setTestingMode(true);
-        setPaddleReady(true);
-      }
-      return;
-    }
-
-    const initPaddle = () => {
-      if (!window.Paddle) return;
-      window.Paddle.Initialize({
-        token,
-        environment: env === "production" ? "production" : "sandbox",
-        eventCallback: (event) => {
-          console.log("[Paddle] Event:", event.name, event.data);
-
-          if (event.name === "checkout.completed") {
-            if (checkoutTimeoutRef.current) {
-              clearTimeout(checkoutTimeoutRef.current);
-              checkoutTimeoutRef.current = null;
-            }
-            console.log("[Paddle] Checkout completed successfully");
-            if (mountedRef.current) setLoading(false);
-          }
-        },
-      });
-      if (mountedRef.current) setPaddleReady(true);
-    };
-
-    if (window.Paddle) {
-      initPaddle();
-    } else {
-      // Load the Paddle SDK client-side only (avoids any Node-SSR script eval).
-      const script = document.createElement("script");
-      script.src = "https://cdn.paddle.com/paddle/v2/paddle.js";
-      script.async = true;
-      script.onload = () => initPaddle();
-      document.head.appendChild(script);
-    }
-
-    return () => {
       if (checkoutTimeoutRef.current) {
         clearTimeout(checkoutTimeoutRef.current);
       }
@@ -82,8 +28,9 @@ export function PricingCard() {
   }, []);
 
   const handleCheckout = useCallback(() => {
-    if (typeof window === "undefined" || !window.Paddle) {
-      setError("Payment system not ready. Please refresh.");
+    const isAuthed = useAuthStore.getState().isAuthenticated();
+    if (!isAuthed) {
+      router.push("/login");
       return;
     }
 
@@ -92,26 +39,32 @@ export function PricingCard() {
 
     checkoutTimeoutRef.current = setTimeout(() => {
       setLoading(false);
-      setError("Checkout timed out. The price ID may be invalid.");
+      setError("Checkout timed out. Please try again.");
       checkoutTimeoutRef.current = null;
     }, 10000);
 
-    try {
-      window.Paddle.Checkout.open({
-        items: [{ priceId: PADDLE_PRICE_ID, quantity: 1 }],
+    initiateCheckout({
+      success_url: window.location.origin + "/license?activated=1",
+      cancel_url: window.location.origin + "/license",
+    })
+      .then((res) => {
+        if (checkoutTimeoutRef.current) {
+          clearTimeout(checkoutTimeoutRef.current);
+          checkoutTimeoutRef.current = null;
+        }
+        window.location.href = res.checkout_url;
+      })
+      .catch((err) => {
+        if (checkoutTimeoutRef.current) {
+          clearTimeout(checkoutTimeoutRef.current);
+          checkoutTimeoutRef.current = null;
+        }
+        setError(err instanceof Error ? err.message : "Checkout failed");
+        setLoading(false);
       });
-    } catch (err) {
-      if (checkoutTimeoutRef.current) {
-        clearTimeout(checkoutTimeoutRef.current);
-        checkoutTimeoutRef.current = null;
-      }
-      console.error("[Paddle] Checkout error:", err);
-      setError(`Checkout failed: ${err instanceof Error ? err.message : "Unknown error"}`);
-      setLoading(false);
-    }
   }, []);
 
-  const buttonDisabled = loading || (!testingMode && !paddleReady);
+  const buttonDisabled = loading;
 
   let buttonText = "Buy Now — $50 one-time";
   if (loading) buttonText = "Processing...";
@@ -138,10 +91,6 @@ export function PricingCard() {
         <p className="mt-4 text-sm text-red-500">{error}</p>
       )}
 
-      {!paddleReady && !testingMode && !error && (
-        <p className="mt-4 text-sm text-yellow-500">Loading payment system...</p>
-      )}
-
       {testingMode ? (
         <a
           href="/portal"
@@ -160,7 +109,7 @@ export function PricingCard() {
       )}
 
       <p className="mt-4 text-center text-xs text-muted-foreground">
-        {testingMode ? "Sandbox checkout — no real charges" : "Secure payment via Paddle"}
+        {testingMode ? "Sandbox checkout — no real charges" : "Secure payment via Creem"}
       </p>
 
       <a

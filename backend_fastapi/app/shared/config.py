@@ -99,6 +99,8 @@ class Settings(BaseSettings):
     creem_product_id: str = Field(default="", alias="CREEM_PRODUCT_ID")
     # Hours the app continues working without a server re-check (offline grace)
     license_offline_grace_hours: int = Field(default=72, alias="LICENSE_OFFLINE_GRACE_HOURS")
+    # HMAC-SHA256 secret for signing/validating offline license files (activate-file import)
+    license_signing_secret: SecretStr = Field(default=SecretStr(""), alias="LICENSE_SIGNING_SECRET")
 
     @property
     def jwt_secret(self) -> str:

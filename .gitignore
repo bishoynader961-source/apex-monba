@@ -24,6 +24,7 @@ Cargo.lock
 .idea/
 .next/
 node_modules/
+*.tsbuildinfo
 labels/
 push_via_api.py
 

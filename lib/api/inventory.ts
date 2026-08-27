@@ -4,8 +4,11 @@ import { api } from "@/lib/api";
 import type {
   Batch,
   BatchUpdate,
+  DemandAnalyticsSummary,
   Medicine,
   MedicineUpdate,
+  MovementFilters,
+  MovementLogResponse,
   PaginatedProducts,
   ReceiveBatch,
   StockLevel,
@@ -13,6 +16,13 @@ import type {
 } from "@/types/contracts";
 
 const BASE = "/api/v1/inventory";
+
+export async function listMovements(
+  params: MovementFilters = {},
+): Promise<MovementLogResponse> {
+  const { data } = await api.get<MovementLogResponse>(`${BASE}/movements`, { params });
+  return data;
+}
 
 export async function listMedicines(
   params: Record<string, string | number | boolean> = {},
@@ -55,4 +65,14 @@ export async function updateMedicine(id: number, payload: MedicineUpdate): Promi
 
 export async function deleteMedicine(id: number): Promise<void> {
   await api.delete(`${BASE}/medicines/${id}`);
+}
+
+export async function getDemandAnalytics(
+  params: Record<string, string | number | boolean> = {},
+): Promise<DemandAnalyticsSummary> {
+  const { data } = await api.get<DemandAnalyticsSummary>(
+    "/api/v1/analytics/demand",
+    { params },
+  );
+  return data;
 }

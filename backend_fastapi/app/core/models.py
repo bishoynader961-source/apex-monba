@@ -93,6 +93,7 @@ class ReceivingLog(Base):
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_cost: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
     barcode: Mapped[str] = mapped_column(String, nullable=False, default="")
+    lot_number: Mapped[str] = mapped_column(String, nullable=False, default="")
 
 
 class User(Base):

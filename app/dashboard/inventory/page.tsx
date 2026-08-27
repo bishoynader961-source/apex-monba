@@ -3,11 +3,21 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore, useCan } from "@/stores/authStore";
 import { useInventory } from "@/hooks/useInventory";
-import type { Batch, Medicine, ReceiveBatch } from "@/types/contracts";
+import type {
+  Batch,
+  Medicine,
+  MovementFilters,
+  MovementLogItem,
+  ReceiveBatch,
+} from "@/types/contracts";
+
+import * as inventoryApi from "@/lib/api/inventory";
 
 const SEARCH_DEBOUNCE_MS = 300;
+const TABS = ["Inventory", "Movement History"] as const;
+type TabName = (typeof TABS)[number];
 
 export default function InventoryPage() {
   const router = useRouter();
@@ -16,6 +26,7 @@ export default function InventoryPage() {
   const [filters, setFilters] = useState({ vendor: "", status: "", lowStockOnly: false });
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Medicine | null>(null);
+  const [activeTab, setActiveTab] = useState<TabName>("Inventory");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
@@ -180,12 +191,30 @@ export default function InventoryPage() {
 
       {error && <p className="text-sm text-red-400 mb-3" role="alert">{error}</p>}
 
-      {/* Responsive table */}
-      <div className="overflow-x-auto rounded-lg border border-gray-700">
-        <table className="min-w-[720px] w-full table-fixed border-collapse text-sm">
-          <thead className="bg-gray-800/60">
-            <tr>
-              {["Medicine", "Vendor", "Barcode", "Expiry", "On Hand", "Threshold", "Status"].map(
+      {/* Tab bar */}
+      <div className="flex gap-2 mb-4 border-b border-gray-700">
+        {TABS.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${
+              activeTab === tab
+                ? "bg-blue-600 text-white"
+                : "text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "Inventory" && (
+        <>
+          <div className="overflow-x-auto rounded-lg border border-gray-700">
+            <table className="min-w-[720px] w-full table-fixed border-collapse text-sm">
+              <thead className="bg-gray-800/60">
+                <tr>
+                  {["Medicine", "Vendor", "Barcode", "Expiry", "On Hand", "Threshold", "Status"].map(
                 (h) => (
                   <th
                     key={h}
@@ -244,10 +273,13 @@ export default function InventoryPage() {
           </tbody>
         </table>
       </div>
-      {medicines && medicines.length === 0 && !isLoading && (
-        <p className="text-sm text-gray-400 mt-4">No medicines match your filters.</p>
+        {medicines && medicines.length === 0 && !isLoading && (
+          <p className="text-sm text-gray-400 mt-4">No medicines match your filters.</p>
+        )}
+        </>
       )}
 
+      {activeTab === "Movement History" && <MovementHistoryTab />}
       {/* Stock modal */}
       {modalOpen && (
         <StockModal
@@ -466,6 +498,164 @@ function DeleteConfirm({ medicine, onClose, onConfirm }: DeleteConfirmProps) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Movement History Tab (M99) ──────────────────────────────────────────────
+
+const MOVEMENT_TYPE_BADGES: Record<string, string> = {
+  RECEIVE: "bg-green-900/30 text-green-400 border-green-600/40",
+  SALE: "bg-red-900/30 text-red-400 border-red-600/40",
+  DISPENSE: "bg-red-900/30 text-red-400 border-red-600/40",
+  ADJUSTMENT: "bg-amber-900/30 text-amber-400 border-amber-600/40",
+};
+
+function MovementHistoryTab() {
+  const canRead = useCan("inventory.read");
+  const [items, setItems] = useState<MovementLogItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [filters, setFilters] = useState<MovementFilters>({});
+
+  const fetchMovements = async (resetPage: boolean = true) => {
+    if (!canRead) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const params: MovementFilters = { ...filters, page: resetPage ? 1 : page, limit: 50 };
+      const resp = await inventoryApi.listMovements(params);
+      setItems(resp.items);
+      setTotal(resp.total);
+      if (resetPage) setPage(1);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load movements");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchMovements();
+  }, [canRead]);
+
+  const handleFilterChange = (next: Partial<MovementFilters>) => {
+    setFilters((prev) => ({ ...prev, ...next }));
+  };
+
+  const handleApply = () => {
+    void fetchMovements();
+  };
+
+  if (!canRead) {
+    return <p className="text-sm text-gray-400">You do not have permission to view movement history.</p>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+        <input
+          type="text"
+          placeholder="Product / NDC"
+          value={filters.batch_number ?? ""}
+          onChange={(e) => handleFilterChange({ batch_number: e.target.value || undefined })}
+          className="rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        <select
+          value={filters.movement_type ?? ""}
+          onChange={(e) => handleFilterChange({ movement_type: e.target.value || undefined })}
+          className="rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-100"
+        >
+          <option value="">All types</option>
+          <option value="RECEIVE">Receive</option>
+          <option value="SALE">Sale</option>
+          <option value="DISPENSE">Dispense</option>
+          <option value="ADJUSTMENT">Adjustment</option>
+        </select>
+        <input
+          type="date"
+          value={filters.start_date ?? ""}
+          onChange={(e) => handleFilterChange({ start_date: e.target.value || undefined })}
+          className="rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-100"
+        />
+        <input
+          type="date"
+          value={filters.end_date ?? ""}
+          onChange={(e) => handleFilterChange({ end_date: e.target.value || undefined })}
+          className="rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-100"
+        />
+        <button
+          onClick={handleApply}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium"
+        >
+          Apply
+        </button>
+      </div>
+
+      {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
+
+      <div className="overflow-x-auto rounded-lg border border-gray-700">
+        <table className="min-w-[900px] w-full table-fixed border-collapse text-sm">
+          <thead className="bg-gray-800/60">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium text-gray-300">Date / Time</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-300">Product</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-300">Batch / NDC</th>
+              <th className="px-3 py-2 text-center font-medium text-gray-300">Type</th>
+              <th className="px-3 py-2 text-right font-medium text-gray-300">Qty Change</th>
+              <th className="px-3 py-2 text-right font-medium text-gray-300">On Hand</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-300">Reference</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-700">
+            {isLoading && (
+              <tr>
+                <td colSpan={7} className="px-3 py-4 text-center text-gray-500">
+                  Loading movements…
+                </td>
+              </tr>
+            )}
+            {!isLoading && items.map((item) => (
+              <tr key={item.id}>
+                <td className="px-3 py-2 truncate">{item.timestamp.slice(0, 19)}</td>
+                <td className="px-3 py-2 truncate">{item.product_name || "—"}</td>
+                <td className="px-3 py-2 truncate text-gray-400">
+                  {item.batch_number || item.ndc_code || "—"}
+                </td>
+                <td className="px-3 py-2 text-center">
+                  <span
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
+                      MOVEMENT_TYPE_BADGES[item.movement_type] ?? "bg-gray-700 text-gray-300"
+                    }`}
+                  >
+                    {item.movement_type}
+                  </span>
+                </td>
+                <td
+                  className={`px-3 py-2 text-right font-medium ${
+                    (item.quantity_change ?? 0) >= 0
+                      ? "text-green-400"
+                      : "text-red-400"
+                  }`}
+                >
+                  {item.quantity_change > 0 ? "+" : ""}{item.quantity_change}
+                </td>
+                <td className="px-3 py-2 text-right text-gray-300">
+                  {item.remaining_stock_snapshot ?? "—"}
+                </td>
+                <td className="px-3 py-2 truncate text-gray-400">
+                  {item.user_name ? `Txn #${item.reference_id}` : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-gray-500">
+        {total} movement{total !== 1 ? "s" : ""} • Page {page}
+      </p>
     </div>
   );
 }

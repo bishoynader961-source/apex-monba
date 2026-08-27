@@ -983,7 +983,7 @@ class InventoryMovementRepository:
         rl.date_received || 'T00:00:00Z' AS ts,
         rl.product_name AS product_name,
         (SELECT MAX(ie.ndc_code) FROM inventory_extended ie WHERE ie.drug_name = rl.product_name) AS ndc_code,
-        rl.barcode AS batch_number,
+        rl.lot_number AS batch_number,
         '+RECEIVE' AS movement_type,
         rl.quantity AS quantity_change,
         NULL AS remaining_stock_snapshot,

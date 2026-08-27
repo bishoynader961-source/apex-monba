@@ -527,6 +527,10 @@ async def migrate_schema(conn: Any) -> None:
                     user_id INTEGER REFERENCES users(id)
                 )
                 """
+             )
+        if not await _table_has_column(conn, "receiving_log", "lot_number"):
+            await conn.exec_driver_sql(
+                "ALTER TABLE receiving_log ADD COLUMN lot_number TEXT NOT NULL DEFAULT ''"
             )
         version = 8
 

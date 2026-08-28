@@ -61,18 +61,23 @@ fn spawn_servers(app: &tauri::AppHandle) {
     eprintln!("Next standalone server.js not found in bundled resources");
   }
 
-  // FastAPI backend — only if Python + the backend package are present.
-  let _ = app
-    .shell()
-    .command("python")
-    .args([
-      "-m",
-      "uvicorn",
-      "app.main:app",
-      "--host",
-      "127.0.0.1",
-      "--port",
-      "8000",
-    ])
-    .spawn();
+  // FastAPI backend — bundled PyInstaller sidecar: backend-x86_64-pc-windows-msvc.exe
+  // (produced by backend_fastapi/build_backend.spec). Run from the app data dir so the
+  // SQLite DB + pepper/device-id files land in a stable, writable location instead of the
+  // sidecar's temp extraction folder. Tauri kills sidecar children when the app exits,
+  // giving a clean shutdown.
+  match app.path().app_data_dir() {
+    Ok(app_data) => {
+      let _ = std::fs::create_dir_all(&app_data);
+      if let Ok(sidecar) = app.shell().sidecar("backend") {
+        let _ = sidecar
+          .args(["--host", "127.0.0.1", "--port", "8000"])
+          .cwd(&app_data)
+          .spawn();
+      } else {
+        eprintln!("failed to resolve backend sidecar");
+      }
+    }
+    Err(e) => eprintln!("app_data_dir error: {e}"),
+  }
 }

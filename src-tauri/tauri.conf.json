@@ -27,7 +27,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "externalBin": ["binaries/node"],
+    "externalBin": ["binaries/node", "binaries/backend"],
     "resources": {
       "../.next/standalone": "standalone"
     },

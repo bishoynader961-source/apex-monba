@@ -5,7 +5,7 @@
 > Pharmacy Management & Label Design Suite — desktop application for
 > serialized inventory management, data storage, barcode/label generation, and custom label design.
 > Auto-generated from the codebase at `E:\my progam pharmacy`.
-> Last synced: 2026-08-21
+> Last synced: 2026-08-27
 
 ---
 
@@ -371,6 +371,11 @@ my progam pharmacy/
 ├── config.json             # Runtime settings (pharmacy name, font, DB path)
 ├── label_template.json     # Persistent label template (optional, auto-created by engine)
 ├── main.spec               # PyInstaller build spec
+# BUILD GOTCHA (2026-08-28): python-barcode uses dynamic submodule loading, so
+# `barcode` and `barcode.writer` MUST be listed in Analysis hiddenimports. A frozen
+# build compiled fine but crashed at runtime with `ModuleNotFoundError: No module
+# named 'barcode'` (from barcode_logic.py) until these were added. Verified bundled
+# via PYZ inspection (barcode + barcode.writer + barcode.charsets.code128 present).
 ├── pharmacy.db             # SQLite database (runtime, auto-created)
 ├── labels/                 # Generated label PNG images
 ├── build/                  # PyInstaller build artifacts
@@ -446,6 +451,7 @@ my progam pharmacy/
 | M94 | License Gate & Offline File Import — `useLicenseGate` hook + `LicenseGate` component gating `/dashboard` and `/pos` behind `NEXT_PUBLIC_REQUIRE_LICENSE` (build-time flag); `POST /api/v1/licenses/activate-file` HMAC-SHA256 signed license file import with `@tauri-apps/plugin-dialog` + `@tauri-apps/plugin-fs` (Tauri v2); separate `.env.test` test-build profile. Backend: 8/8 license file tests pass, 237/237 full suite pass (1 skip, pre-existing), `mypy --strict` 0 errors, coverage 90.73%. Frontend: `tsc --noEmit` 0 errors, `next build` 15/15 routes exit 0, 33/33 vitest pass. Contract parity check ✓. | Verified | 2026-08-22 |
 | M97 | Clinical Patient Management Layer (FastAPI + Next.js) — Patient CRUD, insurance plans, members groups, SIG/price codes, Rx dispense with FIFO lot allocation + `client_tx_id` idempotency + thermal-label audit hook (written inside txn), receipts/sold_items, offline docs, dictionary endpoints (drug list, NDC, SIG parse), backup endpoint. 7 new routers, 7 new services, 7 new repositories, schema v6→v7. Backend: 327 passed (1 skip), 90.33% coverage, `mypy --strict` 0 (48 files). Frontend: `tsc --noEmit` 0, `next build` 16/16, vitest 33/33. | Verified | 2026-08-26 |
 | M98-B | Clinical Decision Support — non-blocking allergy + DDI alerts at dispense. `app/services/drug_db.py` (85-drug ingredient map + 8 DDI pairs), `check_allergy_match()` in `DispenseService.process_dispense`, `PatientRead.allergy_alerts` computed field, `DispenseRead.allergy_flags`, POS yellow alert banner with acknowledge checkbox, patient allergy badges. Next.js upgraded 16.2.10→16.3.3 (fixes transitive postcss + sharp; npm audit 0 vulnerabilities). Backend: 347 passed (1 skip), `mypy --strict` 0. Frontend: tsc 0, vitest 33/33, next build 16/16. Code review finding: `write_audit` moved inside `async with session.begin()` block (was outside, breaking atomic audit commit). | Verified | 2026-08-26 |
+| M99 | Movement History & Demand Analytics Modules (FastAPI + Next.js) — (1) **Backend**: unified stock ledger `GET /api/v1/inventory/movements` (`InventoryMovementRepository` UNION of `receiving_log`/`sold_items`/`dispenses`/`inventory_adjustments`, soft-delete-safe via `EXISTS` semijoin on `products.is_deleted=0`, RBAC `inventory.read`) shaped by `MovementService`→`MovementLogResponse`; `POST /api/v1/inventory/adjustments` (`createAdjustment`, RBAC `inventory.write`); Demand Analytics `GET /api/v1/analytics/demand` (`DemandAnalyticsRepository` over ALL active products LEFT JOIN windowed sale/dispense aggregates so zero-demand items surface as NON_MOVING; `DemandAnalyticsService` velocity tiers FAST/MODERATE/SLOW/NON_MOVING by top-20%/next-50%/rest percentile, avg_daily, reorder = avg_daily×lead_time − on_hand; RBAC `analytics.read`). Schema v8: `products.category` + new `inventory_adjustments` table + `receiving_log.lot_number`. Backend: 361 passed (1 skip), `mypy` 0 errors (52 files). (2) **Frontend**: `types/contracts.ts` movement/analytics types + `Medicine.category`; `lib/api/inventory.ts` (`listMovements`, `createAdjustment`), `lib/api/analytics.ts` (`getDemandAnalytics`), `lib/csv.ts` (`downloadCsv`), `stores/analyticsStore.ts`+`hooks/useAnalytics.ts`, Movement History tab in `app/dashboard/inventory/page.tsx` (filter bar + color-coded badges + user attribution), new `app/dashboard/analytics/demand/page.tsx` (KPI cards, click-sortable velocity table, CSV export, `analytics.read` guard), `components/DashboardNav.tsx`. Frontend: `tsc --noEmit` 0 errors, `vitest` 33/33. | Verified | 2026-08-27 |
 
 ---
 
@@ -1260,3 +1266,55 @@ Backend was verified green before this phase (327 passed, 1 skipped, 90.33% cove
 - **F6 — Route registration:** Added `/patients` to `middleware.ts` protected routes.
 
 **Verification:** `npx tsc --noEmit` → 0 errors; `npx next build` → 16/16 routes exit 0; `npx vitest run` → 33/33 pass.
+
+---
+
+## 20. Desktop Packaging — Tauri + FastAPI Sidecar (PyInstaller) — VERIFIED (2026-08-28)
+
+**Goal:** Bundle the new FastAPI + Next.js stack into a Windows `.exe`/`.msi` via Tauri. The previous
+`.exe` mistakenly packaged the archived Tkinter app (`main.spec` → `dist/PharmacyPro_Enterprise`). This
+milestone replaces that with the FastAPI backend as a Tauri **sidecar** so the desktop app boots the API
+automatically and terminates it on close.
+
+### 20A. Architecture Decision (standalone, NOT static export)
+The frontend keeps `output: "standalone"` (Next.js standalone server runs as the **Node sidecar** on
+`:3000`, serving the window + BFF httpOnly-cookie auth). It was explicitly decided **not** to use
+`output: 'export'`: the frontend relies on Next.js Server Actions (`app/login/actions.ts`), `middleware.ts`
+(route protection via the `access_token` cookie), and Route Handlers (`app/api/**` auth/refresh/currency),
+none of which exist in a static export. `app/main.py` already configures `CORSMiddleware` allowing
+`http://localhost:3000` / `http://127.0.0.1:3000` → `:8000`, so the existing data-plane is unchanged.
+
+### 20B. Files Added / Changed
+- **`backend_fastapi/run_backend.py`** (NEW): PyInstaller entry. Imports `app.main:app` and calls
+  `uvicorn.run(app, host, port)` with `--host`/`--port` CLI flags (defaults `127.0.0.1:8000`). A frozen exe
+  cannot be launched via `python -m uvicorn`, hence the bootstrap.
+- **`backend_fastapi/build_backend.spec`** (NEW): PyInstaller **one-file** spec. `hiddenimports` cover the
+  `app.*` package + `uvicorn`/`sqlalchemy`/`aiosqlite`/`greenlet`/`bcrypt`/`jwt`/`structlog`/`slowapi`/
+  `limits`/`multipart`. `datas=[("app/static","app/static")]` is mandatory — `app/main.py` mounts
+  `StaticFiles(directory=os.path.join(os.path.dirname(__file__),"static"))` at import, which would crash the
+  frozen build without the bundled assets. `asyncpg`/test deps are excluded (SQLite-only desktop build).
+- **`src-tauri/tauri.conf.json`** (CHANGED): `bundle.externalBin` now `["binaries/node", "binaries/backend"]`.
+  The Next standalone `resources` mapping and window `url: http://127.0.0.1:3000` are unchanged.
+- **`src-tauri/src/lib.rs`** (CHANGED): the old best-effort `python -m uvicorn app.main:app` spawn is replaced
+  by `app.shell().sidecar("backend").args(["--host","127.0.0.1","--port","8000"]).cwd(app_data_dir).spawn()`.
+  The sidecar runs from `app.path().app_data_dir()` so `pharmacy.db`, `.pharmacy_device_id`, and `pepper.store`
+  land in a stable, writable location (NOT the sidecar's temp extraction folder). Tauri kills sidecar children
+  on app exit → clean shutdown. The Node sidecar spawn is unchanged. `shell:allow-spawn` (already in
+  `capabilities/default.json`) covers sidecar spawning by symmetry with the existing Node sidecar.
+
+### 20C. Build & Placement
+```
+cd backend_fastapi
+pyinstaller build_backend.spec --noconfirm --clean      # -> dist/backend.exe
+copy dist\backend.exe ..\src-tauri\binaries\backend-x86_64-pc-windows-msvc.exe
+```
+Tauri's `externalBin` requires the `<name>-<target-triple>.exe` filename; here `backend` + `x86_64-pc-windows-msvc`.
+
+### 20D. Verification (sidecar scope — full Tauri bundle is a separate step)
+- `dist/backend.exe` built (one-file, ~23 MB).
+- Ran with `--port 8123` from a writable dir: `GET /api/v1/health` → `{"status":"ok","version":"0.1.0"}`.
+- Confirms the full app imports and the lifespan runs (DB schema + seed) — i.e. `bcrypt`/`cffi`/`jwt`/`sqlalchemy`
+  are correctly bundled. `pharmacy.db` + `.pharmacy_device_id` were created in the working dir (writable).
+- Cold start of the one-file build takes ~30 s (temp extraction + heavy import); the Tauri launch must allow for this.
+- **Out of scope (user step):** `npx tauri build` to produce `PharmacySuite_1.0.0_x64-setup.exe` / `.msi`, then verify
+  the Tauri window opens `:3000` and reaches the bundled `:8000` sidecar end-to-end.

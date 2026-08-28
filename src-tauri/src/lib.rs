@@ -72,7 +72,7 @@ fn spawn_servers(app: &tauri::AppHandle) {
       if let Ok(sidecar) = app.shell().sidecar("backend") {
         let _ = sidecar
           .args(["--host", "127.0.0.1", "--port", "8000"])
-          .cwd(&app_data)
+          .current_dir(&app_data)
           .spawn();
       } else {
         eprintln!("failed to resolve backend sidecar");

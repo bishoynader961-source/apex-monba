@@ -1318,3 +1318,22 @@ Tauri's `externalBin` requires the `<name>-<target-triple>.exe` filename; here `
 - Cold start of the one-file build takes ~30 s (temp extraction + heavy import); the Tauri launch must allow for this.
 - **Out of scope (user step):** `npx tauri build` to produce `PharmacySuite_1.0.0_x64-setup.exe` / `.msi`, then verify
   the Tauri window opens `:3000` and reaches the bundled `:8000` sidecar end-to-end.
+
+### 20E. Build Status & Sandbox Findings (2026-08-28)
+- **Target triple:** this sandbox's Rust toolchain is MSYS2-built and defaults to `x86_64-pc-windows-gnu`
+  (NOT `msvc`). Tauri's `externalBin` resolves `backend-<triple>.exe`, so BOTH
+  `backend-x86_64-pc-windows-msvc.exe` (standard MSVC local builds) and
+  `backend-x86_64-pc-windows-gnu.exe` (this gnu env) are now provided in `src-tauri/binaries/`.
+- **`src/lib.rs` fix:** the sidecar spawn uses `.current_dir(&app_data)` — Tauri v2's *Rust* `Command`
+  builder method is `current_dir`, not `.cwd` (that is the JS API name; `.cwd` does not exist in Rust and
+  failed to compile). Verified: `npx tauri build` compiles the `app` crate → `target/release/app.exe`.
+- **Frontend guard:** `components/BootGuard.tsx` (client) polls `GET /api/v1/health` every 2 s and shows a
+  full-screen "Initializing Local Database Engine…" spinner until `200 OK`, then renders `children`. It wraps
+  the root `app/layout.tsx` (no `app/dashboard/layout.tsx` exists), so the Axios data-plane and `LicenseGate`
+  backend validation only run after the FastAPI sidecar is ready (covers the ~30 s PyInstaller cold start).
+  Includes a ~90 s timeout → error + Retry button.
+- **Installer blocked in sandbox (expected):** `npx tauri build` reaches bundling but fails because (a) the
+  **WiX toolset is absent** (no `candle`/`light`/`heat`) so no `.msi`/`.exe` installer can be produced here,
+  and (b) no Authenticode cert is set for `bundle.windows.signCommand`. Per the build plan, these environment/
+  secret items are not installed/debugged in-sandbox — the final installer is produced on the developer's local
+  Windows machine (WiX + cert present). The compiled application binary itself builds successfully.

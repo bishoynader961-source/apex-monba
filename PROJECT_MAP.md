@@ -1300,7 +1300,8 @@ none of which exist in a static export. `app/main.py` already configures `CORSMi
   The sidecar runs from `app.path().app_data_dir()` so `pharmacy.db`, `.pharmacy_device_id`, and `pepper.store`
   land in a stable, writable location (NOT the sidecar's temp extraction folder). Tauri kills sidecar children
   on app exit → clean shutdown. The Node sidecar spawn is unchanged. `shell:allow-spawn` (already in
-  `capabilities/default.json`) covers sidecar spawning by symmetry with the existing Node sidecar.
+   `capabilities/default.json`) covers sidecar spawning by symmetry with the existing Node sidecar.
+- **`src-tauri/pre-sign-sidecars.cmd`** (NEW) + **`package.json` `sign:sidecars`** (NEW script): defends against Tauri v2's bundle-phase `externalBin` signature verification. Running `npm run sign:sidecars` invokes `pre-sign-sidecars.cmd`, which calls `src-tauri/sign.cmd` on `node` + `backend` (both `msvc` + `gnu` triples) using `SIGN_CERT_PATH` / `SIGN_CERT_PASSWORD` env vars, before `npx tauri build`. It aborts (exit 1) if those env vars are unset so a forgotten cert cannot silently yield an unsigned build. Signing mutates the binaries on disk — they are marked `git update-index --assume-unchanged` and treated as local-only build artifacts (never committed).
 
 ### 20C. Build & Placement
 ```
@@ -1336,4 +1337,5 @@ Tauri's `externalBin` requires the `<name>-<target-triple>.exe` filename; here `
   **WiX toolset is absent** (no `candle`/`light`/`heat`) so no `.msi`/`.exe` installer can be produced here,
   and (b) no Authenticode cert is set for `bundle.windows.signCommand`. Per the build plan, these environment/
   secret items are not installed/debugged in-sandbox — the final installer is produced on the developer's local
-  Windows machine (WiX + cert present). The compiled application binary itself builds successfully.
+   Windows machine (WiX + cert present). The compiled application binary itself builds successfully.
+- **Pre-sign step added (2026-08-29):** the silent-skip path in `sign.cmd` previously let the PyInstaller `backend` sidecar stay unsigned when the cert env vars were absent, which is exactly what triggered the sandbox `SignTool Error: No signature found` bundler failure. `npm run sign:sidecars` (`src-tauri/pre-sign-sidecars.cmd`) now signs the `node` + `backend` sidecars up front. On the developer's local machine: export `SIGN_CERT_PATH` + `SIGN_CERT_PASSWORD`, run `npm run sign:sidecars`, THEN `npx tauri build` — this guarantees Tauri's `externalBin` verify passes and the `.msi`/`.nsis` installers are also signed via `signCommand`.

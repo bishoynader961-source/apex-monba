@@ -1,9 +1,10 @@
-"""System settings routes: read-only (RBAC-gated)."""
+"""System settings routes: read + write (RBAC-gated)."""
 from __future__ import annotations
 
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +18,10 @@ router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 
 def _decode(value: Optional[bytes]) -> Optional[str]:
     return value.decode("utf-8") if value else None
+
+
+class SettingUpdate(BaseModel):
+    value: str
 
 
 @router.get("", response_model=list[SystemSettingRead])
@@ -38,3 +43,19 @@ async def get_setting(
     if setting is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setting not found")
     return SystemSettingRead(key=setting.key, value=_decode(setting.value))
+
+
+@router.put("/{key}", response_model=SystemSettingRead)
+async def update_setting(
+    key: str,
+    body: SettingUpdate,
+    _user: CurrentUser = Depends(require_permission("inventory.write")),
+    session: AsyncSession = Depends(get_session),
+) -> SystemSettingRead:
+    setting = await session.get(SystemSetting, key)
+    if setting is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setting not found")
+    setting.value = body.value.encode("utf-8")
+    session.add(setting)
+    await session.commit()
+    return SystemSettingRead(key=setting.key, value=body.value)

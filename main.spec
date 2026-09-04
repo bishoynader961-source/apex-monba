@@ -1,12 +1,68 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+import sys
 
+archive_dir = os.path.join(os.path.dirname(os.path.abspath(SPEC)), 'archive')
+
+block_cipher = None
 
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    [os.path.join(archive_dir, 'main_app.py')],
+    pathex=[archive_dir],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=[
+        'customtkinter',
+        'sqlite3',
+        'requests',
+        'urllib3',
+        'ssl',
+        'http.client',
+        'database',
+        'barcode_logic',
+        'barcode',
+        'barcode.writer',
+        'audit_log',
+        'backup',
+        'alert_engine',
+        'license_gate',
+        'updater',
+        'receipt_engine',
+        'path_utils',
+        'ui',
+        'ui_helpers',
+        'ui_modals',
+        'ui_add_tab',
+        'ui_inventory_tab',
+        'ui_expiring_tab',
+        'ui_dashboard_tab',
+        'ui_report_tab',
+        'ui_receive_tab',
+        'ui_checkout_tab',
+        'ui_templates_tab',
+        'ui_settings_tab',
+        'ui_patients_tab',
+        'excel_handler',
+        'pos_engine',
+        'receipt_template',
+        'smart_parser',
+        'auto_extract',
+        'i18n',
+        'db',
+        'barcode_listener',
+        'crypto_utils',
+        'async_ui',
+        'design_system',
+        'ocr_cascade',
+        'ocr_engine',
+        'hw_client',
+        'native_accel',
+        'ui_auth',
+        'ui_admin_roles',
+        'auth_session',
+        'authz',
+        'main',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -14,6 +70,7 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -22,7 +79,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='main',
+    name='PharmacyPro_Enterprise',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

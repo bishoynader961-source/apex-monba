@@ -613,7 +613,7 @@ async def test_low_stock_override(session):
 
 
 async def test_expiring_soon(session):
-    session.add(InventoryExtended(drug_name="Exp", on_hand=1, expiration_date="2026-09-01"))
+    session.add(InventoryExtended(drug_name="Exp", on_hand=1, expiration_date="2026-10-15"))
     await session.commit()
     result = await InventoryService(session).expiring_soon(days=90)
     assert any(b.drug_name == "Exp" for b in result)

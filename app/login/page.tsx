@@ -13,6 +13,7 @@ export default function LoginPage() {
   const setToken = useAuthStore((s) => s.setToken);
   const fetchCurrentUser = useAuthStore((s) => s.fetchCurrentUser);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const token = useAuthStore((s) => s.token);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -23,10 +24,11 @@ export default function LoginPage() {
     }
   }, [state?.success, state?.access_token, router, setToken, fetchCurrentUser]);
 
-  if (isAuthenticated()) {
-    router.replace("/dashboard");
-    return null;
-  }
+  useEffect(() => {
+    if (token) {
+      router.replace("/dashboard");
+    }
+  }, [token, router]);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any, Optional
 
 import sqlalchemy as sa
@@ -24,6 +25,7 @@ from app.core.models import (
     MembersGroup,
     Patient,
     Permission,
+    Prescriber,
     PriceCode,
     Product,
     ReceivingLog,
@@ -34,6 +36,7 @@ from app.core.models import (
     Supplier,
     SystemSetting,
     User,
+    WorkersCompClaim,
 )
 from app.shared.exceptions import NotFoundError, ValidationError
 from app.shared.schemas import (
@@ -44,10 +47,15 @@ from app.shared.schemas import (
     MedicineUpdate,
     PatientCreate,
     PatientUpdate,
+    PrescriberCreate,
     PriceCodeCreate,
+    PriceCodeUpdate,
     ProductCreate,
     SigCodeCreate,
+    SigCodeUpdate,
     SupplierCreate,
+    WCClaimCreate,
+    WCClaimUpdate,
 )
 
 
@@ -886,6 +894,26 @@ class SigCodeRepository:
         await self.session.refresh(sig)
         return sig
 
+    async def update(self, sig_id: int, data: SigCodeUpdate) -> Optional[SigCode]:
+        """Partial update (M103 Sig Engine edit in-place)."""
+        sig = await self.session.get(SigCode, sig_id)
+        if sig is None:
+            return None
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(sig, field, value)
+        await self.session.commit()
+        await self.session.refresh(sig)
+        return sig
+
+    async def delete(self, sig_id: int) -> bool:
+        """Hard delete (M103 Sig Engine delete action)."""
+        sig = await self.session.get(SigCode, sig_id)
+        if sig is None:
+            return False
+        await self.session.delete(sig)
+        await self.session.commit()
+        return True
+
     async def seed_defaults(self) -> None:
         defaults = [
             ("BID", "Take one tablet twice daily"),
@@ -911,6 +939,9 @@ class PriceCodeRepository:
         result = await self.session.execute(select(PriceCode).order_by(PriceCode.code))
         return list(result.scalars().all())
 
+    async def get(self, code_id: int) -> Optional[PriceCode]:
+        return await self.session.get(PriceCode, code_id)
+
     async def get_by_code(self, code: str) -> Optional[PriceCode]:
         result = await self.session.execute(select(PriceCode).where(PriceCode.code == code))
         return result.scalar_one_or_none()
@@ -921,6 +952,56 @@ class PriceCodeRepository:
         await self.session.commit()
         await self.session.refresh(code)
         return code
+
+    async def update(self, code_id: int, data: PriceCodeUpdate) -> Optional[PriceCode]:
+        code = await self.session.get(PriceCode, code_id)
+        if code is None:
+            return None
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(code, field, value)
+        await self.session.commit()
+        await self.session.refresh(code)
+        return code
+
+    async def delete(self, code_id: int) -> bool:
+        code = await self.session.get(PriceCode, code_id)
+        if code is None:
+            return False
+        await self.session.delete(code)
+        await self.session.commit()
+        return True
+
+    def calculate_price(
+        self, price_code: PriceCode, acquisition_cost: Decimal
+    ) -> tuple[Decimal, bool]:
+        """Apply the PriceCode formula and return (computed_price, was_clamped).
+
+        Formula mirrors dispense_service.py (M103 confirmed either/or logic):
+          - If markup_pct is set (non-zero): price = cost * (markup_pct / 100) + dispensing_fee
+          - Elif cost_factor_pct is set (non-zero): price = cost * (cost_factor_pct / 100) + dispensing_fee
+          - Else: price = cost + dispensing_fee
+        Then clamp: price = max(min_price, min(max_price, price))
+        """
+        from decimal import ROUND_HALF_UP
+
+        two = Decimal("100")
+        base = acquisition_cost
+        if price_code.markup_pct:
+            computed = base * (price_code.markup_pct / two) + price_code.dispensing_fee
+        elif price_code.cost_factor_pct:
+            computed = base * (price_code.cost_factor_pct / two) + price_code.dispensing_fee
+        else:
+            computed = base + price_code.dispensing_fee
+
+        clamped = False
+        if price_code.min_price and computed < price_code.min_price:
+            computed = price_code.min_price
+            clamped = True
+        if price_code.max_price and computed > price_code.max_price:
+            computed = price_code.max_price
+            clamped = True
+
+        return computed.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), clamped
 
 
 class DispenseRepository:
@@ -952,6 +1033,27 @@ class DispenseRepository:
             .where(Dispense.patient_id == patient_id)
             .order_by(Dispense.server_created_at.desc().nullslast(), Dispense.id.desc())
             .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def get_by_rx_number(self, rx_number: str) -> Optional[Dispense]:
+        """Return the most recent Dispense matching the rx_number string."""
+        result = await self.session.execute(
+            select(Dispense)
+            .join(Patient, Patient.id == Dispense.patient_id)
+            .where(Dispense.rx_number == rx_number, Patient.is_deleted == 0)
+            .order_by(Dispense.id.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_fills_by_rx_number(self, rx_number: str) -> list[Dispense]:
+        """Return all Dispense records sharing the same rx_number (fill history)."""
+        result = await self.session.execute(
+            select(Dispense)
+            .join(Patient, Patient.id == Dispense.patient_id)
+            .where(Dispense.rx_number == rx_number, Patient.is_deleted == 0)
+            .order_by(Dispense.fill_date.desc(), Dispense.id.desc())
         )
         return list(result.scalars().all())
 
@@ -1195,6 +1297,148 @@ class DemandAnalyticsRepository:
         rows = (await self.session.execute(text(sql), params)).mappings().all()
         return [dict(r) for r in rows]
 
+
+
+class PrescriberRepository:
+    """CRUD for prescriber/physician master records."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def all(
+        self,
+        page: int = 1,
+        page_size: int = 50,
+        *,
+        search: Optional[str] = None,
+    ) -> tuple[list[Prescriber], int]:
+        page = max(1, page)
+        clause: ColumnElement[bool] = Prescriber.is_deleted == 0
+        if search:
+            pattern = f"%{search}%"
+            clause = and_(
+                clause,
+                (
+                    Prescriber.first_name.like(pattern)
+                    | Prescriber.last_name.like(pattern)
+                    | Prescriber.npi.like(pattern)
+                    | Prescriber.dea_number.like(pattern)
+                    | Prescriber.quick_code.like(pattern)
+                ),
+            )
+        total = await self.session.scalar(
+            select(func.count()).select_from(Prescriber).where(clause)
+        ) or 0
+        result = await self.session.execute(
+            select(Prescriber)
+            .where(clause)
+            .order_by(Prescriber.last_name, Prescriber.first_name)
+            .limit(page_size)
+            .offset((page - 1) * page_size)
+        )
+        return list(result.scalars().all()), int(total)
+
+    async def get(self, prescriber_id: int) -> Optional[Prescriber]:
+        result = await self.session.execute(
+            select(Prescriber).where(
+                Prescriber.id == prescriber_id, Prescriber.is_deleted == 0
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_npi(self, npi: str) -> Optional[Prescriber]:
+        result = await self.session.execute(
+            select(Prescriber).where(Prescriber.npi == npi)
+        )
+        return result.scalar_one_or_none()
+
+    async def create(self, data: PrescriberCreate) -> Prescriber:
+        prescriber = Prescriber(**{**data.model_dump(), "created_at": _now()})
+        self.session.add(prescriber)
+        await self.session.commit()
+        await self.session.refresh(prescriber)
+        return prescriber
+
+    async def update(self, prescriber: Prescriber, data: PrescriberCreate) -> Prescriber:
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(prescriber, field, value)
+        self.session.add(prescriber)
+        await self.session.commit()
+        await self.session.refresh(prescriber)
+        return prescriber
+
+    async def soft_delete(self, prescriber_id: int) -> Optional[Prescriber]:
+        prescriber = await self.session.get(Prescriber, prescriber_id)
+        if prescriber is None:
+            return None
+        prescriber.is_deleted = 1
+        await self.session.commit()
+        await self.session.refresh(prescriber)
+        return prescriber
+
+
+# ── Workers' Compensation Claims ─────────────────────────────────────────────
+class WCClaimRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def list(
+        self,
+        *,
+        patient_id: Optional[int] = None,
+        status: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[WorkersCompClaim], int]:
+        stmt = select(WorkersCompClaim)
+        count_stmt = select(func.count()).select_from(WorkersCompClaim)
+        if patient_id is not None:
+            stmt = stmt.where(WorkersCompClaim.patient_id == patient_id)
+            count_stmt = count_stmt.where(WorkersCompClaim.patient_id == patient_id)
+        if status is not None:
+            stmt = stmt.where(WorkersCompClaim.status == status)
+            count_stmt = count_stmt.where(WorkersCompClaim.status == status)
+        total = (await self.session.execute(count_stmt)).scalar() or 0
+        stmt = stmt.order_by(WorkersCompClaim.id.desc())
+        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all()), total
+
+    async def get(self, claim_id: int) -> Optional[WorkersCompClaim]:
+        return await self.session.get(WorkersCompClaim, claim_id)
+
+    async def get_by_claim_number(self, claim_number: str) -> Optional[WorkersCompClaim]:
+        stmt = select(WorkersCompClaim).where(WorkersCompClaim.claim_number == claim_number)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def create(self, data: WCClaimCreate) -> WorkersCompClaim:
+        claim = WorkersCompClaim(**data.model_dump())
+        claim.created_at = _now()
+        claim.updated_at = _now()
+        self.session.add(claim)
+        await self.session.commit()
+        await self.session.refresh(claim)
+        return claim
+
+    async def update(self, claim_id: int, data: WCClaimUpdate) -> Optional[WorkersCompClaim]:
+        claim = await self.session.get(WorkersCompClaim, claim_id)
+        if claim is None:
+            return None
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(claim, field, value)
+        claim.updated_at = _now()
+        await self.session.commit()
+        await self.session.refresh(claim)
+        return claim
+
+    async def delete(self, claim_id: int) -> bool:
+        claim = await self.session.get(WorkersCompClaim, claim_id)
+        if claim is None:
+            return False
+        await self.session.delete(claim)
+        await self.session.commit()
+        return True
 
 
 def _now() -> str:

@@ -534,8 +534,286 @@ async def migrate_schema(conn: Any) -> None:
             )
         version = 8
 
+    # ── v9: Prescriber CRUD + drug file + patient enrichment + Rx refills ──
+    if version < 9:
+        if not await _table_exists(conn, "prescribers"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE prescribers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    first_name TEXT NOT NULL DEFAULT '',
+                    last_name TEXT NOT NULL DEFAULT '',
+                    npi TEXT UNIQUE,
+                    dea_number TEXT,
+                    state_license TEXT,
+                    spi_number TEXT,
+                    medicare_id TEXT,
+                    medicaid_id TEXT,
+                    ncpdp_id TEXT,
+                    phone TEXT,
+                    fax TEXT,
+                    email TEXT,
+                    address_line1 TEXT,
+                    address_line2 TEXT,
+                    city TEXT,
+                    state TEXT,
+                    zip TEXT,
+                    quick_code TEXT,
+                    eps_status TEXT,
+                    service_level TEXT,
+                    groups TEXT,
+                    effective_date TEXT,
+                    end_date TEXT,
+                    is_deleted INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT
+                )
+                """
+            )
+        # Product drug-file enrichment columns
+        for col, ddl in (
+            ("ndc_code", "TEXT"),
+            ("lot_number", "TEXT"),
+            ("package_size", "TEXT"),
+            ("unit_of_measure", "TEXT"),
+            ("form", "TEXT"),
+            ("strength", "TEXT"),
+            ("manufacturer_name", "TEXT"),
+            ("therapeutic_class", "TEXT"),
+            ("is_generic", "INTEGER NOT NULL DEFAULT 0"),
+            ("is_controlled", "INTEGER NOT NULL DEFAULT 0"),
+            ("default_sig_code", "TEXT"),
+            ("default_qty", "INTEGER"),
+            ("default_days_supply", "INTEGER"),
+            ("maintenance_medication", "INTEGER NOT NULL DEFAULT 0"),
+            ("image_url", "TEXT"),
+            ("drug_cost", "NUMERIC(10,2)"),
+        ):
+            if not await _table_has_column(conn, "products", col):
+                await conn.exec_driver_sql(f"ALTER TABLE products ADD COLUMN {col} {ddl}")
+        # Patient enrichment columns
+        for col, ddl in (
+            ("cell_phone", "TEXT"),
+            ("work_phone", "TEXT"),
+            ("patient_fax", "TEXT"),
+            ("emergency_contact_name", "TEXT"),
+            ("emergency_contact_phone", "TEXT"),
+            ("emergency_contact_relationship", "TEXT"),
+            ("delivery_zone", "TEXT"),
+            ("delivery_status", "TEXT"),
+            ("consent_flag", "INTEGER NOT NULL DEFAULT 0"),
+            ("survey_num", "TEXT"),
+            ("preferred_language", "TEXT"),
+            ("ethnicity", "TEXT"),
+            ("race", "TEXT"),
+            ("marital_status", "TEXT"),
+            ("patient_type", "TEXT"),
+            ("pharmacy_home_id", "TEXT"),
+            ("prefer_call", "INTEGER NOT NULL DEFAULT 1"),
+            ("prefer_text", "INTEGER NOT NULL DEFAULT 0"),
+            ("prefer_email", "INTEGER NOT NULL DEFAULT 0"),
+            ("is_340b", "INTEGER NOT NULL DEFAULT 0"),
+            ("last_fill_date", "TEXT"),
+            ("employer_name", "TEXT"),
+            ("employer_address", "TEXT"),
+            ("employer_phone", "TEXT"),
+            ("wc_claim_number", "TEXT"),
+            ("wc_injury_date", "TEXT"),
+            ("wc_injury_description", "TEXT"),
+            ("wc_carrier_id", "TEXT"),
+            ("wc_carrier_name", "TEXT"),
+            ("prescriber_id", "INTEGER REFERENCES prescribers(id)"),
+        ):
+            if not await _table_has_column(conn, "patients", col):
+                await conn.exec_driver_sql(f"ALTER TABLE patients ADD COLUMN {col} {ddl}")
+        # Dispense Rx number + refill tracking
+        for col, ddl in (
+            ("rx_number", "TEXT"),
+            ("refill_count", "INTEGER NOT NULL DEFAULT 0"),
+            ("refills_authorized", "INTEGER NOT NULL DEFAULT 0"),
+            ("last_fill_date", "TEXT"),
+            ("prescriber_id", "INTEGER REFERENCES prescribers(id)"),
+            ("days_supply", "INTEGER"),
+        ):
+            if not await _table_has_column(conn, "dispenses", col):
+                await conn.exec_driver_sql(f"ALTER TABLE dispenses ADD COLUMN {col} {ddl}")
+        # PriceCode multi-tier pricing
+        for col, ddl in (
+            ("price_level", "TEXT"),
+            ("cost_factor_pct", "NUMERIC(10,2) NOT NULL DEFAULT 100"),
+            ("dispensing_fee", "NUMERIC(10,2) NOT NULL DEFAULT 0"),
+            ("min_price", "NUMERIC(10,2) NOT NULL DEFAULT 0"),
+            ("max_price", "NUMERIC(10,2) NOT NULL DEFAULT 999999.99"),
+            ("markup_pct", "NUMERIC(10,2) NOT NULL DEFAULT 0"),
+        ):
+            if not await _table_has_column(conn, "price_codes", col):
+                await conn.exec_driver_sql(f"ALTER TABLE price_codes ADD COLUMN {col} {ddl}")
+        # InsurancePlan enrichment
+        for col, ddl in (
+            ("plan_type", "TEXT NOT NULL DEFAULT 'COMMERCIAL'"),
+            ("help_desk_phone", "TEXT"),
+            ("processor_id", "TEXT"),
+            ("pharmacy_verified", "INTEGER NOT NULL DEFAULT 0"),
+            ("deductible", "NUMERIC(10,2) NOT NULL DEFAULT 0"),
+            ("ncpcp_copay", "NUMERIC(10,2) NOT NULL DEFAULT 0"),
+            ("wc_copay", "NUMERIC(10,2) NOT NULL DEFAULT 0"),
+        ):
+            if not await _table_has_column(conn, "insurance_plans", col):
+                await conn.exec_driver_sql(f"ALTER TABLE insurance_plans ADD COLUMN {col} {ddl}")
+        version = 9
+
+    if version < 10:
+        # Phase 2: Workers' Compensation claims table
+        await conn.exec_driver_sql("""
+            CREATE TABLE IF NOT EXISTS workers_comp_claims (
+                id INTEGER PRIMARY KEY,
+                patient_id INTEGER NOT NULL REFERENCES patients(id),
+                claim_number TEXT NOT NULL UNIQUE,
+                carrier_id TEXT,
+                carrier_name TEXT,
+                injury_date TEXT,
+                injury_description TEXT,
+                employer_name TEXT,
+                employer_address TEXT,
+                employer_phone TEXT,
+                status TEXT NOT NULL DEFAULT 'open',
+                dispense_id INTEGER REFERENCES dispenses(id),
+                total_charges NUMERIC(10,2) NOT NULL DEFAULT 0,
+                insurance_paid NUMERIC(10,2) NOT NULL DEFAULT 0,
+                patient_responsibility NUMERIC(10,2) NOT NULL DEFAULT 0,
+                notes TEXT,
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+        await conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS idx_wc_claims_patient ON workers_comp_claims(patient_id)"
+        )
+        await conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS idx_wc_claims_status ON workers_comp_claims(status)"
+        )
+        version = 10
+
+    if version < 11:
+        # Phase 3: WAC column on inventory_extended + dispense_items
+        if not await _table_has_column(conn, "inventory_extended", "wac"):
+            await conn.exec_driver_sql("ALTER TABLE inventory_extended ADD COLUMN wac NUMERIC(10,2)")
+        if not await _table_has_column(conn, "dispense_items", "wac_at_time"):
+            await conn.exec_driver_sql("ALTER TABLE dispense_items ADD COLUMN wac_at_time NUMERIC(10,2)")
+        version = 11
+
+    # ── v12: M103 — 6-Screen Modernization schema extensions ────────────────
+    # SigCode: language, days_accumulated, offset for the bilingual Sig Expansion Engine
+    if version < 12:
+        for col, ddl in (
+            ("language", "TEXT NOT NULL DEFAULT 'EN'"),
+            ("days_accumulated", "NUMERIC(10,4) NOT NULL DEFAULT 0"),
+            ("offset", "INTEGER NOT NULL DEFAULT 0"),
+        ):
+            if not await _table_has_column(conn, "sig_codes", col):
+                await conn.exec_driver_sql(f"ALTER TABLE sig_codes ADD COLUMN {col} {ddl}")
+        # WorkersCompClaim: 15 extended employer / Pay-To columns
+        for col in (
+            "employer_phone_ext",
+            "employer_contact_name",
+            "employer_addr_line1",
+            "employer_addr_line2",
+            "employer_city",
+            "employer_state",
+            "employer_zip",
+            "pay_to",
+            "pay_to_contact",
+            "pay_to_phone",
+            "pay_to_addr_line1",
+            "pay_to_addr_line2",
+            "pay_to_city",
+            "pay_to_state",
+            "pay_to_zip",
+        ):
+            if not await _table_has_column(conn, "workers_comp_claims", col):
+                await conn.exec_driver_sql(f"ALTER TABLE workers_comp_claims ADD COLUMN {col} TEXT")
+        # InsurancePlan: 12 master-file columns
+        for col, ddl in (
+            ("plan_code", "TEXT"),
+            ("fax_number", "TEXT"),
+            ("alt_phone", "TEXT"),
+            ("contact_name", "TEXT"),
+            ("address_line1", "TEXT"),
+            ("address_line2", "TEXT"),
+            ("city", "TEXT"),
+            ("state", "TEXT"),
+            ("zip", "TEXT"),
+            ("co_insurance_pct", "NUMERIC(5,2) NOT NULL DEFAULT 0"),
+            ("standard_copay", "NUMERIC(10,2) NOT NULL DEFAULT 0"),
+            ("notes", "TEXT"),
+        ):
+            if not await _table_has_column(conn, "insurance_plans", col):
+                await conn.exec_driver_sql(f"ALTER TABLE insurance_plans ADD COLUMN {col} {ddl}")
+        version = 12
+
+    # ── v13: Patient name/address split + new fields + DrugDictionary table ──────
+    if version < 13:
+        # Patient table: split name and address, add new fields
+        for col, ddl in (
+            ("first_name", "TEXT"),
+            ("last_name", "TEXT"),
+            ("middle_initial", "TEXT"),
+            ("ssn", "TEXT"),
+            ("home_phone", "TEXT"),
+            ("city", "TEXT"),
+            ("state", "TEXT"),
+            ("zip", "TEXT"),
+            ("primary_care_physician", "TEXT"),
+        ):
+            if not await _table_has_column(conn, "patients", col):
+                await conn.exec_driver_sql(f"ALTER TABLE patients ADD COLUMN {col} {ddl}")
+        # Backfill: attempt to parse existing name and address
+        # name -> first_name, last_name (simple split on space)
+        await conn.exec_driver_sql("""
+            UPDATE patients
+            SET first_name = TRIM(SUBSTR(name, 1, INSTR(name || ' ', ' ') - 1)),
+                last_name = TRIM(SUBSTR(name, INSTR(name || ' ', ' ') + 1))
+            WHERE first_name IS NULL OR first_name = ''
+        """)
+        # address -> address (street), city, state, zip (simple split on comma)
+        await conn.exec_driver_sql("""
+            UPDATE patients
+            SET city = TRIM(SUBSTR(address, 1, INSTR(address || ',', ',') - 1)),
+                state = TRIM(SUBSTR(address, INSTR(address || ',', ',') + 1, 2)),
+                zip = TRIM(SUBSTR(address, INSTR(address || ',', ',') + 4))
+            WHERE city IS NULL OR city = ''
+        """)
+        # Create drug_dictionary table
+        if not await _table_exists(conn, "drug_dictionary"):
+            await conn.exec_driver_sql("""
+                CREATE TABLE drug_dictionary (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ndc_code TEXT NOT NULL UNIQUE,
+                    name TEXT NOT NULL,
+                    strength TEXT,
+                    form TEXT,
+                    manufacturer TEXT,
+                    dea_schedule TEXT,
+                    pill_image_url TEXT,
+                    source TEXT NOT NULL DEFAULT 'local',
+                    last_verified TEXT,
+                    created_at TEXT
+                )
+            """)
+            await conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_drug_dict_ndc ON drug_dictionary(ndc_code)")
+        version = 13
+
+    # ── v14: Fix patient_fax column name mismatch ──────
+    if version < 14:
+        has_patient_fax = await _table_has_column(conn, "patients", "patient_fax")
+        has_fax = await _table_has_column(conn, "patients", "fax")
+        if has_patient_fax and not has_fax:
+            await conn.exec_driver_sql("ALTER TABLE patients RENAME COLUMN patient_fax TO fax")
+        elif has_patient_fax and has_fax:
+            await conn.exec_driver_sql("ALTER TABLE patients DROP COLUMN patient_fax")
+        version = 14
+
     await conn.exec_driver_sql(f"PRAGMA user_version={SCHEMA_VERSION}")
 
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 14
 

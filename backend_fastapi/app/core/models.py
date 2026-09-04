@@ -41,6 +41,23 @@ class Product(Base):
     reorder_threshold: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     category: Mapped[str] = mapped_column(String, nullable=False, default="Uncategorized")
     is_deleted: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    # Phase 1: Drug file enrichment
+    ndc_code: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    lot_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    package_size: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    unit_of_measure: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    form: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    strength: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    manufacturer_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    therapeutic_class: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    is_generic: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_controlled: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    default_sig_code: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    default_qty: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    default_days_supply: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    maintenance_medication: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    image_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    drug_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
 
 
 class InventoryExtended(Base):
@@ -54,6 +71,7 @@ class InventoryExtended(Base):
     ndc_formatted: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     awp: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
     mac: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    wac: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
     lot_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     expiration_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     on_hand: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -385,10 +403,80 @@ class Patient(Base):
     comments: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     is_deleted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Phase 1: Patient field enrichment
+    cell_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    work_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    fax: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    emergency_contact_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    emergency_contact_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    emergency_contact_relationship: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    delivery_zone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    delivery_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    consent_flag: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    survey_num: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    preferred_language: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    ethnicity: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    race: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    marital_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    patient_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    pharmacy_home_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    prefer_call: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    prefer_text: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    prefer_email: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_340b: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_fill_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Phase 1: Workers' Compensation
+    employer_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    employer_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    employer_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    wc_claim_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    wc_injury_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    wc_injury_description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    wc_carrier_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    wc_carrier_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Phase 1: Prescriber link
+    prescriber_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("prescribers.id"), nullable=True
+    )
+    # Phase 13: Patient name/address split + new fields
+    first_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    last_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    middle_initial: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    ssn: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    home_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    city: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    state: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    zip: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    primary_care_physician: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+class DrugDictionary(Base):
+    """Local drug dictionary for NDC confirmation (hybrid local + external fallback)."""
+
+    __tablename__ = "drug_dictionary"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ndc_code: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    strength: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    form: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    manufacturer: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    dea_schedule: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    pill_image_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    source: Mapped[str] = mapped_column(String, nullable=False, default="local")
+    last_verified: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 
 class InsurancePlan(Base):
-    """Payer/insurance plan reference bound to patients (copay tier gate)."""
+    """Payer/insurance plan reference bound to patients (copay tier gate).
+
+    Phase 1 (M103): Extended with full master-file fields required by the
+    Insurance Plan Master File screen (plan code, fax, alternate phone,
+    contact, address, standard copay, co-insurance %, notes).
+    ``plan_code`` uniqueness is per-carrier — enforced by the DB migration
+    guard via a composite (carrier_id, plan_code) unique index.
+    """
 
     __tablename__ = "insurance_plans"
 
@@ -401,6 +489,61 @@ class InsurancePlan(Base):
     copay_tier: Mapped[str] = mapped_column(String, nullable=False, default="")
     copay_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
     active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Phase 1: Insurance enrichment
+    plan_type: Mapped[str] = mapped_column(String, nullable=False, default="COMMERCIAL")
+    help_desk_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    processor_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    pharmacy_verified: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # already exists
+    deductible: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    ncpcp_copay: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    wc_copay: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    # M103: Insurance Plan Master File fields
+    plan_code: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    fax_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    alt_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    contact_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    address_line1: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    address_line2: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    city: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    state: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    zip: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    co_insurance_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False, default=Decimal("0"))
+    standard_copay: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    processor_verified: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class Prescriber(Base):
+    """Prescriber/physician master record with NPI, DEA, and licensing info."""
+
+    __tablename__ = "prescribers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    first_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    last_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    npi: Mapped[Optional[str]] = mapped_column(String, nullable=True, unique=True)
+    dea_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    state_license: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    spi_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    medicare_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    medicaid_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    ncpdp_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    fax: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    address_line1: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    address_line2: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    city: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    state: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    zip: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    quick_code: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    eps_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    service_level: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    groups: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    effective_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    end_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    is_deleted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 
@@ -418,13 +561,21 @@ class MembersGroup(Base):
 
 
 class SigCode(Base):
-    """Standardized SIG code → human-readable instruction (e.g. BID → twice daily)."""
+    """Standardized SIG code → human-readable instruction (e.g. BID → twice daily).
+
+    Phase 1 (M103): Added ``language`` (EN/ES), ``days_accumulated`` (D.A. multiplier),
+    and ``offset`` (days-supply offset) for the bilingual Sig Expansion Engine screen.
+    """
 
     __tablename__ = "sig_codes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String, nullable=False, unique=True, default="")
     full_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # M103: Sig Engine enrichment
+    language: Mapped[str] = mapped_column(String, nullable=False, default="EN")
+    days_accumulated: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False, default=Decimal("0"))
+    offset: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class PriceCode(Base):
@@ -436,6 +587,13 @@ class PriceCode(Base):
     code: Mapped[str] = mapped_column(String, nullable=False, unique=True, default="")
     description: Mapped[str] = mapped_column(String, nullable=False, default="")
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    # Phase 1: Multi-tier pricing
+    price_level: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    cost_factor_pct: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("100"))
+    dispensing_fee: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    min_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    max_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("999999.99"))
+    markup_pct: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
 
 
 class Dispense(Base):
@@ -462,6 +620,15 @@ class Dispense(Base):
     cashier: Mapped[str] = mapped_column(String, nullable=False, default="")
     client_tx_id: Mapped[str] = mapped_column(String, nullable=False, unique=True, default="")
     server_created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Phase 1: Rx number + refill tracking
+    rx_number: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    refill_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    refills_authorized: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_fill_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    prescriber_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("prescribers.id"), nullable=True
+    )
+    days_supply: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
 
 class DispenseItem(Base):
@@ -479,6 +646,62 @@ class DispenseItem(Base):
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     awp_at_time: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
     mac_at_time: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    wac_at_time: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+
+
+class WorkersCompClaim(Base):
+    """Workers' Compensation claim — tracks WC-specific billing and status.
+
+    Phase 1 (M103): Extended with granular employer address / contact fields and
+    a full Pay-To section (pharmacy/provider that receives WC reimbursement).
+    ``pay_to`` is free-text — WC billing has no standardised lookup table.
+    """
+
+    __tablename__ = "workers_comp_claims"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"), nullable=False)
+    claim_number: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
+    carrier_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    carrier_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    injury_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    injury_description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    employer_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    employer_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # legacy single-string
+    employer_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # M103: Extended employer contact / address (per-injury snapshot)
+    employer_phone_ext: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    employer_contact_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    employer_addr_line1: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    employer_addr_line2: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    employer_city: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    employer_state: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    employer_zip: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # M103: Pay To — free-text pharmacy/provider that receives WC reimbursement
+    pay_to: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    pay_to_contact: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    pay_to_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    pay_to_addr_line1: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    pay_to_addr_line2: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    pay_to_city: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    pay_to_state: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    pay_to_zip: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Status: open, pending_approval, approved, denied, closed
+    status: Mapped[str] = mapped_column(String, nullable=False, default="open")
+    # Link to dispenses
+    dispense_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("dispenses.id"), nullable=True
+    )
+    # Financials
+    total_charges: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    insurance_paid: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    patient_responsibility: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    # Metadata
+    notes: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    updated_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
 
 
 class InventoryAdjustment(Base):
@@ -500,4 +723,78 @@ class InventoryAdjustment(Base):
     user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=True
     )
+
+
+# ── Phase: Vendor Management ────────────────────────────────────────────────
+
+class Vendor(Base):
+    """Vendor/supplier directory (extended beyond legacy Supplier table).
+
+    UUID stored as TEXT for SQLite compatibility.
+    """
+
+    __tablename__ = "vendors"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)  # UUID string
+    company_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    contact_phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    contact_email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    tax_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    balance_due: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    updated_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+class VendorItem(Base):
+    """Join table: which vendor(s) supply a given product name."""
+
+    __tablename__ = "vendor_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    vendor_id: Mapped[str] = mapped_column(String, ForeignKey("vendors.id"), nullable=False)
+    product_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    unit_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    sku: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    is_primary: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class PurchaseHistory(Base):
+    """Incoming stock shipment ledger with invoice reference."""
+
+    __tablename__ = "purchase_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    vendor_id: Mapped[str] = mapped_column(String, ForeignKey("vendors.id"), nullable=False)
+    product_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    unit_cost: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    total_cost: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    invoice_ref: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    received_date: Mapped[str] = mapped_column(String, nullable=False, default="")
+    received_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+# ── Phase: Third-Party Integrations ─────────────────────────────────────────
+
+class Integration(Base):
+    """Stores external API integration credentials.
+
+    The api_key is stored encrypted (application-level AES/Fernet) before
+    insert; the repository layer handles encrypt/decrypt.
+    """
+
+    __tablename__ = "integrations"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)  # UUID string
+    provider_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    encrypted_api_key: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    base_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    updated_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 

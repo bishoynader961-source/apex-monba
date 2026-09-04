@@ -21,18 +21,21 @@ import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { parseMoney, formatMoney, mulByQty, sumMoney } from "@/lib/decimalCurrency";
 import { searchMedicines } from "@/lib/api/inventory";
 import { searchPatients } from "@/lib/api/patients";
-import { parseSigCode, ndcLookup } from "@/lib/api/dictionaries";
+import { parseSigCode, ndcLookup, listPriceCodes } from "@/lib/api/dictionaries";
 import { dispense as dispenseApi } from "@/lib/api/dispense";
 import { useAuthStore, useCan } from "@/stores/authStore";
 import { usePosStore } from "@/stores/posStore";
+import { useI18n } from "@/components/I18nProvider";
 import { ManagerApprovalDialog } from "@/components/ManagerApprovalDialog";
 import { OfflineSyncBanner } from "@/components/OfflineSyncBanner";
 import { RefundDialog } from "@/components/RefundDialog";
 import { SalesReportModal } from "@/components/SalesReportModal";
 import { ShiftCloseDialog } from "@/components/ShiftCloseDialog";
-import type { DispenseRead, PatientRead, ProductRead, SigCodeParseResult } from "@/types/contracts";
+import { DrugEvaluateButton } from "@/components/DrugEvaluateButton";
+import type { DdiAlert, DispenseRead, PatientRead, PriceCodeRead, ProductRead, SigCodeParseResult } from "@/types/contracts";
 
 export default function PosPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const logout = useAuthStore((s) => s.logout);
@@ -78,6 +81,15 @@ export default function PosPage() {
   const [ndcError, setNdcError] = useState<string | null>(null);
   const clientTxIdRef = useRef<string | null>(null);
 
+  // Payment, price code, insurance copay
+  const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [priceCodes, setPriceCodes] = useState<PriceCodeRead[]>([]);
+  const [selectedPriceCode, setSelectedPriceCode] = useState<string>("");
+  const [insuranceCopay, setInsuranceCopay] = useState("0");
+
+  // Phase 7: Drug evaluation gate — blocks dispense when severe
+  const [drugEvalCleared, setDrugEvalCleared] = useState(false);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const { scan: scanned } = useBarcodeScanner();
 
@@ -105,8 +117,15 @@ export default function PosPage() {
     inputRef.current?.focus();
     const onFocusLost = () => inputRef.current?.focus();
     window.addEventListener("focus", onFocusLost);
+    // Load price codes for dispense mode
+    void listPriceCodes().then(setPriceCodes).catch(() => {});
     return () => window.removeEventListener("focus", onFocusLost);
   }, [hydrate, ensureShift]);
+
+  // Phase 7: Reset drug eval gate when cart changes
+  useEffect(() => {
+    setDrugEvalCleared(false);
+  }, [lines.length]);
 
   useEffect(() => {
     if (!scanned) return;
@@ -196,11 +215,12 @@ export default function PosPage() {
         quantity: lines.reduce((sum, l) => sum + l.quantity, 0),
         fill_date: new Date().toISOString().slice(0, 10),
         price_at_time: lines[0].unit_price,
-        insurance_copay: "0",
+        insurance_copay: insuranceCopay,
         insurance_amount: "0",
         internal_barcode: "",
         cashier: useAuthStore.getState().user?.username ?? "",
         client_tx_id: clientTxIdRef.current,
+        price_code: selectedPriceCode || undefined,
       };
       const res = await dispenseApi(payload);
       setDispenseResult(res);
@@ -218,8 +238,8 @@ export default function PosPage() {
   return (
     <main style={{ maxWidth: 780, margin: "2rem auto", padding: "0 1.5rem", fontFamily: "Inter, system-ui" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700 }}>POS Checkout</h1>
-        <button onClick={() => logout()} style={{ fontSize: 13 }}>Logout</button>
+        <h1 style={{ fontSize: 22, fontWeight: 700 }}>{t("pos.title")}</h1>
+        <button onClick={() => logout()} style={{ fontSize: 13 }}>{t("pos.logout")}</button>
       </header>
 
       <OfflineSyncBanner />
@@ -227,15 +247,15 @@ export default function PosPage() {
       {recoverable.length > 0 && (
         <div style={{ background: "#fef3c7", color: "#92400e", padding: "0.7rem 1rem", borderRadius: 6, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
           <span>
-            Recovered {recoverable.length} unsaved cart(s) from another terminal session (last active{" "}
+            {t("pos.recoveryBanner")} {recoverable.length} unsaved cart(s) from another terminal session (last active{" "}
             {new Date(recoverable[0].updatedAt).toLocaleTimeString()}).
           </span>
           <span style={{ display: "flex", gap: 8 }}>
             <button onClick={() => void recoverCart(recoverable[0].tabId)} style={{ padding: "0.4rem 0.8rem", background: "#d97706", color: "#fff", border: "none", borderRadius: 6 }}>
-              Recover
+              {t("pos.recover")}
             </button>
             <button onClick={() => void discardRecoverable(recoverable[0].tabId)} style={{ padding: "0.4rem 0.8rem", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff" }}>
-              Discard
+              {t("pos.discard")}
             </button>
           </span>
         </div>
@@ -248,7 +268,7 @@ export default function PosPage() {
         style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
         tabIndex={-1}
       />
-      <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Scan a barcode — items auto-add to the cart.</p>
+      <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>{t("pos.scanInstruction")}</p>
 
       {/* F5: Patient-link selector + Dispense / Rx toggle */}
       {canDispense && (
@@ -256,7 +276,7 @@ export default function PosPage() {
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
             <input
               type="text"
-              placeholder="Search patient by name..."
+              placeholder={t("pos.searchPatient")}
               value={patientQuery}
               onChange={(e) => setPatientQuery(e.target.value)}
               style={{ flex: 1, padding: "6px 8px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 6 }}
@@ -274,7 +294,7 @@ export default function PosPage() {
                 cursor: "pointer",
               }}
             >
-              {dispenseMode ? "Rx Mode: ON" : "Rx Mode: OFF"}
+              {dispenseMode ? t("pos.rxModeOn") : t("pos.rxModeOff")}
             </button>
           </div>
 
@@ -286,7 +306,7 @@ export default function PosPage() {
                   onClick={() => { setSelectedPatient(p); setPatientQuery(""); setPatientResults([]); }}
                   style={{ padding: "6px 10px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid #f3f4f6" }}
                 >
-                  {p.name} — DOB: {p.dob} — {p.contact_phone || "no phone"}
+                  {p.name} — {t("pos.dob")} {p.dob} — {p.contact_phone || t("pos.noPhone")}
                 </div>
               ))}
             </div>
@@ -294,7 +314,7 @@ export default function PosPage() {
 
           {selectedPatient && (
             <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "8px 10px", background: "#eff6ff", borderRadius: 6, fontSize: 13 }}>
-              <strong>Patient:</strong> {selectedPatient.name}
+              <strong>{t("pos.patient")}</strong> {selectedPatient.name}
               <button onClick={() => setSelectedPatient(null)} style={{ marginLeft: "auto", color: "#dc2626", border: "none", background: "transparent", fontSize: 14, cursor: "pointer" }}>×</button>
             </div>
           )}
@@ -302,7 +322,50 @@ export default function PosPage() {
           {/* F5: SIG code chip — shows parsed instruction in dispense mode */}
           {sigResult?.matched && (
             <div style={{ padding: "6px 10px", background: "#dcfce8", borderRadius: 6, fontSize: 13, marginTop: 8 }}>
-              SIG: <strong>{sigResult.code}</strong> → {sigResult.full_text}
+              {t("pos.sig")} <strong>{sigResult.code}</strong> → {sigResult.full_text}
+            </div>
+          )}
+
+          {/* Payment method, price code, insurance copay — visible when patient selected */}
+          {selectedPatient && (
+            <div style={{ display: "flex", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{t("pos.paymentMethod")}</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  style={{ padding: "4px 8px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 4 }}
+                >
+                  <option value="Cash">{t("pos.cash")}</option>
+                  <option value="Card">{t("pos.card")}</option>
+                  <option value="Transfer">{t("pos.transfer")}</option>
+                </select>
+              </div>
+              {priceCodes.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{t("pos.priceCode")}</label>
+                  <select
+                    value={selectedPriceCode}
+                    onChange={(e) => setSelectedPriceCode(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 4 }}
+                  >
+                    <option value="">{t("pos.default")}</option>
+                    {priceCodes.map((pc) => (
+                      <option key={pc.code} value={pc.code}>{pc.code} — {pc.description || pc.code}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{t("pos.insuranceCopay")}</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={insuranceCopay}
+                  onChange={(e) => setInsuranceCopay(e.target.value)}
+                  style={{ width: 80, padding: "4px 8px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 4 }}
+                />
+              </div>
             </div>
           )}
 
@@ -315,7 +378,7 @@ export default function PosPage() {
                 style={{ color: "#3b82f6", fontSize: 12, fontWeight: 600 }}
                 onClick={() => setNdcError(null)}
               >
-                Add to Inventory?
+                {t("pos.addToInventory")}
               </a>
             </div>
           )}
@@ -333,7 +396,7 @@ export default function PosPage() {
           <li key={l.product_name} style={{ display: "flex", justifyContent: "space-between", padding: "0.5rem 0", borderBottom: "1px solid #e5e7eb" }}>
             <div>
               <strong>{l.product_name}</strong> — ${formatMoney(parseMoney(l.unit_price))}
-              <div style={{ fontSize: 12, color: "#6b7280" }}>qty: {l.quantity}</div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>{t("pos.qty")} {l.quantity}</div>
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <button onClick={() => updateQty(l.product_name, -1)}>-</button>
@@ -348,43 +411,63 @@ export default function PosPage() {
       <footer style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16 }}>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => setShiftOpen(true)} style={{ padding: "0.6rem 1rem", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}>
-            Shift Close
+            {t("pos.shiftClose")}
           </button>
           <button onClick={() => setDrawerOpen(true)} style={{ padding: "0.6rem 1rem", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}>
-            Cash Drop
+            {t("pos.cashDrop")}
           </button>
           {canRefund && (
             <button onClick={() => setRefundOpen(true)} style={{ padding: "0.6rem 1rem", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}>
-              Refund
+              {t("pos.refund")}
             </button>
           )}
           {canReports && (
             <button onClick={() => setReportOpen(true)} style={{ padding: "0.6rem 1rem", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}>
-              Sales Report
+              {t("pos.salesReport")}
             </button>
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <strong style={{ fontSize: 18 }}>Total: ${net}</strong>
-          {dispenseMode && selectedPatient && canDispense && (
-            <button
-              onClick={() => void handleDispenseCheckout()}
-              disabled={lines.length === 0}
-              style={{
-                padding: "0.6rem 1.2rem",
-                background: "#7c3aed",
-                color: "#fff",
-                border: "none",
-                borderRadius: 6,
-                fontSize: 14,
-                cursor: lines.length === 0 ? "default" : "pointer",
-              }}
+          {!dispenseMode && (
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              style={{ padding: "6px 8px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 4 }}
             >
-              Dispense Rx
-            </button>
+              <option value="Cash">{t("pos.cash")}</option>
+              <option value="Card">{t("pos.card")}</option>
+              <option value="Transfer">{t("pos.transfer")}</option>
+            </select>
+          )}
+          <strong style={{ fontSize: 18 }}>{t("pos.total")} ${net}</strong>
+          {dispenseMode && selectedPatient && canDispense && lines.length > 0 && (
+            <>
+              <DrugEvaluateButton
+                drugName={lines[0]?.product_name ?? ""}
+                onSafe={() => setDrugEvalCleared(true)}
+                onSevere={() => setDrugEvalCleared(false)}
+              />
+              <button
+                onClick={() => void handleDispenseCheckout()}
+                disabled={!drugEvalCleared}
+                style={{
+                  padding: "0.6rem 1.2rem",
+                  background: drugEvalCleared ? "#7c3aed" : "#6b7280",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  fontSize: 14,
+                  cursor: drugEvalCleared ? "pointer" : "not-allowed",
+                  opacity: drugEvalCleared ? 1 : 0.6,
+                }}
+                title={!drugEvalCleared ? "Run drug evaluation first" : ""}
+              >
+                {t("pos.dispenseRx")}
+              </button>
+            </>
           )}
           <button
-            onClick={() => void checkout()}
+            onClick={() => void checkout(paymentMethod)}
             disabled={lines.length === 0}
             style={{
               padding: "0.6rem 1.2rem",
@@ -396,15 +479,15 @@ export default function PosPage() {
               cursor: lines.length === 0 ? "default" : "pointer",
             }}
           >
-            Checkout
+            {t("pos.checkout")}
           </button>
         </div>
       </footer>
 
       {drawerOpen && (
         <div style={{ background: "#f9fafb", borderRadius: 6, padding: 12, marginTop: 12 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Cash Drawer Movement</h3>
-          <label style={{ fontSize: 13 }}>Amount (positive = in, negative = out)</label>
+          <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{t("pos.cashDrawerMovement")}</h3>
+          <label style={{ fontSize: 13 }}>{t("pos.cashDrawerInstruction")}</label>
           <input
             value={drawerAmount}
             onChange={(e) => setDrawerAmount(e.target.value)}
@@ -412,7 +495,7 @@ export default function PosPage() {
             style={{ width: "100%", padding: 8, margin: "4px 0 8px", border: "1px solid #d1d5db", borderRadius: 6 }}
             placeholder="0.00"
           />
-          <label style={{ fontSize: 13 }}>Reason</label>
+          <label style={{ fontSize: 13 }}>{t("pos.reason")}</label>
           <input
             value={drawerReason}
             onChange={(e) => setDrawerReason(e.target.value)}
@@ -421,7 +504,7 @@ export default function PosPage() {
           <ManagerApprovalDialog
             open={drawerOpen}
             scope="drawer.move"
-            title="Manager approval for cash drawer movement"
+            title={t("pos.managerApproval")}
             onClose={() => setDrawerOpen(false)}
             onApproved={async (token) => {
               try {
@@ -458,7 +541,7 @@ export default function PosPage() {
 
       {dispenseResult?.allergy_flags && dispenseResult.allergy_flags.length > 0 && (
         <div style={{ background: "#fef3c7", color: "#92400e", padding: "0.7rem 1rem", borderRadius: 6, marginTop: 12, border: "1px solid #f59e0b" }}>
-          <strong>Clinical Alert</strong>
+          <strong>{t("pos.clinicalAlert")}</strong>
           <ul style={{ margin: "0.25rem 0 0 1rem", paddingLeft: 0 }}>
             {dispenseResult.allergy_flags.map((flag: string, i: number) => (
               <li key={i}>{flag}</li>
@@ -466,17 +549,47 @@ export default function PosPage() {
           </ul>
           <label style={{ display: "block", marginTop: 8, fontSize: 12 }}>
             <input type="checkbox" style={{ marginRight: 6 }} />
-            Acknowledge — proceeding overrides the alert (logged to audit).
+            {t("pos.acknowledgeAlert")}
           </label>
         </div>
       )}
 
+      {dispenseResult?.ddi_alerts && dispenseResult.ddi_alerts.length > 0 && (
+        <div style={{ marginTop: 12, borderRadius: 6, overflow: "hidden", border: "1px solid #dc2626" }}>
+          {dispenseResult.ddi_alerts.map((alert: DdiAlert, i: number) => {
+            const colors: Record<string, { bg: string; fg: string; border: string }> = {
+              contraindicated: { bg: "#fef2f2", fg: "#991b1b", border: "#dc2626" },
+              major: { bg: "#fff7ed", fg: "#9a3412", border: "#ea580c" },
+              moderate: { bg: "#fffbeb", fg: "#92400e", border: "#d97706" },
+              minor: { bg: "#eff6ff", fg: "#1e40af", border: "#2563eb" },
+            };
+            const c = colors[alert.severity] ?? colors.moderate;
+            return (
+              <div key={i} style={{ background: c.bg, color: c.fg, padding: "0.6rem 1rem", borderBottom: i < dispenseResult.ddi_alerts.length - 1 ? `1px solid ${c.border}` : undefined }}>
+                <strong style={{ textTransform: "uppercase", fontSize: 11 }}>{alert.severity}</strong>
+                <span style={{ marginLeft: 8 }}>{alert.drug_a} ↔ {alert.drug_b}</span>
+                <div style={{ fontSize: 13, marginTop: 2 }}>{alert.warning}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {dispenseResult?.duplicate_therapy && dispenseResult.duplicate_therapy.length > 0 && (
+        <div style={{ background: "#faf5ff", color: "#6b21a8", padding: "0.7rem 1rem", borderRadius: 6, marginTop: 12, border: "1px solid #a855f7" }}>
+          <strong>{t("pos.duplicateTherapy")}</strong>
+          <ul style={{ margin: "0.25rem 0 0 1rem", paddingLeft: 0 }}>
+            {dispenseResult.duplicate_therapy.map((warn: string, i: number) => (
+              <li key={i}>{warn}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {dispenseResult && (
-        <pre style={{ background: "#dcfce8", padding: 12, borderRadius: 6, marginTop: 12, fontSize: 12, overflowX: "auto" }}>
-          Dispense complete — ID: {dispenseResult.id} | Receipt: #{dispenseResult.receipt_id}
-          {" "}
-          {JSON.stringify(dispenseResult, null, 2)}
-        </pre>
+        <div style={{ background: "#dcfce8", color: "#166534", padding: "0.7rem 1rem", borderRadius: 6, marginTop: 12, fontSize: 13 }}>
+          Dispense complete — ID: {dispenseResult.id} | Rx: {dispenseResult.rx_number ?? "—"} | Receipt: #{dispenseResult.receipt_id}
+        </div>
       )}
     </main>
   );

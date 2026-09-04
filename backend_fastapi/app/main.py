@@ -23,6 +23,8 @@ from app.api.routers.auth_route import router as auth_router
 from app.api.routers.audit_route import router as audit_router
 from app.api.routers.dictionaries_route import router as dictionaries_router
 from app.api.routers.dispense_route import router as dispense_router
+from app.api.routers.drug_confirm_route import router as drug_confirm_router
+from app.api.routers.email_route import router as email_router
 from app.api.routers.health_route import router as health_router
 from app.api.routers.inventory_route import router as inventory_router
 from app.api.routers.analytics_route import router as analytics_router
@@ -32,13 +34,20 @@ from app.api.routers.license_file_route import router as license_file_router
 from app.api.routers.members_route import router as members_router
 from app.api.routers.patients_route import router as patients_router
 from app.api.routers.pos_route import router as pos_router
+from app.api.routers.prescriber_route import router as prescriber_router
+from app.api.routers.roles_route import router as roles_router
 from app.api.routers.settings_route import router as settings_router
 from app.api.routers.sync_route import router as sync_router
 from app.api.routers.users_route import router as users_router
+from app.api.routers.wc_route import router as wc_router
 from app.api.routers.webhook_route import router as webhook_router
+from app.api.routers.ocr_route import router as ocr_router
+from app.api.routers.excel_route import router as excel_router
+from app.api.routers.vendors_route import router as vendors_router
+from app.api.routers.integrations_route import router as integrations_router
 from app.core import database
 from app.core.database import create_schema, init_engine, vacuum_snapshot
-from app.services.seed_service import seed_admin_if_absent, seed_clinical_defaults
+from app.services.seed_service import seed_admin_if_absent, seed_clinical_defaults, seed_drug_dictionary
 from app.shared.config import settings
 from app.shared.exceptions import AppException
 from app.shared.logging_config import configure_logging, get_logger
@@ -80,6 +89,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             await seed_admin_if_absent(session)
             await seed_clinical_defaults(session)
+            await seed_drug_dictionary(session)
         except Exception:  # noqa: BLE001 — seed failure must never block startup
             logger.error("seed_lifespan_error", exc_info=True)
     logger.info("startup_complete", database=settings.database_url)
@@ -115,7 +125,13 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        # LAN access — allow any origin so multi-PC workstations can connect.
+        # In production, restrict this to your subnet (e.g. "http://192.168.1.*").
+        "*",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -216,10 +232,19 @@ app.include_router(license_file_router)
 app.include_router(members_router)
 app.include_router(patients_router)
 app.include_router(pos_router)
+app.include_router(prescriber_router)
+app.include_router(drug_confirm_router)
 app.include_router(dictionaries_router)
 app.include_router(dispense_router)
+app.include_router(email_router)
 app.include_router(settings_router)
+app.include_router(roles_router)
 app.include_router(sync_router)
 app.include_router(users_router)
+app.include_router(wc_router)
 app.include_router(webhook_router)
 app.include_router(admin_router)
+app.include_router(ocr_router)
+app.include_router(excel_router)
+app.include_router(vendors_router)
+app.include_router(integrations_router)

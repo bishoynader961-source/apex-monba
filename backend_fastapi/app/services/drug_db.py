@@ -186,3 +186,285 @@ def check_allergy_match(product_name: str, allergies_text: str) -> list[str]:
             if interactant in tags:
                 flags.append(f"Drug interaction alert: {warning}")
     return flags
+
+
+# ── Phase 4: DUR — Drug-Drug Interaction Checking Against Active Meds ────────
+
+class DdiAlert:
+    """Structured DDI alert with severity."""
+
+    __slots__ = ("drug_a", "drug_b", "severity", "warning")
+
+    def __init__(self, drug_a: str, drug_b: str, severity: str, warning: str) -> None:
+        self.drug_a = drug_a
+        self.drug_b = drug_b
+        self.severity = severity  # "contraindicated" | "major" | "moderate" | "minor"
+        self.warning = warning
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "drug_a": self.drug_a,
+            "drug_b": self.drug_b,
+            "severity": self.severity,
+            "warning": self.warning,
+        }
+
+
+# Expanded DDI table with severity levels: (interactant, severity, warning)
+_DDI_TABLE: dict[str, list[tuple[str, str, str]]] = {
+    "warfarin": [
+        ("aspirin", "major", "Increased bleeding risk with aspirin"),
+        ("ibuprofen", "major", "Increased bleeding risk with NSAIDs"),
+        ("naproxen", "major", "Increased bleeding risk with NSAIDs"),
+        ("celecoxib", "major", "Increased bleeding risk with COX-2 inhibitors"),
+        ("clopidogrel", "major", "Increased bleeding risk with clopidogrel"),
+        ("diphenhydramine", "moderate", "Additive sedation / bleeding risk"),
+        ("omeprazole", "moderate", "Monitor INR — PPIs can displace warfarin"),
+        ("phenytoin", "moderate", "May increase or decrease warfarin effects"),
+        ("prednisone", "moderate", "May increase INR — monitor closely"),
+    ],
+    "aspirin": [
+        ("warfarin", "major", "Increased bleeding risk with warfarin"),
+        ("clopidogrel", "major", "Additive antiplatelet effect — bleeding risk"),
+        ("ibuprofen", "moderate", "Reduced cardioprotection with concurrent NSAIDs"),
+        ("naproxen", "moderate", "Reduced cardioprotection with concurrent NSAIDs"),
+        ("methotrexate", "major", "Aspirin increases methotrexate toxicity"),
+    ],
+    "ibuprofen": [
+        ("warfarin", "major", "Increased bleeding risk with warfarin"),
+        ("aspirin", "moderate", "Reduced cardioprotection with concurrent aspirin"),
+        ("lisinopril", "moderate", "NSAIDs reduce ACE inhibitor efficacy"),
+        ("methotrexate", "major", "NSAIDs increase methotrexate toxicity"),
+        ("lithium", "major", "NSAIDs increase lithium levels"),
+    ],
+    "naproxen": [
+        ("warfarin", "major", "Increased bleeding risk with warfarin"),
+        ("lisinopril", "moderate", "NSAIDs reduce ACE inhibitor efficacy"),
+        ("methotrexate", "major", "NSAIDs increase methotrexate toxicity"),
+        ("lithium", "major", "NSAIDs increase lithium levels"),
+    ],
+    "lisinopril": [
+        ("potassium", "major", "Risk of hyperkalemia with potassium supplements"),
+        ("spironolactone", "major", "Risk of hyperkalemia with spironolactone"),
+        ("ibuprofen", "moderate", "NSAIDs reduce ACE inhibitor efficacy"),
+        ("naproxen", "moderate", "NSAIDs reduce ACE inhibitor efficacy"),
+    ],
+    "enalapril": [
+        ("potassium", "major", "Risk of hyperkalemia with potassium supplements"),
+        ("spironolactone", "major", "Risk of hyperkalemia with spironolactone"),
+    ],
+    "digoxin": [
+        ("furosemide", "moderate", "Increased digoxin levels with loop diuretic"),
+        ("amiodarone", "major", "Increased digoxin levels — monitor for toxicity"),
+        ("verapamil", "major", "Increased digoxin levels — bradycardia risk"),
+    ],
+    "insulin": [
+        ("beta-blocker", "moderate", "Beta-blockers may mask hypoglycemia symptoms"),
+        ("prednisone", "moderate", "Corticosteroids may increase insulin requirements"),
+        ("ciprofloxacin", "moderate", "Fluoroquinolones may alter glucose levels"),
+    ],
+    "prednisone": [
+        ("insulin", "moderate", "Corticosteroids may increase insulin requirements"),
+        ("warfarin", "moderate", "May increase INR with warfarin"),
+        ("omeprazole", "minor", "Monitor for increased infection risk"),
+    ],
+    "omeprazole": [
+        ("clopidogrel", "major", "PPIs reduce clopidogrel antiplatelet activation"),
+        ("warfarin", "moderate", "Monitor INR — PPIs can displace warfarin"),
+    ],
+    "phenytoin": [
+        ("amiodarone", "major", "Amiodarone increases phenytoin levels — toxicity risk"),
+        ("warfarin", "moderate", "May increase or decrease warfarin effects"),
+        ("omeprazole", "moderate", "Omeprazole may increase phenytoin levels"),
+    ],
+    "methotrexate": [
+        ("aspirin", "major", "Aspirin increases methotrexate toxicity"),
+        ("ibuprofen", "major", "NSAIDs increase methotrexate toxicity"),
+        ("naproxen", "major", "NSAIDs increase methotrexate toxicity"),
+        ("trimethoprim", "major", "Increased methotrexate toxicity with trimethoprim"),
+    ],
+    "simvastatin": [
+        ("amiodarone", "major", "Increased risk of rhabdomyolysis"),
+        ("diltiazem", "major", "Increased risk of rhabdomyolysis"),
+        ("clarithromycin", "major", "Increased risk of rhabdomyolysis"),
+        ("itraconazole", "major", "Increased risk of rhabdomyolysis"),
+    ],
+    "atorvastatin": [
+        ("clarithromycin", "moderate", "Monitor for increased statin levels"),
+        ("itraconazole", "moderate", "Monitor for increased statin levels"),
+    ],
+    "clopidogrel": [
+        ("omeprazole", "major", "PPIs reduce clopidogrel activation"),
+        ("aspirin", "major", "Additive antiplatelet effect — bleeding risk"),
+        ("warfarin", "major", "Increased bleeding risk"),
+    ],
+    "ciprofloxacin": [
+        ("theophylline", "major", "Ciprofloxacin increases theophylline levels"),
+        ("warfarin", "moderate", "May enhance anticoagulant effect"),
+        ("antacid", "minor", "Reduce ciprofloxacin absorption — separate by 2h"),
+    ],
+    "levothyroxine": [
+        ("calcium", "moderate", "Calcium supplements reduce levothyroxine absorption"),
+        ("iron", "moderate", "Iron reduces levothyroxine absorption"),
+        ("omeprazole", "minor", "PPIs may reduce levothyroxine absorption"),
+    ],
+    "gabapentin": [
+        ("opioid", "major", "Risk of respiratory depression — CNS depression additive"),
+    ],
+    "pregabalin": [
+        ("opioid", "major", "Risk of respiratory depression — CNS depression additive"),
+    ],
+}
+
+# Therapeutic class mapping for duplicate therapy detection
+_THERAPEUTIC_CLASSES: dict[str, str] = {
+    "aspirin": "NSAID",
+    "ibuprofen": "NSAID",
+    "naproxen": "NSAID",
+    "celecoxib": "NSAID",
+    "diclofenac": "NSAID",
+    "lisinopril": "ACE Inhibitor",
+    "enalapril": "ACE Inhibitor",
+    "ramipril": "ACE Inhibitor",
+    "losartan": "ARB",
+    "valsartan": "ARB",
+    "irbesartan": "ARB",
+    "metoprolol": "Beta Blocker",
+    "atenolol": "Beta Blocker",
+    "propranolol": "Beta Blocker",
+    "carvedilol": "Beta Blocker",
+    "amlodipine": "Calcium Channel Blocker",
+    "nifedipine": "Calcium Channel Blocker",
+    "diltiazem": "Calcium Channel Blocker",
+    "verapamil": "Calcium Channel Blocker",
+    "simvastatin": "Statin",
+    "atorvastatin": "Statin",
+    "rosuvastatin": "Statin",
+    "pravastatin": "Statin",
+    "omeprazole": "PPI",
+    "esomeprazole": "PPI",
+    "pantoprazole": "PPI",
+    "lansoprazole": "PPI",
+    "ranitidine": "H2 Blocker",
+    "famotidine": "H2 Blocker",
+    "sertraline": "SSRI",
+    "fluoxetine": "SSRI",
+    "citalopram": "SSRI",
+    "escitalopram": "SSRI",
+    "paroxetine": "SSRI",
+    "venlafaxine": "SNRI",
+    "duloxetine": "SNRI",
+    "amoxicillin": "Penicillin",
+    "amoxicillin-clavulanate": "Penicillin",
+    "ampicillin": "Penicillin",
+    "azithromycin": "Macrolide",
+    "clarithromycin": "Macrolide",
+    "erythromycin": "Macrolide",
+    "ciprofloxacin": "Fluoroquinolone",
+    "levofloxacin": "Fluoroquinolone",
+    "moxifloxacin": "Fluoroquinolone",
+    "furosemide": "Loop Diuretic",
+    "bumetanide": "Loop Diuretic",
+    "torsemide": "Loop Diuretic",
+    "hydrochlorothiazide": "Thiazide Diuretic",
+    "metformin": "Biguanide",
+    "glipizide": "Sulfonylurea",
+    "glyburide": "Sulfonylurea",
+    "glimepiride": "Sulfonylurea",
+    "warfarin": "Anticoagulant",
+    "heparin": "Anticoagulant",
+    "enoxaparin": "Anticoagulant",
+    "apixaban": "DOAC",
+    "rivaroxaban": "DOAC",
+    "oxycodone": "Opioid",
+    "hydrocodone": "Opioid",
+    "morphine": "Opioid",
+    "tramadol": "Opioid",
+    "hydromorphone": "Opioid",
+    "fentanyl": "Opioid",
+    "alprazolam": "Benzodiazepine",
+    "lorazepam": "Benzodiazepine",
+    "diazepam": "Benzodiazepine",
+    "clonazepam": "Benzodiazepine",
+    "prednisone": "Corticosteroid",
+    "prednisolone": "Corticosteroid",
+    "methylprednisolone": "Corticosteroid",
+    "dexamethasone": "Corticosteroid",
+    "levothyroxine": "Thyroid Hormone",
+    "liothyronine": "Thyroid Hormone",
+}
+
+
+def check_drug_interactions(
+    product_name: str, active_medications: list[str]
+) -> list[DdiAlert]:
+    """Check a newly dispensed drug against the patient's active medications for DDIs.
+
+    ``active_medications`` is a list of product names the patient is currently taking
+    (from recent dispense history). Returns a list of ``DdiAlert`` objects with
+    severity levels. Non-blocking — all alerts are advisory for pharmacist review.
+    """
+    if not active_medications:
+        return []
+
+    ingredient = extract_ingredient(product_name)
+    if not ingredient:
+        return []
+
+    alerts: list[DdiAlert] = []
+    seen_pairs: set[tuple[str, ...]] = set()
+
+    for active_name in active_medications:
+        active_ingredient = extract_ingredient(active_name)
+        if not active_ingredient or active_ingredient == ingredient:
+            continue
+
+        # Check both directions of the interaction
+        pair = tuple(sorted([ingredient, active_ingredient]))
+        if pair in seen_pairs:
+            continue
+
+        # Forward: new drug interacts with active drug
+        if ingredient in _DDI_TABLE:
+            for interactant, severity, warning in _DDI_TABLE[ingredient]:
+                if interactant == active_ingredient:
+                    alerts.append(DdiAlert(ingredient, active_ingredient, severity, warning))
+                    seen_pairs.add(pair)
+                    break
+
+        # Reverse: active drug interacts with new drug
+        if active_ingredient in _DDI_TABLE and pair not in seen_pairs:
+            for interactant, severity, warning in _DDI_TABLE[active_ingredient]:
+                if interactant == ingredient:
+                    alerts.append(DdiAlert(active_ingredient, ingredient, severity, warning))
+                    seen_pairs.add(pair)
+                    break
+
+    return alerts
+
+
+def check_duplicate_therapy(
+    product_name: str, active_medications: list[str]
+) -> list[str]:
+    """Check if the newly dispensed drug duplicates the therapeutic class of an active med.
+
+    Returns warning strings for the pharmacist to review. Non-blocking.
+    """
+    if not active_medications:
+        return []
+
+    ingredient = extract_ingredient(product_name)
+    new_class = _THERAPEUTIC_CLASSES.get(ingredient)
+    if not new_class:
+        return []
+
+    warnings: list[str] = []
+    for active_name in active_medications:
+        active_ingredient = extract_ingredient(active_name)
+        active_class = _THERAPEUTIC_CLASSES.get(active_ingredient)
+        if active_class and active_class == new_class and active_ingredient != ingredient:
+            warnings.append(
+                f"Duplicate therapy: both {ingredient} and {active_ingredient} are {new_class}"
+            )
+
+    return warnings

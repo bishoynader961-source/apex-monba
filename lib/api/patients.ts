@@ -8,6 +8,9 @@ import type {
   PatientUpdate,
   PaginatedPatients,
   DispenseRead,
+  WCClaimCreate,
+  WCClaimRead,
+  WCClaimUpdate,
 } from "@/types/contracts";
 
 const BASE = "/api/v1/patients";
@@ -80,5 +83,36 @@ export async function createMember(payload: {
   dob: string;
 }): Promise<any> {
   const { data } = await api.post<any>("/api/v1/members-groups", payload);
+  return data;
+}
+
+export async function updateMember(
+  memberId: number,
+  payload: { member_name?: string; relationship?: string; dob?: string },
+): Promise<any> {
+  const { data } = await api.put<any>(`/api/v1/members-groups/${memberId}`, payload);
+  return data;
+}
+
+export async function deleteMember(memberId: number): Promise<any> {
+  const { data } = await api.delete<any>(`/api/v1/members-groups/${memberId}`);
+  return data;
+}
+
+// Workers Compensation
+export async function listWCClaims(patientId: number): Promise<WCClaimRead[]> {
+  const { data } = await api.get<WCClaimRead[]>("/api/v1/workers-comp", {
+    params: { patient_id: patientId },
+  });
+  return data;
+}
+
+export async function createWCClaim(payload: WCClaimCreate): Promise<WCClaimRead> {
+  const { data } = await api.post<WCClaimRead>("/api/v1/workers-comp", payload);
+  return data;
+}
+
+export async function updateWCClaim(id: number, payload: WCClaimUpdate): Promise<WCClaimRead> {
+  const { data } = await api.put<WCClaimRead>(`/api/v1/workers-comp/${id}`, payload);
   return data;
 }

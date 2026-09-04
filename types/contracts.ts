@@ -112,6 +112,23 @@ export interface Medicine {
   category?: string | null;
   is_deleted: boolean;
   recalled?: boolean;
+  // Drug file enrichment (Phase 1 — BestRx gap closure)
+  ndc_code?: string | null;
+  form?: string | null;
+  strength?: string | null;
+  manufacturer_name?: string | null;
+  therapeutic_class?: string | null;
+  is_generic?: number;
+  is_controlled?: number;
+  maintenance_medication?: number;
+  drug_cost?: Money | null;
+  default_sig_code?: string | null;
+  default_qty?: number | null;
+  default_days_supply?: number | null;
+  lot_number?: string | null;
+  package_size?: string | null;
+  unit_of_measure?: string | null;
+  image_url?: string | null;
 }
 
 export interface MedicineUpdate {
@@ -126,6 +143,24 @@ export interface MedicineUpdate {
   dea_schedule?: string | null;
   wholesale_price?: Money | null;
   reorder_threshold?: number | null;
+  category?: string | null;
+  // Drug file enrichment (Phase 1 — BestRx gap closure)
+  ndc_code?: string | null;
+  form?: string | null;
+  strength?: string | null;
+  manufacturer_name?: string | null;
+  therapeutic_class?: string | null;
+  is_generic?: number;
+  is_controlled?: number;
+  maintenance_medication?: number;
+  drug_cost?: Money | null;
+  default_sig_code?: string | null;
+  default_qty?: number | null;
+  default_days_supply?: number | null;
+  lot_number?: string | null;
+  package_size?: string | null;
+  unit_of_measure?: string | null;
+  image_url?: string | null;
 }
 
 // Catalog create body (≡ legacy ProductCreate). Mirrors backend MedicineCreate
@@ -142,6 +177,24 @@ export interface MedicineCreate {
   dea_schedule?: string | null;
   wholesale_price?: Money | null;
   reorder_threshold?: number | null;
+  category?: string | null;
+  // Drug file enrichment (Phase 1 — BestRx gap closure)
+  ndc_code?: string | null;
+  form?: string | null;
+  strength?: string | null;
+  manufacturer_name?: string | null;
+  therapeutic_class?: string | null;
+  is_generic?: number;
+  is_controlled?: number;
+  maintenance_medication?: number;
+  drug_cost?: Money | null;
+  default_sig_code?: string | null;
+  default_qty?: number | null;
+  default_days_supply?: number | null;
+  lot_number?: string | null;
+  package_size?: string | null;
+  unit_of_measure?: string | null;
+  image_url?: string | null;
 }
 
 export interface Batch {
@@ -153,11 +206,13 @@ export interface Batch {
   ndc_formatted?: string | null;
   awp?: Money | null;
   mac?: Money | null;
+  wac?: Money | null;
   lot_number?: string | null;
   expiration_date?: string | null;
   on_hand: number;
   supplier?: string | null;
   regional_metadata?: string | null;
+  recalled?: boolean;
 }
 
 export type BatchRead = Batch;
@@ -259,6 +314,7 @@ export interface ReceiptRead {
   patient_id?: number | null;
   server_created_at?: string | null;
   cashier_attribution?: string | null;
+  client_tx_id?: string | null;
   items: ReceiptItemRead[];
 }
 
@@ -305,6 +361,7 @@ export interface CheckoutResult {
   server_created_at?: string | null;
   ts_skew_confidence?: number | null;
   cashier_attribution?: string | null;
+  client_tx_id?: string | null;
   items: CheckoutItemRead[];
 }
 
@@ -418,14 +475,6 @@ export interface SystemSettingRead {
   value?: string | null;
 }
 
-// License validation response from the FastAPI proxy → Flask license_gate.
-// Shape is intentionally loose until confirmed against the live Flask JSON.
-export interface LicenseValidationResult {
-  status: string;
-  key?: string;
-  [key: string]: unknown;
-}
-
 export type LicenseStatus = LicenseValidationResult;
 
 // ── Manager approval (Concern 1) ──
@@ -474,20 +523,70 @@ export interface DiscrepancyRead {
 // ── Clinical / Patient Management (mirrors backend schemas.py §5) ───────────
 
 export interface PatientBase {
+  // New name fields (split from legacy `name`)
+  last_name?: string | null;
+  first_name?: string | null;
+  middle_initial?: string | null;
+  // Legacy field kept for backward compat (deprecated)
   name: string;
   dob: string; // ISODate "YYYY-MM-DD"
-  address: string;
+  // New address fields (split from legacy `address`)
+  address: string; // street address
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
   driver_license: string;
   sex: string;
   employer_id: string;
   contact_phone: string;
+  home_phone?: string | null;
   email: string;
+  ssn?: string | null;
   insurance_provider: string;
   policy_number: string;
   group_number: string;
   insurance_plan_id?: number | null;
   patient_allergies: string;
   comments: string;
+  // Additional phone / contact
+  cell_phone?: string | null;
+  work_phone?: string | null;
+  fax?: string | null;
+  // Emergency contact
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  emergency_contact_relationship?: string | null;
+  // Employment
+  employer_name?: string | null;
+  employer_address?: string | null;
+  employer_phone?: string | null;
+  // Workers' Compensation
+  wc_claim_number?: string | null;
+  wc_injury_date?: string | null;
+  wc_injury_description?: string | null;
+  wc_carrier_id?: string | null;
+  wc_carrier_name?: string | null;
+  // Delivery
+  delivery_zone?: string | null;
+  delivery_status?: string | null;
+  // Consent / Communication Preferences
+  consent_flag?: number;
+  prefer_call?: number;
+  prefer_text?: number;
+  prefer_email?: number;
+  // Demographics
+  preferred_language?: string | null;
+  ethnicity?: string | null;
+  race?: string | null;
+  marital_status?: string | null;
+  patient_type?: string | null;
+  is_340b?: number;
+  // Other
+  survey_num?: string | null;
+  pharmacy_home_id?: string | null;
+  last_fill_date?: string | null;
+  prescriber_id?: number | null;
+  primary_care_physician?: string | null;
 }
 
 export type PatientCreate = PatientBase;
@@ -514,6 +613,44 @@ export interface PatientUpdate {
   insurance_plan_id?: number | null;
   patient_allergies?: string;
   comments?: string;
+  // Additional phone / contact
+  cell_phone?: string | null;
+  work_phone?: string | null;
+  fax?: string | null;
+  // Emergency contact
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  emergency_contact_relationship?: string | null;
+  // Employment
+  employer_name?: string | null;
+  employer_address?: string | null;
+  employer_phone?: string | null;
+  // Workers' Compensation
+  wc_claim_number?: string | null;
+  wc_injury_date?: string | null;
+  wc_injury_description?: string | null;
+  wc_carrier_id?: string | null;
+  wc_carrier_name?: string | null;
+  // Delivery
+  delivery_zone?: string | null;
+  delivery_status?: string | null;
+  // Consent / Communication Preferences
+  consent_flag?: number;
+  prefer_call?: number;
+  prefer_text?: number;
+  prefer_email?: number;
+  // Demographics
+  preferred_language?: string | null;
+  ethnicity?: string | null;
+  race?: string | null;
+  marital_status?: string | null;
+  patient_type?: string | null;
+  is_340b?: number;
+  // Other
+  survey_num?: string | null;
+  pharmacy_home_id?: string | null;
+  last_fill_date?: string | null;
+  prescriber_id?: number | null;
 }
 
 export interface PaginatedPatients {
@@ -532,6 +669,26 @@ export interface InsurancePlanBase {
   copay_tier: string;
   copay_amount: Money;
   active: number;
+  // Phase 1 enrichment + M103 Master File
+  plan_type?: string;
+  help_desk_phone?: string | null;
+  processor_id?: string | null;
+  pharmacy_verified?: number;
+  deductible?: Money;
+  ncpcp_copay?: Money;
+  wc_copay?: Money;
+  plan_code?: string | null;
+  fax_number?: string | null;
+  alt_phone?: string | null;
+  contact_name?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  co_insurance_pct?: Money;
+  standard_copay?: Money;
+  notes?: string | null;
 }
 
 export type InsurancePlanCreate = InsurancePlanBase;
@@ -545,8 +702,28 @@ export interface InsurancePlanRead {
   group_number: string;
   copay_tier: string;
   copay_amount: Money;
-  active: boolean;
+  active: number;
   created_at?: string | null;
+  // Phase 1 enrichment + M103 Master File
+  plan_type: string;
+  help_desk_phone?: string | null;
+  processor_id?: string | null;
+  pharmacy_verified: number;
+  deductible: Money;
+  ncpcp_copay: Money;
+  wc_copay: Money;
+  plan_code?: string | null;
+  fax_number?: string | null;
+  alt_phone?: string | null;
+  contact_name?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  co_insurance_pct: Money;
+  standard_copay: Money;
+  notes?: string | null;
 }
 
 export interface MembersGroupBase {
@@ -576,6 +753,9 @@ export interface MembersGroupUpdate {
 export interface SigCodeBase {
   code: string;
   full_text: string;
+  language?: string;
+  days_accumulated?: string;
+  offset?: number;
 }
 
 export type SigCodeCreate = SigCodeBase;
@@ -584,6 +764,17 @@ export interface SigCodeRead {
   id: number;
   code: string;
   full_text: string;
+  language: string;
+  days_accumulated: string;
+  offset: number;
+}
+
+export interface SigCodeUpdate {
+  code?: string;
+  full_text?: string;
+  language?: string;
+  days_accumulated?: string;
+  offset?: number;
 }
 
 export interface SigCodeParseResult {
@@ -593,10 +784,35 @@ export interface SigCodeParseResult {
   detail?: string | null;
 }
 
+export interface NDCLookupResult {
+  found: boolean;
+  q: string;
+  item?: Batch | null;
+}
+
+export interface DrugConfirmResult {
+  found: boolean;
+  ndc: string;
+  name?: string | null;
+  strength?: string | null;
+  form?: string | null;
+  manufacturer?: string | null;
+  dea_schedule?: string | null;
+  pill_image_url?: string | null;
+  source: string; // "local" | "fda" | "rxnorm" | "not_found" | "invalid_format"
+}
+
 export interface PriceCodeBase {
   code: string;
   description: string;
   price: Money;
+  // Multi-tier pricing (Phase 3)
+  price_level?: string | null;
+  cost_factor_pct: Money;
+  dispensing_fee: Money;
+  min_price: Money;
+  max_price: Money;
+  markup_pct: Money;
 }
 
 export type PriceCodeCreate = PriceCodeBase;
@@ -606,6 +822,30 @@ export interface PriceCodeRead {
   code: string;
   description: string;
   price: Money;
+  // Multi-tier pricing (Phase 3)
+  price_level?: string | null;
+  cost_factor_pct: Money;
+  dispensing_fee: Money;
+  min_price: Money;
+  max_price: Money;
+  markup_pct: Money;
+}
+
+export interface PriceCodeUpdate {
+  code?: string;
+  description?: string;
+  price?: Money;
+  price_level?: string | null;
+  cost_factor_pct?: Money;
+  dispensing_fee?: Money;
+  min_price?: Money;
+  max_price?: Money;
+  markup_pct?: Money;
+}
+
+export interface PriceCalculationResult {
+  computed_price: Money;
+  clamped: boolean;
 }
 
 export interface InsuranceValidationResult {
@@ -636,6 +876,7 @@ export interface DispenseItemRead {
   quantity: number;
   awp_at_time?: Money | null;
   mac_at_time?: Money | null;
+  wac_at_time?: Money | null;
 }
 
 export interface DispenseBase {
@@ -656,14 +897,79 @@ export interface DispenseCreate extends DispenseBase {
   client_tx_id: string;
   price_code?: string | null;
   insurance_plan_id?: number | null;
+  refills_authorized?: number;
+  prescriber_id?: number | null;
+  days_supply?: number | null;
 }
 
 export interface DispenseRead extends DispenseBase {
   id: number;
   receipt_id?: number | null;
   server_created_at?: string | null;
+  client_tx_id: string;
   items: DispenseItemRead[];
   allergy_flags: string[];
+  // Phase 4: DUR alerts
+  ddi_alerts: DdiAlert[];
+  duplicate_therapy: string[];
+  // Phase 1: Rx refill tracking
+  rx_number?: string | null;
+  refill_count: number;
+  refills_authorized: number;
+  last_fill_date?: string | null;
+  prescriber_id?: number | null;
+  days_supply?: number | null;
+}
+
+export interface DispenseUpdate {
+  sig_code?: string | null;
+  quantity?: number | null;
+  days_supply?: number | null;
+  refills_authorized?: number | null;
+  prescriber_id?: number | null;
+  fill_date?: string | null;
+}
+
+export interface VoidResult {
+  dispense_id: number;
+  rx_number?: string | null;
+  voided: boolean;
+  restocked_quantity: number;
+  reason: string;
+}
+
+export interface EligibilityCheckResult {
+  patient_id: number;
+  patient_name: string;
+  plan_id?: number | null;
+  plan_name?: string | null;
+  eligible: boolean;
+  active: boolean;
+  copay_tier: string;
+  copay_amount: Money;
+  deductible: Money;
+  deductible_met: Money;
+  deductible_remaining: Money;
+  coinsurance_pct: number;
+  coverage_percentage: number;
+  message: string;
+}
+
+export interface TransferResult {
+  dispense_id: number;
+  rx_number?: string | null;
+  transferred: boolean;
+  transfer_type: string;
+  pharmacy_name: string;
+  pharmacy_phone: string;
+  reason: string;
+}
+
+export interface DdiAlert {
+  drug_a: string;
+  drug_b: string;
+  severity: string;
+  warning: string;
 }
 
 export interface PatientHistoryEntry {
@@ -721,21 +1027,164 @@ export interface MovementFilters {
 export type VelocityCategory = "FAST_MOVING" | "MODERATE_MOVING" | "SLOW_MOVING" | "NON_MOVING";
 
 export interface DemandAnalyticsItem {
-  product_id: number;
+  product_id?: number | null;
   product_name: string;
-  category?: string | null;
+  ndc_code?: string | null;
+  unit_price: Money;
   total_quantity_demanded: number;
   total_revenue: Money;
   avg_daily_consumption: number;
   velocity_category: VelocityCategory;
   reorder_suggestion: number;
+  current_on_hand_stock: number;
 }
 
 export interface DemandAnalyticsSummary {
   window_start: string;
   window_end: string;
-  total_items: number;
+  total_items_sold_dispensed: number;
   total_revenue: Money;
-  by_velocity: Record<string, number>;
+  top_demanded_product?: string | null;
+  slow_non_moving_count: number;
   items: DemandAnalyticsItem[];
+}
+
+// ── Prescriber (Phase 1) ────────────────────────────────────────────────────
+
+export interface PrescriberBase {
+  first_name: string;
+  last_name: string;
+  npi?: string | null;
+  dea_number?: string | null;
+  state_license?: string | null;
+  spi_number?: string | null;
+  medicare_id?: string | null;
+  medicaid_id?: string | null;
+  ncpdp_id?: string | null;
+  phone?: string | null;
+  fax?: string | null;
+  email?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  quick_code?: string | null;
+  eps_status?: string | null;
+  service_level?: string | null;
+  groups?: string | null;
+  effective_date?: string | null;
+  end_date?: string | null;
+}
+
+export type PrescriberCreate = PrescriberBase;
+
+export interface PrescriberRead extends PrescriberBase {
+  id: number;
+  is_deleted: boolean;
+  created_at?: string | null;
+}
+
+// ── Top Selling Items (Phase 1) ─────────────────────────────────────────────
+
+export interface TopSellingItem {
+  rank: number;
+  product_name: string;
+  total_quantity: number;
+  total_revenue: Money;
+  source: string;
+}
+
+export interface TopSellingResponse {
+  window_start: string;
+  window_end: string;
+  items: TopSellingItem[];
+}
+
+// ── Dispense Rx Refill (Phase 1) ────────────────────────────────────────────
+
+export interface DispenseRxRefill {
+  id: number;
+  rx_number: string;
+  refill_count: number;
+  refills_authorized: number;
+  last_fill_date: string;
+}
+
+// ── Insurance Plan Enrichment (Phase 1) ─────────────────────────────────────
+
+export type InsurancePlanReadExtended = InsurancePlanRead;
+
+// ── Workers' Compensation Claims ────────────────────────────────────────────
+export interface WCClaimBase {
+  patient_id: number;
+  claim_number: string;
+  carrier_id?: string | null;
+  carrier_name?: string | null;
+  injury_date?: string | null;
+  injury_description?: string | null;
+  employer_name?: string | null;
+  employer_address?: string | null;
+  employer_phone?: string | null;
+  employer_phone_ext?: string | null;
+  employer_contact_name?: string | null;
+  employer_addr_line1?: string | null;
+  employer_addr_line2?: string | null;
+  employer_city?: string | null;
+  employer_state?: string | null;
+  employer_zip?: string | null;
+  pay_to?: string | null;
+  pay_to_contact?: string | null;
+  pay_to_phone?: string | null;
+  pay_to_addr_line1?: string | null;
+  pay_to_addr_line2?: string | null;
+  pay_to_city?: string | null;
+  pay_to_state?: string | null;
+  pay_to_zip?: string | null;
+  status?: string;
+  dispense_id?: number | null;
+  total_charges?: Money;
+  insurance_paid?: Money;
+  patient_responsibility?: Money;
+  notes?: string | null;
+}
+
+export type WCClaimCreate = WCClaimBase;
+
+export interface WCClaimRead extends WCClaimBase {
+  id: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface WCClaimUpdate {
+  carrier_id?: string | null;
+  carrier_name?: string | null;
+  injury_date?: string | null;
+  injury_description?: string | null;
+  employer_name?: string | null;
+  employer_address?: string | null;
+  employer_phone?: string | null;
+  employer_phone_ext?: string | null;
+  employer_contact_name?: string | null;
+  employer_addr_line1?: string | null;
+  employer_addr_line2?: string | null;
+  employer_city?: string | null;
+  employer_state?: string | null;
+  employer_zip?: string | null;
+  pay_to?: string | null;
+  pay_to_contact?: string | null;
+  pay_to_phone?: string | null;
+  pay_to_addr_line1?: string | null;
+  pay_to_addr_line2?: string | null;
+  pay_to_city?: string | null;
+  pay_to_state?: string | null;
+  pay_to_zip?: string | null;
+  status?: string;
+  claim_number?: string;
+  dispense_id?: number | null;
+  total_charges?: Money;
+  insurance_paid?: Money;
+  patient_responsibility?: Money;
+  notes?: string | null;
 }

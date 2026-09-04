@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
   import { useEffect, useState } from "react";
 
+import { useI18n } from "@/components/I18nProvider";
 import { useAuthStore } from "@/stores/authStore";
 import { useLicenseStore } from "@/stores/licenseStore";
 import { getDeviceId } from "@/lib/deviceId";
@@ -12,9 +13,12 @@ export default function LicensePage() {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const logout = useAuthStore((s) => s.logout);
+  const { t } = useI18n();
 
   const [licenseKey, setLicenseKey] = useState("");
-  const [hardwareId, setHardwareId] = useState("");
+  const [hardwareId, setHardwareId] = useState(() =>
+    typeof window !== "undefined" ? getDeviceId() : ""
+  );
 
   const status = useLicenseStore((s) => s.status);
   const loading = useLicenseStore((s) => s.loading);
@@ -24,13 +28,19 @@ export default function LicensePage() {
   const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
   const [importLoading, setImportLoading] = useState(false);
 
+  const token = useAuthStore((s) => s.token);
+
   useEffect(() => {
-    if (!isAuthenticated()) {
+    if (!token) {
       router.replace("/login");
     }
-  }, [isAuthenticated, router]);
+  }, [token, router]);
 
-  if (!isAuthenticated()) return null;
+  useEffect(() => {
+    if (status && status.status === "active") {
+      router.replace("/dashboard");
+    }
+  }, [status, router]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,17 +94,17 @@ export default function LicensePage() {
   return (
     <main style={{ maxWidth: 520, margin: "2rem auto", padding: "0 1.5rem", fontFamily: "Inter, system-ui" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700 }}>License Validation</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700 }}>{t("license.title")}</h1>
         <nav style={{ display: "flex", gap: 12, fontSize: 13 }}>
-          <a href="/pos">POS</a>
-          <a href="/license">License</a>
-          <button onClick={() => logout()} style={{ fontSize: 13 }}>Logout</button>
+          <a href="/pos">{t("license.navPos")}</a>
+          <a href="/license">{t("license.navLicense")}</a>
+          <button onClick={() => logout()} style={{ fontSize: 13 }}>{t("license.logout")}</button>
         </nav>
       </header>
 
       <form onSubmit={onSubmit}>
         <label style={{ display: "block", marginBottom: 14, fontSize: 13 }}>
-          License key
+          {t("license.labelLicenseKey")}
           <input
             type="text"
             value={licenseKey}
@@ -105,7 +115,7 @@ export default function LicensePage() {
           />
         </label>
         <label style={{ display: "block", marginBottom: 18, fontSize: 13 }}>
-          Hardware ID
+          {t("license.labelHardwareId")}
           <input
             type="text"
             value={hardwareId}
@@ -124,45 +134,39 @@ export default function LicensePage() {
           disabled={loading || checkoutLoading}
           style={{ width: "100%", padding: "0.7rem", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}
         >
-          {loading ? "Validating…" : "Validate License"}
+          {loading ? t("license.validating") : t("license.validateLicense")}
         </button>
       </form>
 
       <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #e5e7eb", textAlign: "center" }}>
-        <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>Need a new license or subscription renewal?</p>
+        <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>{t("license.purchasePrompt")}</p>
         <button
           onClick={() => void handlePurchase()}
           disabled={checkoutLoading || loading}
           style={{ padding: "0.6rem 1.2rem", background: "#10b981", color: "#fff", border: "none", borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: checkoutLoading ? "default" : "pointer", opacity: checkoutLoading ? 0.7 : 1 }}
         >
-          {checkoutLoading ? "Starting Checkout…" : "Purchase License via Creem"}
+          {checkoutLoading ? t("license.checkoutLoading") : t("license.purchaseViaCreem")}
         </button>
       </div>
 
       <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #e5e7eb", textAlign: "center" }}>
         {isTauri ? (
           <>
-            <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>Or import a license file</p>
+            <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>{t("license.importPrompt")}</p>
             <button
               onClick={() => void handleImportFile()}
               disabled={importLoading || loading}
               style={{ padding: "0.6rem 1.2rem", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: importLoading ? "default" : "pointer", opacity: importLoading ? 0.7 : 1 }}
             >
-              {importLoading ? "Importing…" : "Import License File (.json / .lic)"}
+              {importLoading ? t("license.importLoading") : t("license.importFileButton")}
             </button>
           </>
         ) : (
           <p style={{ fontSize: 13, color: "#9ca3af" }}>
-            License file import is only available in the desktop app.
+            {t("license.importDesktopOnly")}
           </p>
         )}
       </div>
-
-      {status && (
-        <pre style={{ background: "#f3f4f6", padding: 12, borderRadius: 6, marginTop: 16, fontSize: 12, overflowX: "auto" }}>
-          {JSON.stringify(status, null, 2)}
-        </pre>
-      )}
     </main>
   );
 }

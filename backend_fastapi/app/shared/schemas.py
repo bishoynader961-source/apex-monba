@@ -26,6 +26,24 @@ class ProductBase(BaseModel):
     dea_schedule: Optional[str] = None
     wholesale_price: Optional[Decimal] = None
     reorder_threshold: Optional[int] = None
+    category: Optional[str] = None
+    # Drug file enrichment (Phase 1 — BestRx gap closure)
+    ndc_code: Optional[str] = None
+    form: Optional[str] = None
+    strength: Optional[str] = None
+    manufacturer_name: Optional[str] = None
+    therapeutic_class: Optional[str] = None
+    is_generic: int = 0
+    is_controlled: int = 0
+    maintenance_medication: int = 0
+    drug_cost: Optional[Decimal] = None
+    default_sig_code: Optional[str] = None
+    default_qty: Optional[int] = None
+    default_days_supply: Optional[int] = None
+    lot_number: Optional[str] = None
+    package_size: Optional[str] = None
+    unit_of_measure: Optional[str] = None
+    image_url: Optional[str] = None
 
 
 class MedicineBase(ProductBase):
@@ -68,6 +86,24 @@ class MedicineUpdate(BaseModel):
     dea_schedule: Optional[str] = None
     wholesale_price: Optional[Decimal] = None
     reorder_threshold: Optional[int] = None
+    category: Optional[str] = None
+    # Drug file enrichment (Phase 1 — BestRx gap closure)
+    ndc_code: Optional[str] = None
+    form: Optional[str] = None
+    strength: Optional[str] = None
+    manufacturer_name: Optional[str] = None
+    therapeutic_class: Optional[str] = None
+    is_generic: Optional[int] = None
+    is_controlled: Optional[int] = None
+    maintenance_medication: Optional[int] = None
+    drug_cost: Optional[Decimal] = None
+    default_sig_code: Optional[str] = None
+    default_qty: Optional[int] = None
+    default_days_supply: Optional[int] = None
+    lot_number: Optional[str] = None
+    package_size: Optional[str] = None
+    unit_of_measure: Optional[str] = None
+    image_url: Optional[str] = None
 
 
 class StockLevelRead(BaseModel):
@@ -184,6 +220,7 @@ class BatchRead(BaseModel):
     ndc_formatted: Optional[str] = None
     awp: Optional[Decimal] = None
     mac: Optional[Decimal] = None
+    wac: Optional[Decimal] = None
     lot_number: Optional[str] = None
     expiration_date: Optional[str] = None
     on_hand: int = 0
@@ -529,20 +566,70 @@ ISOTime = Annotated[str, BeforeValidator(_require_iso_utc)]
 
 
 class PatientBase(BaseModel):
-    name: str
+    # Name fields (split from legacy `name` field) - optional for backward compat
+    last_name: Optional[str] = None
+    first_name: Optional[str] = None
+    middle_initial: Optional[str] = None
+    # Legacy field kept for backward compat (deprecated)
+    name: str = Field(default="", deprecated=True)
     dob: ISODate
-    address: str = ""
+    # Address fields (split from legacy `address` field) - optional for backward compat
+    address: str = ""  # street address
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
     driver_license: str = ""
     sex: str = ""
     employer_id: str = ""
     contact_phone: str = ""
+    home_phone: Optional[str] = None
     email: str = ""
+    ssn: Optional[str] = None
     insurance_provider: str = ""
     policy_number: str = ""
     group_number: str = ""
     insurance_plan_id: Optional[int] = None
     patient_allergies: str = ""
     comments: str = ""
+    # Additional phone / contact
+    cell_phone: Optional[str] = None
+    work_phone: Optional[str] = None
+    fax: Optional[str] = None
+    # Emergency contact
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    emergency_contact_relationship: Optional[str] = None
+    # Employment
+    employer_name: Optional[str] = None
+    employer_address: Optional[str] = None
+    employer_phone: Optional[str] = None
+    # Workers' Compensation
+    wc_claim_number: Optional[str] = None
+    wc_injury_date: Optional[str] = None
+    wc_injury_description: Optional[str] = None
+    wc_carrier_id: Optional[str] = None
+    wc_carrier_name: Optional[str] = None
+    # Delivery
+    delivery_zone: Optional[str] = None
+    delivery_status: Optional[str] = None
+    # Consent / Communication Preferences
+    consent_flag: int = 0
+    prefer_call: int = 1
+    prefer_text: int = 0
+    prefer_email: int = 0
+    # Demographics
+    preferred_language: Optional[str] = None
+    ethnicity: Optional[str] = None
+    race: Optional[str] = None
+    marital_status: Optional[str] = None
+    patient_type: Optional[str] = None
+    is_340b: int = 0
+    # Other
+    survey_num: Optional[str] = None
+    pharmacy_home_id: Optional[str] = None
+    last_fill_date: Optional[str] = None
+    prescriber_id: Optional[int] = None
+    primary_care_physician: Optional[str] = None
 
 
 class PatientCreate(PatientBase):
@@ -552,20 +639,70 @@ class PatientCreate(PatientBase):
 class PatientRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
-    name: str
+    # New name fields (optional for backward compat with existing data)
+    last_name: Optional[str] = None
+    first_name: Optional[str] = None
+    middle_initial: Optional[str] = None
+    # Legacy field (deprecated, kept for backward compat)
+    name: str = ""
     dob: str
-    address: str
+    # New address fields (optional for backward compat)
+    address: str = ""
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
     driver_license: str
     sex: str
     employer_id: str
     contact_phone: str
+    home_phone: Optional[str] = None
     email: str
+    ssn: Optional[str] = None
     insurance_provider: str
     policy_number: str
     group_number: str
     insurance_plan_id: Optional[int] = None
     patient_allergies: str
     comments: str
+    # Additional phone / contact
+    cell_phone: Optional[str] = None
+    work_phone: Optional[str] = None
+    fax: Optional[str] = None
+    # Emergency contact
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    emergency_contact_relationship: Optional[str] = None
+    # Employment
+    employer_name: Optional[str] = None
+    employer_address: Optional[str] = None
+    employer_phone: Optional[str] = None
+    # Workers' Compensation
+    wc_claim_number: Optional[str] = None
+    wc_injury_date: Optional[str] = None
+    wc_injury_description: Optional[str] = None
+    wc_carrier_id: Optional[str] = None
+    wc_carrier_name: Optional[str] = None
+    # Delivery
+    delivery_zone: Optional[str] = None
+    delivery_status: Optional[str] = None
+    # Consent / Communication Preferences
+    consent_flag: int = 0
+    prefer_call: int = 1
+    prefer_text: int = 0
+    prefer_email: int = 0
+    # Demographics
+    preferred_language: Optional[str] = None
+    ethnicity: Optional[str] = None
+    race: Optional[str] = None
+    marital_status: Optional[str] = None
+    patient_type: Optional[str] = None
+    is_340b: int = 0
+    # Other
+    survey_num: Optional[str] = None
+    pharmacy_home_id: Optional[str] = None
+    last_fill_date: Optional[str] = None
+    prescriber_id: Optional[int] = None
+    primary_care_physician: Optional[str] = None
     created_at: Optional[ISOTime] = None
     is_deleted: bool = False
 
@@ -580,20 +717,70 @@ class PatientRead(BaseModel):
 class PatientUpdate(BaseModel):
     """All-optional partial update (Liskov-safe standalone model, mirrors ``MedicineUpdate``)."""
 
+    # New name fields
+    last_name: Optional[str] = None
+    first_name: Optional[str] = None
+    middle_initial: Optional[str] = None
+    # Legacy field (deprecated)
     name: Optional[str] = None
     dob: Optional[ISODate] = None
+    # New address fields
     address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
     driver_license: Optional[str] = None
     sex: Optional[str] = None
     employer_id: Optional[str] = None
     contact_phone: Optional[str] = None
+    home_phone: Optional[str] = None
     email: Optional[str] = None
+    ssn: Optional[str] = None
     insurance_provider: Optional[str] = None
     policy_number: Optional[str] = None
     group_number: Optional[str] = None
     insurance_plan_id: Optional[int] = None
     patient_allergies: Optional[str] = None
     comments: Optional[str] = None
+    # Additional phone / contact
+    cell_phone: Optional[str] = None
+    work_phone: Optional[str] = None
+    fax: Optional[str] = None
+    # Emergency contact
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    emergency_contact_relationship: Optional[str] = None
+    # Employment
+    employer_name: Optional[str] = None
+    employer_address: Optional[str] = None
+    employer_phone: Optional[str] = None
+    # Workers' Compensation
+    wc_claim_number: Optional[str] = None
+    wc_injury_date: Optional[str] = None
+    wc_injury_description: Optional[str] = None
+    wc_carrier_id: Optional[str] = None
+    wc_carrier_name: Optional[str] = None
+    # Delivery
+    delivery_zone: Optional[str] = None
+    delivery_status: Optional[str] = None
+    # Consent / Communication Preferences
+    consent_flag: Optional[int] = None
+    prefer_call: Optional[int] = None
+    prefer_text: Optional[int] = None
+    prefer_email: Optional[int] = None
+    # Demographics
+    preferred_language: Optional[str] = None
+    ethnicity: Optional[str] = None
+    race: Optional[str] = None
+    marital_status: Optional[str] = None
+    patient_type: Optional[str] = None
+    is_340b: Optional[int] = None
+    # Other
+    survey_num: Optional[str] = None
+    pharmacy_home_id: Optional[str] = None
+    last_fill_date: Optional[str] = None
+    prescriber_id: Optional[int] = None
+    primary_care_physician: Optional[str] = None
 
 
 class InsurancePlanBase(BaseModel):
@@ -605,6 +792,26 @@ class InsurancePlanBase(BaseModel):
     copay_tier: str = ""
     copay_amount: Decimal = Decimal("0")
     active: int = 1
+    # Phase 1 enrichment + M103 Master File
+    plan_type: str = "COMMERCIAL"
+    help_desk_phone: Optional[str] = None
+    processor_id: Optional[str] = None
+    pharmacy_verified: int = 0
+    deductible: Decimal = Decimal("0")
+    ncpcp_copay: Decimal = Decimal("0")
+    wc_copay: Decimal = Decimal("0")
+    plan_code: Optional[str] = None
+    fax_number: Optional[str] = None
+    alt_phone: Optional[str] = None
+    contact_name: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    co_insurance_pct: Decimal = Decimal("0")
+    standard_copay: Decimal = Decimal("0")
+    notes: Optional[str] = None
 
 
 class InsurancePlanCreate(InsurancePlanBase):
@@ -622,6 +829,87 @@ class InsurancePlanRead(BaseModel):
     copay_tier: str
     copay_amount: Decimal
     active: bool
+    created_at: Optional[ISOTime] = None
+    # Phase 1 enrichment + M103 Master File
+    plan_type: str
+    help_desk_phone: Optional[str] = None
+    processor_id: Optional[str] = None
+    pharmacy_verified: int
+    deductible: Decimal
+    ncpcp_copay: Decimal
+    wc_copay: Decimal
+    plan_code: Optional[str] = None
+    fax_number: Optional[str] = None
+    alt_phone: Optional[str] = None
+    contact_name: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    co_insurance_pct: Decimal
+    standard_copay: Decimal
+    notes: Optional[str] = None
+
+
+# ── Prescriber ──────────────────────────────────────────────────────────────
+class PrescriberBase(BaseModel):
+    first_name: str = ""
+    last_name: str = ""
+    npi: Optional[str] = None
+    dea_number: Optional[str] = None
+    state_license: Optional[str] = None
+    spi_number: Optional[str] = None
+    medicare_id: Optional[str] = None
+    medicaid_id: Optional[str] = None
+    ncpdp_id: Optional[str] = None
+    phone: Optional[str] = None
+    fax: Optional[str] = None
+    email: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    quick_code: Optional[str] = None
+    eps_status: Optional[str] = None
+    service_level: Optional[str] = None
+    groups: Optional[str] = None
+    effective_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+
+class PrescriberCreate(PrescriberBase):
+    pass
+
+
+class PrescriberRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    first_name: str
+    last_name: str
+    npi: Optional[str] = None
+    dea_number: Optional[str] = None
+    state_license: Optional[str] = None
+    spi_number: Optional[str] = None
+    medicare_id: Optional[str] = None
+    medicaid_id: Optional[str] = None
+    ncpdp_id: Optional[str] = None
+    phone: Optional[str] = None
+    fax: Optional[str] = None
+    email: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    quick_code: Optional[str] = None
+    eps_status: Optional[str] = None
+    service_level: Optional[str] = None
+    groups: Optional[str] = None
+    effective_date: Optional[str] = None
+    end_date: Optional[str] = None
+    is_deleted: bool = False
     created_at: Optional[ISOTime] = None
 
 
@@ -649,6 +937,9 @@ class MembersGroupRead(BaseModel):
 class SigCodeBase(BaseModel):
     code: str
     full_text: str
+    language: str = "EN"
+    days_accumulated: Decimal = Decimal("0")
+    offset: int = 0
 
 
 class SigCodeCreate(SigCodeBase):
@@ -660,12 +951,30 @@ class SigCodeRead(BaseModel):
     id: int
     code: str
     full_text: str
+    language: str
+    days_accumulated: Decimal
+    offset: int
+
+
+class SigCodeUpdate(BaseModel):
+    code: Optional[str] = None
+    full_text: Optional[str] = None
+    language: Optional[str] = None
+    days_accumulated: Optional[Decimal] = None
+    offset: Optional[int] = None
 
 
 class PriceCodeBase(BaseModel):
     code: str
     description: str = ""
     price: Decimal = Decimal("0")
+    # Multi-tier pricing (Phase 3)
+    price_level: Optional[str] = None
+    cost_factor_pct: Decimal = Decimal("100")
+    dispensing_fee: Decimal = Decimal("0")
+    min_price: Decimal = Decimal("0")
+    max_price: Decimal = Decimal("999999.99")
+    markup_pct: Decimal = Decimal("0")
 
 
 class PriceCodeCreate(PriceCodeBase):
@@ -678,6 +987,31 @@ class PriceCodeRead(BaseModel):
     code: str
     description: str
     price: Decimal
+    # Multi-tier pricing (Phase 3)
+    price_level: Optional[str] = None
+    cost_factor_pct: Decimal
+    dispensing_fee: Decimal
+    min_price: Decimal
+    max_price: Decimal
+    markup_pct: Decimal
+
+
+class PriceCodeUpdate(BaseModel):
+    """All-optional partial update for PriceCode."""
+    code: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[Decimal] = None
+    price_level: Optional[str] = None
+    cost_factor_pct: Optional[Decimal] = None
+    dispensing_fee: Optional[Decimal] = None
+    min_price: Optional[Decimal] = None
+    max_price: Optional[Decimal] = None
+    markup_pct: Optional[Decimal] = None
+
+
+class PriceCalculationResult(BaseModel):
+    computed_price: Decimal
+    clamped: bool
 
 
 class SigCodeParseResult(BaseModel):
@@ -764,6 +1098,7 @@ class DispenseItemRead(BaseModel):
     quantity: int
     awp_at_time: Optional[Decimal] = None
     mac_at_time: Optional[Decimal] = None
+    wac_at_time: Optional[Decimal] = None
 
 
 class DispenseBase(BaseModel):
@@ -786,6 +1121,10 @@ class DispenseCreate(DispenseBase):
     # optional price-code override for the dispense price.
     price_code: Optional[str] = None
     insurance_plan_id: Optional[int] = None
+    # Phase 1: Rx number + refill tracking
+    refills_authorized: int = 0
+    prescriber_id: Optional[int] = None
+    days_supply: Optional[int] = None
 
 
 class DispenseRead(BaseModel):
@@ -807,9 +1146,64 @@ class DispenseRead(BaseModel):
     server_created_at: Optional[ISOTime] = None
     items: list[DispenseItemRead] = Field(default_factory=list)
     allergy_flags: list[str] = Field(default_factory=list)
+    # Phase 4: DUR alerts
+    ddi_alerts: list[dict[str, str]] = Field(default_factory=list)
+    duplicate_therapy: list[str] = Field(default_factory=list)
+    # Phase 1: Rx number + refill tracking
+    rx_number: Optional[str] = None
+    refill_count: int = 0
+    refills_authorized: int = 0
+    last_fill_date: Optional[str] = None
+    prescriber_id: Optional[int] = None
+    days_supply: Optional[int] = None
 
 
-# ── Inventory Movement History (unified stock ledger) ─────────────────────────
+class DispenseUpdate(BaseModel):
+    """Partial update for an existing dispense (Edit Rx)."""
+    sig_code: Optional[str] = None
+    quantity: Optional[int] = Field(default=None, gt=0)
+    days_supply: Optional[int] = None
+    refills_authorized: Optional[int] = None
+    prescriber_id: Optional[int] = None
+    fill_date: Optional[ISODate] = None
+
+
+class VoidResult(BaseModel):
+    """Result of a dispense void/reverse operation."""
+    dispense_id: int
+    rx_number: Optional[str] = None
+    voided: bool
+    restocked_quantity: int
+    reason: str
+
+
+class EligibilityCheckResult(BaseModel):
+    """Insurance eligibility verification result."""
+    patient_id: int
+    patient_name: str
+    plan_id: Optional[int] = None
+    plan_name: Optional[str] = None
+    eligible: bool
+    active: bool
+    copay_tier: str = ""
+    copay_amount: Decimal = Decimal("0")
+    deductible: Decimal = Decimal("0")
+    deductible_met: Decimal = Decimal("0")
+    deductible_remaining: Decimal = Decimal("0")
+    coinsurance_pct: int = 0
+    coverage_percentage: int = 80
+    message: str = ""
+
+
+class TransferResult(BaseModel):
+    """Result of a prescription transfer operation."""
+    dispense_id: int
+    rx_number: Optional[str] = None
+    transferred: bool
+    transfer_type: str  # "outgoing" or "incoming"
+    pharmacy_name: str = ""
+    pharmacy_phone: str = ""
+    reason: str = ""
 class MovementLogItem(BaseModel):
     """A single, mathematically-strict ledger event across all stock sources."""
 
@@ -855,3 +1249,253 @@ class DemandAnalyticsSummary(BaseModel):
     top_demanded_product: Optional[str] = None
     slow_non_moving_count: int
     items: list[DemandAnalyticsItem]
+
+
+# ── Top Selling Items ────────────────────────────────────────────────────────
+class TopSellingItem(BaseModel):
+    rank: int
+    product_name: str
+    total_quantity: int
+    total_revenue: Decimal
+    source: str  # "pos" | "dispense" | "combined"
+
+
+class TopSellingResponse(BaseModel):
+    window_start: str
+    window_end: str
+    items: list[TopSellingItem]
+
+
+# ── Workers' Compensation Claims ─────────────────────────────────────────────
+class WCClaimBase(BaseModel):
+    patient_id: int
+    claim_number: str
+    carrier_id: Optional[str] = None
+    carrier_name: Optional[str] = None
+    injury_date: Optional[str] = None
+    injury_description: Optional[str] = None
+    employer_name: Optional[str] = None
+    employer_address: Optional[str] = None
+    employer_phone: Optional[str] = None
+    # M103 extended fields
+    employer_phone_ext: Optional[str] = None
+    employer_contact_name: Optional[str] = None
+    employer_addr_line1: Optional[str] = None
+    employer_addr_line2: Optional[str] = None
+    employer_city: Optional[str] = None
+    employer_state: Optional[str] = None
+    employer_zip: Optional[str] = None
+    pay_to: Optional[str] = None
+    pay_to_contact: Optional[str] = None
+    pay_to_phone: Optional[str] = None
+    pay_to_addr_line1: Optional[str] = None
+    pay_to_addr_line2: Optional[str] = None
+    pay_to_city: Optional[str] = None
+    pay_to_state: Optional[str] = None
+    pay_to_zip: Optional[str] = None
+    status: str = "open"
+    dispense_id: Optional[int] = None
+    total_charges: Decimal = Decimal("0")
+    insurance_paid: Decimal = Decimal("0")
+    patient_responsibility: Decimal = Decimal("0")
+    notes: Optional[str] = None
+
+
+class WCClaimCreate(WCClaimBase):
+    pass
+
+
+class WCClaimRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    patient_id: int
+    claim_number: str
+    carrier_id: Optional[str] = None
+    carrier_name: Optional[str] = None
+    injury_date: Optional[str] = None
+    injury_description: Optional[str] = None
+    employer_name: Optional[str] = None
+    employer_address: Optional[str] = None
+    employer_phone: Optional[str] = None
+    # M103 extended fields
+    employer_phone_ext: Optional[str] = None
+    employer_contact_name: Optional[str] = None
+    employer_addr_line1: Optional[str] = None
+    employer_addr_line2: Optional[str] = None
+    employer_city: Optional[str] = None
+    employer_state: Optional[str] = None
+    employer_zip: Optional[str] = None
+    pay_to: Optional[str] = None
+    pay_to_contact: Optional[str] = None
+    pay_to_phone: Optional[str] = None
+    pay_to_addr_line1: Optional[str] = None
+    pay_to_addr_line2: Optional[str] = None
+    pay_to_city: Optional[str] = None
+    pay_to_state: Optional[str] = None
+    pay_to_zip: Optional[str] = None
+    status: str
+    dispense_id: Optional[int] = None
+    total_charges: Decimal
+    insurance_paid: Decimal
+    patient_responsibility: Decimal
+    notes: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class WCClaimUpdate(BaseModel):
+    carrier_id: Optional[str] = None
+    carrier_name: Optional[str] = None
+    injury_date: Optional[str] = None
+    injury_description: Optional[str] = None
+    employer_name: Optional[str] = None
+    employer_address: Optional[str] = None
+    employer_phone: Optional[str] = None
+    # M103 extended fields
+    employer_phone_ext: Optional[str] = None
+    employer_contact_name: Optional[str] = None
+    employer_addr_line1: Optional[str] = None
+    employer_addr_line2: Optional[str] = None
+    employer_city: Optional[str] = None
+    employer_state: Optional[str] = None
+    employer_zip: Optional[str] = None
+    pay_to: Optional[str] = None
+    pay_to_contact: Optional[str] = None
+    pay_to_phone: Optional[str] = None
+    pay_to_addr_line1: Optional[str] = None
+    pay_to_addr_line2: Optional[str] = None
+    pay_to_city: Optional[str] = None
+    pay_to_state: Optional[str] = None
+    pay_to_zip: Optional[str] = None
+    status: Optional[str] = None
+    dispense_id: Optional[int] = None
+    total_charges: Optional[Decimal] = None
+    insurance_paid: Optional[Decimal] = None
+    patient_responsibility: Optional[Decimal] = None
+    notes: Optional[str] = None
+
+
+class DrugDictionaryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    ndc_code: str
+    name: str
+    strength: Optional[str] = None
+    form: Optional[str] = None
+    manufacturer: Optional[str] = None
+    dea_schedule: Optional[str] = None
+    pill_image_url: Optional[str] = None
+    source: str
+    last_verified: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class DrugConfirmResult(BaseModel):
+    found: bool
+    ndc: str
+    name: Optional[str] = None
+    strength: Optional[str] = None
+    form: Optional[str] = None
+    manufacturer: Optional[str] = None
+    dea_schedule: Optional[str] = None
+    pill_image_url: Optional[str] = None
+    source: str  # "local" | "fda" | "rxnorm" | "not_found"
+
+
+# ── Vendor Management (Phase 6) ─────────────────────────────────────────────
+class VendorCreate(BaseModel):
+    company_name: str = Field(..., min_length=1)
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    tax_id: Optional[str] = None
+    address: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class VendorUpdate(BaseModel):
+    """All-optional partial update for PUT /vendors/{id}."""
+    company_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    tax_id: Optional[str] = None
+    address: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: Optional[int] = None
+
+
+class VendorRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    company_name: str
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    tax_id: Optional[str] = None
+    balance_due: float = 0
+    is_active: int = 1
+    address: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class VendorItemRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    vendor_id: str
+    product_name: str
+    unit_cost: Optional[float] = None
+    sku: Optional[str] = None
+    is_primary: int = 0
+
+
+class PurchaseHistoryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    vendor_id: str
+    product_name: str
+    quantity: int
+    unit_cost: float
+    total_cost: float
+    invoice_ref: Optional[str] = None
+    received_date: Optional[str] = None
+    received_by: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class ReceiveShipmentPayload(BaseModel):
+    vendor_id: str
+    product_name: str = Field(..., min_length=1)
+    quantity: int = Field(..., ge=1)
+    unit_cost: float = Field(..., ge=0)
+    invoice_ref: Optional[str] = None
+    received_date: Optional[str] = None
+    notes: Optional[str] = None
+
+
+# ── Third-Party Integrations (Phase 7) ──────────────────────────────────────
+class IntegrationCreate(BaseModel):
+    provider_name: str = Field(..., min_length=1)
+    api_key: str = Field(..., min_length=1)
+    base_url: Optional[str] = None
+
+
+class IntegrationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    provider_name: str
+    is_active: int = 0
+    base_url: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class DrugEvaluateRequest(BaseModel):
+    ndc: Optional[str] = None
+    drug_name: str = Field(..., min_length=1)
+
+
+class DrugEvaluateResponse(BaseModel):
+    status: str  # "safe" | "warning" | "severe"
+    message: str
+    interactions: list[str]
+    source: str  # "mock" | "live"
+    cached: bool

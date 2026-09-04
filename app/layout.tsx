@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { I18nProvider } from "@/components/I18nProvider";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { LicenseGate } from "@/components/LicenseGate";
 import { BootGuard } from "@/components/BootGuard";
+import { GlobalHotkeys } from "@/components/GlobalHotkeys";
+import { QueryProvider } from "./providers/QueryProvider";
 
 export const metadata: Metadata = {
-  title: "PharmacyPro",
-  description: "Pharmacy management SaaS application",
+  title: "Pharmacy Suite",
+  description: "Pharmacy management application",
 };
 
 export default function RootLayout({
@@ -16,16 +17,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>
-        <I18nProvider>
-          <BootGuard>
-            <header className="flex items-center justify-end border-b border-gray-200 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-800">
-              <LanguageSwitcher />
-            </header>
-            <LicenseGate>{children}</LicenseGate>
-          </BootGuard>
-        </I18nProvider>
+    <html lang="en" className="dark">
+      <body className="bg-[#0a0a1a] text-gray-100 antialiased">
+        <QueryProvider>
+          <I18nProvider>
+            <BootGuard>
+              <GlobalHotkeys />
+              <LicenseGate>{children}</LicenseGate>
+            </BootGuard>
+          </I18nProvider>
+        </QueryProvider>
       </body>
     </html>
   );

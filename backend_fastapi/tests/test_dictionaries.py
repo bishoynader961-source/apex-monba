@@ -160,3 +160,170 @@ async def test_ndc_lookup_route_not_found(
     assert resp.status_code == 200
     assert resp.json()["found"] is False
     assert resp.json()["q"] == "00000-0000-00"
+
+
+# ── M103: Sig-Code PUT / DELETE ───────────────────────────────────────────────────
+
+async def test_sig_code_update_route(
+    client: AsyncClient, auth: dict[str, str]
+) -> None:
+    created = await client.post(
+        "/api/v1/dictionaries/sig-codes",
+        json={"code": "BID", "full_text": "Twice daily"},
+        headers=auth,
+    )
+    sig_id = created.json()["id"]
+
+    resp = await client.put(
+        f"/api/v1/dictionaries/sig-codes/{sig_id}",
+        json={"language": "ES", "days_accumulated": "1.5", "offset": 2},
+        headers=auth,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["language"] == "ES"
+    assert body["days_accumulated"] == "1.5000"
+    assert body["offset"] == 2
+
+    listed = await client.get("/api/v1/dictionaries/sig-codes", headers=auth)
+    sig = next(s for s in listed.json() if s["code"] == "BID")
+    assert sig["language"] == "ES"
+    assert sig["days_accumulated"] == "1.5000"
+
+
+async def test_sig_code_update_not_found(
+    client: AsyncClient, auth: dict[str, str]
+) -> None:
+    resp = await client.put(
+        "/api/v1/dictionaries/sig-codes/99999",
+        json={"language": "ES"},
+        headers=auth,
+    )
+    assert resp.status_code == 404
+
+
+async def test_sig_code_delete_route(
+    client: AsyncClient, auth: dict[str, str]
+) -> None:
+    created = await client.post(
+        "/api/v1/dictionaries/sig-codes",
+        json={"code": "QID", "full_text": "Four times daily"},
+        headers=auth,
+    )
+    sig_id = created.json()["id"]
+
+    resp = await client.delete(f"/api/v1/dictionaries/sig-codes/{sig_id}", headers=auth)
+    assert resp.status_code == 204
+
+    listed = await client.get("/api/v1/dictionaries/sig-codes", headers=auth)
+    assert not any(s["code"] == "QID" for s in listed.json())
+
+
+async def test_sig_code_delete_not_found(
+    client: AsyncClient, auth: dict[str, str]
+) -> None:
+    resp = await client.delete("/api/v1/dictionaries/sig-codes/99999", headers=auth)
+    assert resp.status_code == 404
+
+
+# ── M103: Price-Code calculate endpoint ───────────────────────────────────────────
+
+async def test_calculate_price_repo(session: AsyncSession) -> None:
+    from app.core.models import PriceCode
+    from app.core.repositories import PriceCodeRepository
+
+    pc = PriceCode(
+        code="CALC",
+        cost_factor_pct=Decimal("120"),
+        dispensing_fee=Decimal("0.50"),
+        min_price=Decimal("3.00"),
+        max_price=Decimal("20.00"),
+    )
+    session.add(pc)
+    await session.commit()
+    await session.refresh(pc)
+
+    computed, clamped = PriceCodeRepository(session).calculate_price(pc, Decimal("10.00"))
+    # 10.00 * 1.20 + 0.50 = 12.50, within [3.00, 20.00]
+    assert computed == Decimal("12.50")
+    assert clamped is False
+
+    # min clamp: 1.00 * 1.20 + 0.50 = 1.70 < 3.00
+    computed, clamped = PriceCodeRepository(session).calculate_price(pc, Decimal("1.00"))
+    assert computed == Decimal("3.00")
+    assert clamped is True
+
+    # max clamp: 50.00 * 1.20 + 0.50 = 60.50 > 20.00
+    computed, clamped = PriceCodeRepository(session).calculate_price(pc, Decimal("50.00"))
+    assert computed == Decimal("20.00")
+    assert clamped is True
+
+
+async def test_calculate_price_markup_override(session: AsyncSession) -> None:
+    from app.core.models import PriceCode
+    from app.core.repositories import PriceCodeRepository
+
+    pc = PriceCode(
+        code="MARKUP",
+        markup_pct=Decimal("50"),
+        dispensing_fee=Decimal("1.00"),
+        min_price=Decimal("0"),
+        max_price=Decimal("999999.99"),
+    )
+    session.add(pc)
+    await session.commit()
+    await session.refresh(pc)
+
+    computed, clamped = PriceCodeRepository(session).calculate_price(pc, Decimal("10.00"))
+    # markup takes precedence: 10.00 * 0.50 + 1.00 = 6.00
+    assert computed == Decimal("6.00")
+    assert clamped is False
+
+
+async def test_price_code_calculate_route(
+    client: AsyncClient, auth: dict[str, str]
+) -> None:
+    created = await client.post(
+        "/api/v1/dictionaries/price-codes",
+        json={
+            "code": "CALC",
+            "description": "Calculation test",
+            "price": "0.00",
+            "cost_factor_pct": "100",
+            "dispensing_fee": "1.00",
+            "min_price": "2.00",
+            "max_price": "50.00",
+        },
+        headers=auth,
+    )
+    pc_id = created.json()["id"]
+
+    # 10.00 * 1.00 + 1.00 = 11.00, within [2.00, 50.00]
+    resp = await client.get(
+        f"/api/v1/dictionaries/price-codes/{pc_id}/calculate?acquisition_cost=10.00",
+        headers=auth,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["computed_price"] == "11.00"
+    assert body["clamped"] is False
+
+    # 0.50 * 1.00 + 1.00 = 1.50 < 2.00 → clamped to min
+    resp = await client.get(
+        f"/api/v1/dictionaries/price-codes/{pc_id}/calculate?acquisition_cost=0.50",
+        headers=auth,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["computed_price"] == "2.00"
+    assert body["clamped"] is True
+
+
+async def test_price_code_calculate_not_found(
+    client: AsyncClient, auth: dict[str, str]
+) -> None:
+    resp = await client.get(
+        "/api/v1/dictionaries/price-codes/99999/calculate?acquisition_cost=10.00",
+        headers=auth,
+    )
+    assert resp.status_code == 404

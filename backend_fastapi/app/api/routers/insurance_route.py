@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permission
@@ -11,6 +12,7 @@ from app.core.database import get_session
 from app.core.repositories import InsuranceRepository
 from app.services.insurance_service import InsuranceService
 from app.shared.schemas import (
+    EligibilityCheckResult,
     InsurancePlanCreate,
     InsurancePlanRead,
     InsuranceValidateRequest,
@@ -90,3 +92,17 @@ async def validate_plan(
     session: AsyncSession = Depends(get_session),
 ) -> InsuranceValidationResult:
     return await InsuranceService(session).validate_coverage(payload.plan_id)
+
+
+class EligibilityRequest(BaseModel):
+    patient_id: int
+
+
+@router.post("/eligibility", response_model=EligibilityCheckResult)
+async def check_eligibility(
+    payload: EligibilityRequest,
+    _auth: object = Depends(require_permission("insurance.read")),
+    session: AsyncSession = Depends(get_session),
+) -> EligibilityCheckResult:
+    """Real-time insurance eligibility check for a patient."""
+    return await InsuranceService(session).check_eligibility(payload.patient_id)

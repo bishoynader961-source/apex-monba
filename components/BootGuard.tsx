@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
+import { useAuthStore } from "@/stores/authStore";
+
 // Boot-time guard for the Tauri desktop build. The PyInstaller FastAPI sidecar
 // (backend-x86_64-pc-windows-msvc.exe) needs ~30s to cold-start before it answers
 // on :8000, so we block the app shell until GET /api/v1/health returns 200. This
@@ -31,6 +33,10 @@ export function BootGuard({ children }: { children: ReactNode }) {
       try {
         const res = await fetch(url, { cache: "no-store", signal: controller.signal });
         if (!cancelled && res.ok) {
+          const token = localStorage.getItem("access_token");
+          if (token) {
+            await useAuthStore.getState().fetchCurrentUser();
+          }
           setReady(true);
           return;
         }

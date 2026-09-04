@@ -89,6 +89,15 @@ class Settings(BaseSettings):
     frontend_url: str = Field(default="http://localhost:3000", alias="FRONTEND_URL")
     tax_rate: float = Field(default=0.14, alias="TAX_RATE")
 
+    # ── SMTP / Email ──
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_user: str = Field(default="", alias="SMTP_USER")
+    smtp_password: SecretStr = Field(default=SecretStr(""), alias="SMTP_PASSWORD")
+    smtp_from_email: str = Field(default="", alias="SMTP_FROM_EMAIL")
+    smtp_from_name: str = Field(default="PharmacySuite", alias="SMTP_FROM_NAME")
+    smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
+
     # ── Creem Merchant-of-Record (MoR) ──
     creem_api_key: SecretStr = Field(
         default=SecretStr(""), alias="CREEM_API_KEY"

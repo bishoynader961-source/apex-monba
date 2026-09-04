@@ -1,0 +1,27 @@
+# Pharmacy Suite Modernization Tasks
+
+- [x] Phase 1: Visual Evaluation & Design System Enforcement
+  - [x] Audit current frontend vs screenshots
+  - [x] Create `DESIGN_SYSTEM.md`
+  - [x] Standardize Tailwind CSS across Next.js components
+- [x] Phase 2: Role-Based Access Control (RBAC) & Permissions
+  - [x] Implement FastAPI RBAC middleware
+  - [x] Update Next.js auth store and UI conditional rendering
+- [x] Phase 3: Porting Legacy Python Features & OCR
+  - [x] Create `POST /api/v1/ocr` endpoint (in-memory `io.BytesIO`)
+  - [x] Create OCR upload drag-and-drop component
+  - [x] Build Excel export/import endpoints
+  - [x] Build Next.js print-preview route for labels
+- [x] Phase 4: Multi-PC LAN Network Configuration
+  - [x] Update FastAPI server binding to `0.0.0.0`
+- [x] Phase 5: Time-Filtered Sales Analytics Dashboard
+  - [x] Create analytics GROUP BY endpoints
+  - [x] Build Next.js dashboard with Day/Week/Month toggle
+- [x] Phase 6: Vendor Management Module
+  - [x] Add `vendors`, `vendor_items`, `purchase_history` to SQLite
+  - [x] Implement vendor CRUD endpoints
+  - [x] Build Next.js Vendor Management UI
+- [x] Phase 7: Third-Party Medicine API Proxy
+  - [x] Add `integrations` table to SQLite
+  - [x] Create mock `POST /api/v1/drugs/evaluate` proxy
+  - [x] Build Evaluate Drug button and clinical warning modal

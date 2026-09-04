@@ -157,3 +157,70 @@ async def test_validate_coverage_endpoint(
     assert body["active"] is True
     assert body["plan_name"] == "TestPlan"
     assert body["coverage_percentage"] == 80
+
+
+# ── M103: Insurance Plan Master File extended fields ───────────────────────────────
+
+async def test_insurance_plan_master_file_fields(
+    client: AsyncClient, auth: dict[str, str]
+) -> None:
+    payload = {
+        "plan_name": "MasterPlan",
+        "carrier_id": "MC1",
+        "copay_tier": "T1",
+        "copay_amount": 10.00,
+        "plan_code": "P12345",
+        "fax_number": "555-0101",
+        "alt_phone": "555-0202",
+        "contact_name": "Jane Doe",
+        "address_line1": "123 Main St",
+        "address_line2": "Suite 200",
+        "city": "Boston",
+        "state": "MA",
+        "zip": "02101",
+        "co_insurance_pct": 20.00,
+        "standard_copay": 15.00,
+        "notes": "Commercial PPO network",
+    }
+    resp = await client.post("/api/v1/insurance/plans", json=payload, headers=auth)
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["plan_code"] == "P12345"
+    assert body["fax_number"] == "555-0101"
+    assert body["alt_phone"] == "555-0202"
+    assert body["contact_name"] == "Jane Doe"
+    assert body["address_line1"] == "123 Main St"
+    assert body["address_line2"] == "Suite 200"
+    assert body["city"] == "Boston"
+    assert body["state"] == "MA"
+    assert body["zip"] == "02101"
+    assert body["co_insurance_pct"] == "20.00"
+    assert body["standard_copay"] == "15.00"
+    assert body["notes"] == "Commercial PPO network"
+
+
+async def test_update_plan_extended_fields(
+    client: AsyncClient, auth: dict[str, str], plan_id: int
+) -> None:
+    resp = await client.put(
+        f"/api/v1/insurance/plans/{plan_id}",
+        json={
+            "plan_name": "UpdatedMaster",
+            "carrier_id": "C2",
+            "copay_tier": "T1",
+            "copay_amount": 20.00,
+            "plan_code": "NEW-CODE",
+            "fax_number": "555-9999",
+            "contact_name": "John Smith",
+            "co_insurance_pct": 30.00,
+            "standard_copay": 25.00,
+        },
+        headers=auth,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["plan_code"] == "NEW-CODE"
+    assert body["fax_number"] == "555-9999"
+    assert body["contact_name"] == "John Smith"
+    assert body["co_insurance_pct"] == "30.00"
+    assert body["standard_copay"] == "25.00"

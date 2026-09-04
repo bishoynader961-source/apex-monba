@@ -17,6 +17,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
+  if (pathname === "/" && !accessToken) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
   const isProtected = PROTECTED_ROUTES.some((route) => pathname.startsWith(route));
   if (isProtected && !accessToken) {
     return NextResponse.redirect(new URL("/login", request.url));

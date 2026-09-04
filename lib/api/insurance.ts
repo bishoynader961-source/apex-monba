@@ -1,6 +1,7 @@
 // Typed Insurance API service (mirrors backend app/api/routers/insurance_route.py).
 import { api } from "@/lib/api";
 import type {
+  EligibilityCheckResult,
   InsurancePlanCreate,
   InsurancePlanRead,
   InsuranceValidateRequest,
@@ -36,5 +37,10 @@ export async function deletePlan(id: number): Promise<InsurancePlanRead> {
 
 export async function validatePlan(payload: InsuranceValidateRequest): Promise<InsuranceValidationResult> {
   const { data } = await api.post<InsuranceValidationResult>(`${BASE}/plans/validate`, payload);
+  return data;
+}
+
+export async function checkEligibility(patientId: number): Promise<EligibilityCheckResult> {
+  const { data } = await api.post<EligibilityCheckResult>(`${BASE}/eligibility`, { patient_id: patientId });
   return data;
 }

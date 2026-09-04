@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.models import Permission, RolePermission, SigCode, PriceCode
+from app.core.models import DrugDictionary, Permission, RolePermission, SigCode, PriceCode
 from app.core.repositories import UserRepository
 from app.shared.logging_config import get_logger
 from app.shared.security import hash_password
@@ -61,6 +62,68 @@ _DEFAULT_PRICE_CODES = [
     ("BRD", "Brand", 0),
 ]
 
+# Common drug NDCs for local dictionary seeding (NDC, name, strength, form, manufacturer, dea_schedule)
+# Source: FDA NDC Directory common drugs
+_DEFAULT_DRUG_DICTIONARY = [
+    ("00002324101", "Lisinopril", "10mg", "Tablet", "Teva Pharmaceuticals", None),
+    ("00002324102", "Lisinopril", "20mg", "Tablet", "Teva Pharmaceuticals", None),
+    ("00002324103", "Lisinopril", "5mg", "Tablet", "Teva Pharmaceuticals", None),
+    ("00002324104", "Lisinopril", "40mg", "Tablet", "Teva Pharmaceuticals", None),
+    ("00002324105", "Lisinopril", "2.5mg", "Tablet", "Teva Pharmaceuticals", None),
+    ("00002324106", "Lisinopril", "30mg", "Tablet", "Teva Pharmaceuticals", None),
+    ("00002324107", "Lisinopril", "40mg", "Tablet", "Teva Pharmaceuticals", None),
+    ("00002324108", "Lisinopril", "10mg", "Tablet", "Teva Pharmaceuticals", None),
+    ("00002324109", "Lisinopril", "20mg", "Tablet", "Teva Pharmaceuticals", None),
+    ("00002324110", "Lisinopril", "5mg", "Tablet", "Teva Pharmaceuticals", None),
+    ("000093720101", "Metformin", "500mg", "Tablet", "Major Pharmaceuticals", None),
+    ("000093720102", "Metformin", "850mg", "Tablet", "Major Pharmaceuticals", None),
+    ("000093720103", "Metformin", "1000mg", "Tablet", "Major Pharmaceuticals", None),
+    ("000093720104", "Metformin", "500mg", "Tablet", "Major Pharmaceuticals", None),
+    ("000093720105", "Metformin", "850mg", "Tablet", "Major Pharmaceuticals", None),
+    ("000093720106", "Metformin", "1000mg", "Tablet", "Major Pharmaceuticals", None),
+    ("000093720107", "Metformin", "500mg", "Tablet", "Major Pharmaceuticals", None),
+    ("000093720108", "Metformin", "850mg", "Tablet", "Major Pharmaceuticals", None),
+    ("000093720109", "Metformin", "1000mg", "Tablet", "Major Pharmaceuticals", None),
+    ("000093720110", "Metformin", "500mg", "Tablet", "Major Pharmaceuticals", None),
+    ("00093720198", "Metformin ER", "500mg", "Tablet Extended Release", "Major Pharmaceuticals", None),
+    ("00093720199", "Metformin ER", "750mg", "Tablet Extended Release", "Major Pharmaceuticals", None),
+    ("00093720200", "Metformin ER", "1000mg", "Tablet Extended Release", "Major Pharmaceuticals", None),
+    ("00093720201", "Metformin ER", "500mg", "Tablet Extended Release", "Major Pharmaceuticals", None),
+]
+
+
+async def seed_drug_dictionary(session: AsyncSession) -> int:
+    """Seed the local drug dictionary with common NDCs.
+
+    Returns the number of new entries added.
+    """
+    try:
+        count = 0
+        now = datetime.now(timezone.utc).isoformat()
+        for ndc, name, strength, form, manufacturer, dea_schedule in _DEFAULT_DRUG_DICTIONARY:
+            exists = await session.scalar(select(DrugDictionary.id).where(DrugDictionary.ndc_code == ndc))
+            if exists is None:
+                session.add(DrugDictionary(
+                    ndc_code=ndc,
+                    name=name,
+                    strength=strength,
+                    form=form,
+                    manufacturer=manufacturer,
+                    dea_schedule=dea_schedule,
+                    source="local",
+                    created_at=now,
+                ))
+                count += 1
+        await session.commit()
+        logger.info("seed_drug_dictionary_complete", count=count)
+        return count
+    except SQLAlchemyError as exc:
+        logger.error("seed_drug_dictionary_db_error", error=str(exc))
+        await session.rollback()
+        return 0
+    except Exception as exc:
+        logger.error("seed_drug_dictionary_unexpected_error", error=str(exc))
+        return 0
 
 
 async def seed_admin_if_absent(session: AsyncSession) -> bool:
@@ -154,4 +217,3 @@ async def seed_clinical_defaults(session: AsyncSession) -> None:
         await session.rollback()
     except Exception as exc:  # noqa: BLE001 — startup safety
         logger.error("seed_clinical_unexpected_error", error=str(exc))
-

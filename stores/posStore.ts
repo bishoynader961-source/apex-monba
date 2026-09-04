@@ -59,7 +59,7 @@ interface PosState {
   clear: () => void;
   setError: (e: string | null) => void;
   setResult: (r: CheckoutResult | null) => void;
-  checkout: () => Promise<void>;
+  checkout: (paymentMethod?: string) => Promise<void>;
   recordDrawer: (payload: DrawerMovementCreate, approvalToken: string) => Promise<DrawerMovementRead>;
   openShift: (openingFloat: string) => Promise<void>;
   currentShiftId: number | null;
@@ -137,13 +137,13 @@ export const usePosStore = create<PosState>((set, get) => ({
   setError: (e) => set({ error: e }),
   setResult: (r) => set({ result: r }),
 
-  checkout: async () => {
+  checkout: async (paymentMethod?: string) => {
     const { lines } = get();
     if (lines.length === 0) return;
     set({ error: null, result: null });
     const payload = {
       line_items: lines.map((l) => ({ product_name: l.product_name, quantity: l.quantity })),
-      payment_method: "Cash",
+      payment_method: paymentMethod ?? "Cash",
     };
     try {
       const result = await checkout(payload);

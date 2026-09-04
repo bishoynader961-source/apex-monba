@@ -35,3 +35,8 @@ export async function initiateCheckout(payload: CreemCheckoutRequest): Promise<C
   const { data } = await api.post<CreemCheckoutResponse>(`${BASE}/checkout`, payload);
   return data;
 }
+
+export async function getLicenseStatus(): Promise<{ status: string; http_status: number }> {
+  const { data } = await api.get<{ status: string; http_status: number }>(`${BASE}/status`);
+  return data;
+}

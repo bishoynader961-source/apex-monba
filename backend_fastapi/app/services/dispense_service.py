@@ -9,6 +9,7 @@ rows, a thermal-label audit hook, and ``client_tx_id`` idempotency (#11).
 from __future__ import annotations
 
 import asyncio
+import secrets
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional, cast
@@ -21,6 +22,7 @@ from app.core.repositories import (
     DispenseRepository,
     InsuranceRepository,
     PatientRepository,
+    PriceCodeRepository,
     ProductRepository,
     SigCodeRepository,
 )
@@ -33,7 +35,7 @@ from app.core.models import (
 )
 from app.core.lock_manager import get_lock
 from app.core.audit_log import write_audit
-from app.services.drug_db import check_allergy_match
+from app.services.drug_db import check_allergy_match, check_drug_interactions, check_duplicate_therapy
 from app.services.inventory_service import InventoryService
 from app.services.pos_service import _round2, _TAX_RATE
 from app.shared.exceptions import (
@@ -46,12 +48,27 @@ from app.shared.schemas import (
     DispenseCreate,
     DispenseItemRead,
     DispenseRead,
+    DispenseUpdate,
+    TransferResult,
+    VoidResult,
 )
 
 logger = get_logger("dispense")
 
 # #11 (LAN idempotency): a retried submit is only a duplicate within this window.
 _IDEMPOTENCY_WINDOW_SECONDS = 5 * 60
+
+# Rx number format: RX-YYYYMMDD-XXXX (date + 4 random hex chars)
+_RX_COUNTER: int = 0
+
+
+def _generate_rx_number() -> str:
+    """Generate a unique Rx number: RX-YYYYMMDD-XXXX."""
+    global _RX_COUNTER  # noqa: PLW0603
+    _RX_COUNTER += 1
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    rand_part = secrets.token_hex(2).upper()
+    return f"RX-{today}-{rand_part}{_RX_COUNTER:02d}"
 
 
 class DispenseService:
@@ -66,6 +83,7 @@ class DispenseService:
         sig_repo = SigCodeRepository(self.session)
         insu_repo = InsuranceRepository(self.session)
         dispense_repo = DispenseRepository(self.session)
+        price_code_repo = PriceCodeRepository(self.session)
         inventory = InventoryService(self.session)
 
         lot_locks: list[asyncio.Lock] = [await get_lock(payload.product_name)]
@@ -112,7 +130,44 @@ class DispenseService:
 
                 consumed = await inventory.fifo_deduct(payload.product_name, payload.quantity)
 
-                unit = product.price
+                # ── Phase 3: PriceCode-based pricing with AWP/MAC/WAC ──────
+                price_code = None
+                if payload.price_code:
+                    price_code = await price_code_repo.get_by_code(payload.price_code)
+
+                # Fetch lot-level AWP/MAC/WAC from consumed lots
+                lot_awp: Optional[Decimal] = None
+                lot_mac: Optional[Decimal] = None
+                lot_wac: Optional[Decimal] = None
+                if consumed:
+                    from app.core.models import InventoryExtended
+                    first_lot_id = cast(Optional[int], consumed[0].get("lot_id"))
+                    if first_lot_id is not None:
+                        lot = await self.session.get(InventoryExtended, first_lot_id)
+                        if lot is not None:
+                            lot_awp = lot.awp
+                            lot_mac = lot.mac
+                            lot_wac = lot.wac
+
+                # Determine base cost: prefer lot-level, fallback to product catalog
+                base_cost = lot_wac or lot_mac or lot_awp or product.wholesale_price or product.price
+
+                # Apply PriceCode formula: base * (markup_pct/100) + dispensing_fee, clamped
+                if price_code and price_code.markup_pct:
+                    computed = base_cost * (price_code.markup_pct / Decimal("100")) + price_code.dispensing_fee
+                elif price_code and price_code.cost_factor_pct:
+                    computed = base_cost * (price_code.cost_factor_pct / Decimal("100")) + price_code.dispensing_fee
+                else:
+                    computed = base_cost + (price_code.dispensing_fee if price_code else Decimal("0"))
+
+                # Clamp to min/max
+                if price_code:
+                    if price_code.min_price and computed < price_code.min_price:
+                        computed = price_code.min_price
+                    if price_code.max_price and computed > price_code.max_price:
+                        computed = price_code.max_price
+
+                unit = _round2(computed) if price_code else product.price
                 net_raw = Decimal(payload.quantity) * unit
                 tax_raw = net_raw * _TAX_RATE
                 net_total = _round2(net_raw)
@@ -146,13 +201,19 @@ class DispenseService:
                     sig_code=payload.sig_code,
                     quantity=payload.quantity,
                     fill_date=payload.fill_date,
-                    price_at_time=_round2(payload.price_at_time),
+                    price_at_time=unit,
                     insurance_copay=_round2(payload.insurance_copay),
                     insurance_amount=_round2(payload.insurance_amount),
                     internal_barcode=product.internal_unique_barcode,
                     cashier=user.username,
                     client_tx_id=payload.client_tx_id,
                     server_created_at=server_ts,
+                    rx_number=_generate_rx_number(),
+                    refill_count=0,
+                    refills_authorized=payload.refills_authorized,
+                    last_fill_date=payload.fill_date,
+                    prescriber_id=payload.prescriber_id,
+                    days_supply=payload.days_supply,
                 )
                 self.session.add(dispense)
                 await self.session.flush()
@@ -165,8 +226,9 @@ class DispenseService:
                             lot_number=str(c["lot_number"] or ""),
                             expiration_date=str(c["expiry_date"] or ""),
                             quantity=cast(int, c["deducted"]),
-                            awp_at_time=product.price,
-                            mac_at_time=product.wholesale_price,
+                            awp_at_time=lot_awp or product.price,
+                            mac_at_time=lot_mac or product.wholesale_price,
+                            wac_at_time=lot_wac,
                         )
                     )
 
@@ -176,7 +238,7 @@ class DispenseService:
                         receipt_id=receipt.id,
                         product_name=payload.product_name,
                         quantity=payload.quantity,
-                        price_at_time=_round2(payload.price_at_time),
+                        price_at_time=unit,
                         internal_barcode=product.internal_unique_barcode,
                         vendor=product.vendor_name,
                         expiry_date=product.expiry_date,
@@ -185,7 +247,7 @@ class DispenseService:
                 self.session.add(
                     SoldItem(
                         item_name=payload.product_name,
-                        price=_round2(payload.price_at_time),
+                        price=unit,
                         manufacturer_barcode=product.manufacturer_barcode,
                         internal_barcode=product.internal_unique_barcode,
                         timestamp_of_sale=server_ts,
@@ -197,6 +259,15 @@ class DispenseService:
                 read = await self._build_read(dispense, items)
                 read.allergy_flags = check_allergy_match(
                     payload.product_name, patient.patient_allergies
+                )
+                # Phase 4: DUR — drug interactions + duplicate therapy
+                active_meds = await self._get_active_medications(
+                    patient.id, exclude_product=payload.product_name
+                )
+                ddi_alerts = check_drug_interactions(payload.product_name, active_meds)
+                read.ddi_alerts = [a.to_dict() for a in ddi_alerts]
+                read.duplicate_therapy = check_duplicate_therapy(
+                    payload.product_name, active_meds
                 )
                 logger.info(
                     "dispense_created",
@@ -230,6 +301,21 @@ class DispenseService:
         )
         return [DispenseItemRead.model_validate(i) for i in result.scalars().all()]
 
+    async def _get_active_medications(self, patient_id: int, exclude_product: str = "") -> list[str]:
+        """Fetch distinct product names from recent dispenses (last 90 days) for DUR."""
+        from datetime import date, timedelta
+
+        cutoff = (date.today() - timedelta(days=90)).isoformat()
+        stmt = (
+            select(Dispense.product_name)
+            .where(Dispense.patient_id == patient_id)
+            .where(Dispense.fill_date >= cutoff)
+            .where(Dispense.product_name != exclude_product)
+            .distinct()
+        )
+        result = await self.session.execute(stmt)
+        return [row[0] for row in result.all() if row[0]]
+
     async def _build_read(
         self, dispense: Dispense, items: list[DispenseItemRead]
     ) -> DispenseRead:
@@ -250,6 +336,12 @@ class DispenseService:
             client_tx_id=dispense.client_tx_id,
             server_created_at=dispense.server_created_at,
             items=items,
+            rx_number=dispense.rx_number,
+            refill_count=dispense.refill_count,
+            refills_authorized=dispense.refills_authorized,
+            last_fill_date=dispense.last_fill_date,
+            prescriber_id=dispense.prescriber_id,
+            days_supply=dispense.days_supply,
         )
 
     async def get(self, dispense_id: int) -> DispenseRead:
@@ -258,6 +350,138 @@ class DispenseService:
             raise NotFoundError("Dispense", dispense_id)
         items = await self._items_for(dispense.id)
         return await self._build_read(dispense, items)
+
+    async def get_by_rx_number(self, rx_number: str) -> DispenseRead:
+        """Return the most recent dispense for a given Rx number."""
+        dispense = await DispenseRepository(self.session).get_by_rx_number(rx_number)
+        if dispense is None:
+            raise NotFoundError("Dispense", rx_number)
+        items = await self._items_for(dispense.id)
+        return await self._build_read(dispense, items)
+
+    async def get_fills_by_rx_number(self, rx_number: str) -> list[DispenseRead]:
+        """Return all fills sharing the same Rx number (fill history)."""
+        dispenses = await DispenseRepository(self.session).get_fills_by_rx_number(rx_number)
+        result: list[DispenseRead] = []
+        for d in dispenses:
+            items = await self._items_for(d.id)
+            result.append(await self._build_read(d, items))
+        return result
+
+    async def update_dispense(
+        self, dispense_id: int, payload: DispenseUpdate, user: CurrentUser
+    ) -> DispenseRead:
+        """Edit an existing dispense (sig, quantity, days supply, refills, prescriber)."""
+        async with self.session.begin():
+            dispense = await DispenseRepository(self.session).get(dispense_id)
+            if dispense is None:
+                raise NotFoundError("Dispense", dispense_id)
+
+            if payload.sig_code is not None:
+                dispense.sig_code = payload.sig_code
+            if payload.quantity is not None:
+                dispense.quantity = payload.quantity
+            if payload.days_supply is not None:
+                dispense.days_supply = payload.days_supply
+            if payload.refills_authorized is not None:
+                dispense.refills_authorized = payload.refills_authorized
+            if payload.prescriber_id is not None:
+                dispense.prescriber_id = payload.prescriber_id
+            if payload.fill_date is not None:
+                dispense.fill_date = payload.fill_date
+            self.session.add(dispense)
+
+            await write_audit(
+                self.session,
+                "dispense.update",
+                subject_type="dispense",
+                subject_id=dispense.id,
+                details=f"rx={dispense.rx_number} edits={payload.model_dump(exclude_unset=True)}",
+                category="dispense",
+                user=user,
+            )
+
+        items = await self._items_for(dispense.id)
+        return await self._build_read(dispense, items)
+
+    async def void_dispense(
+        self, dispense_id: int, reason: str, user: CurrentUser
+    ) -> VoidResult:
+        """Void/reverse a dispense — restock inventory and mark as voided."""
+        async with self.session.begin():
+            dispense = await DispenseRepository(self.session).get(dispense_id)
+            if dispense is None:
+                raise NotFoundError("Dispense", dispense_id)
+
+            # Restock: add back the dispensed quantity to inventory
+            restocked = 0
+            await InventoryService(self.session).return_stock(dispense.product_name, dispense.quantity)
+            restocked = dispense.quantity
+
+            # Mark dispense as voided by setting a sentinel rx_number
+            dispense.rx_number = f"VOID-{dispense.rx_number or dispense.id}"
+            dispense.cashier = f"{user.username}|VOIDED"
+            self.session.add(dispense)
+
+            await write_audit(
+                self.session,
+                "dispense.void",
+                subject_type="dispense",
+                subject_id=dispense.id,
+                details=f"rx={dispense.rx_number} reason={reason} restocked={restocked}",
+                category="dispense",
+                user=user,
+            )
+
+        return VoidResult(
+            dispense_id=dispense.id,
+            rx_number=dispense.rx_number,
+            voided=True,
+            restocked_quantity=restocked,
+            reason=reason,
+        )
+
+    async def transfer_dispense(
+        self, dispense_id: int, pharmacy_name: str, pharmacy_phone: str,
+        transfer_type: str, reason: str, user: CurrentUser,
+    ) -> TransferResult:
+        """Transfer a prescription to/from another pharmacy."""
+        async with self.session.begin():
+            dispense = await DispenseRepository(self.session).get(dispense_id)
+            if dispense is None:
+                raise NotFoundError("Dispense", dispense_id)
+
+            # Mark dispense as transferred
+            prefix = "XFER-OUT" if transfer_type == "outgoing" else "XFER-IN"
+            dispense.rx_number = f"{prefix}-{dispense.rx_number or dispense.id}"
+            dispense.cashier = f"{user.username}|TRANSFERRED"
+            self.session.add(dispense)
+
+            # If outgoing, restock inventory (drug leaving our pharmacy)
+            restocked = 0
+            if transfer_type == "outgoing":
+                await InventoryService(self.session).return_stock(dispense.product_name, dispense.quantity)
+                restocked = dispense.quantity
+
+            await write_audit(
+                self.session,
+                "dispense.transfer",
+                subject_type="dispense",
+                subject_id=dispense.id,
+                details=f"rx={dispense.rx_number} type={transfer_type} pharmacy={pharmacy_name} reason={reason}",
+                category="dispense",
+                user=user,
+            )
+
+        return TransferResult(
+            dispense_id=dispense.id,
+            rx_number=dispense.rx_number,
+            transferred=True,
+            transfer_type=transfer_type,
+            pharmacy_name=pharmacy_name,
+            pharmacy_phone=pharmacy_phone,
+            reason=reason,
+        )
 
     async def label_bytes(self, dispense_id: int) -> bytes:
         """Raw ESC/POS label for the thermal printer (concern 3 / #3)."""
@@ -287,3 +511,176 @@ class DispenseService:
             expiry_date=expiry_date,
             fill_date=dispense.fill_date,
         )
+
+    async def process_refill(
+        self, dispense_id: int, payload: DispenseCreate, user: CurrentUser
+    ) -> DispenseRead:
+        """Process a refill of an existing dispense (creates new dispense with incremented refill_count)."""
+        lot_locks: list[asyncio.Lock] = [await get_lock(f"refill-{dispense_id}")]
+        for lock in lot_locks:
+            await lock.acquire()
+        try:
+            async with self.session.begin():
+                original = await DispenseRepository(self.session).get(dispense_id)
+                if original is None:
+                    raise NotFoundError("Dispense", dispense_id)
+
+                # Check if refills are available
+                if original.refill_count >= original.refills_authorized:
+                    from fastapi import HTTPException, status
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"No refills remaining for Rx {original.rx_number} "
+                               f"({original.refill_count}/{original.refills_authorized} used)",
+                    )
+                # Resolve patient
+                patient_repo = PatientRepository(self.session)
+                patient = await patient_repo.get_strict(original.patient_id)
+
+                # Resolve product
+                product_repo = ProductRepository(self.session)
+                product = await product_repo.get_by_name(original.product_name)
+                if product is None:
+                    raise NotFoundError("Medicine", original.product_name)
+
+                # Deduct stock
+                inventory = InventoryService(self.session)
+                consumed = await inventory.fifo_deduct(original.product_name, payload.quantity)
+
+                # ── Phase 3: Lot-level pricing for refills ─────────────────
+                lot_awp_r: Optional[Decimal] = None
+                lot_mac_r: Optional[Decimal] = None
+                lot_wac_r: Optional[Decimal] = None
+                if consumed:
+                    from app.core.models import InventoryExtended
+                    first_lot_id = cast(Optional[int], consumed[0].get("lot_id"))
+                    if first_lot_id is not None:
+                        lot = await self.session.get(InventoryExtended, first_lot_id)
+                        if lot is not None:
+                            lot_awp_r = lot.awp
+                            lot_mac_r = lot.mac
+                            lot_wac_r = lot.wac
+
+                unit = product.price
+                net_raw = Decimal(payload.quantity) * unit
+                tax_raw = net_raw * _TAX_RATE
+                net_total = _round2(net_raw)
+                tax_total = _round2(tax_raw)
+                total = _round2(net_total + tax_total)
+
+                server_dt = datetime.now(timezone.utc)
+                server_ts = server_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+                receipt = Receipt(
+                    timestamp=server_ts,
+                    total_amount=total,
+                    payment_method="Cash",
+                    patient_id=original.patient_id,
+                    server_created_at=server_ts,
+                    created_by=user.username,
+                    cashier_attribution=user.username,
+                    client_tx_id=payload.client_tx_id,
+                )
+                self.session.add(receipt)
+                await self.session.flush()
+
+                # Create new dispense with incremented refill count
+                dispense = Dispense(
+                    patient_id=original.patient_id,
+                    receipt_id=receipt.id,
+                    product_name=original.product_name,
+                    ndc_code=original.ndc_code,
+                    sig_code=original.sig_code,
+                    quantity=payload.quantity,
+                    fill_date=payload.fill_date,
+                    price_at_time=_round2(payload.price_at_time),
+                    insurance_copay=_round2(payload.insurance_copay),
+                    insurance_amount=_round2(payload.insurance_amount),
+                    internal_barcode=product.internal_unique_barcode,
+                    cashier=user.username,
+                    client_tx_id=payload.client_tx_id,
+                    server_created_at=server_ts,
+                    rx_number=original.rx_number,  # Same Rx number
+                    refill_count=original.refill_count + 1,
+                    refills_authorized=original.refills_authorized,
+                    last_fill_date=payload.fill_date,
+                    prescriber_id=original.prescriber_id,
+                    days_supply=payload.days_supply or original.days_supply,
+                )
+                self.session.add(dispense)
+                await self.session.flush()
+
+                # Add dispense items
+                for c in consumed:
+                    self.session.add(
+                        DispenseItem(
+                            dispense_id=dispense.id,
+                            lot_id=cast(Optional[int], c["lot_id"]),
+                            lot_number=str(c["lot_number"] or ""),
+                            expiration_date=str(c["expiry_date"] or ""),
+                            quantity=cast(int, c["deducted"]),
+                            awp_at_time=lot_awp_r or product.price,
+                            mac_at_time=lot_mac_r or product.wholesale_price,
+                            wac_at_time=lot_wac_r,
+                        )
+                    )
+
+                # Financial + sold-item ledger lines
+                self.session.add(
+                    ReceiptItem(
+                        receipt_id=receipt.id,
+                        product_name=original.product_name,
+                        quantity=payload.quantity,
+                        price_at_time=_round2(payload.price_at_time),
+                        internal_barcode=product.internal_unique_barcode,
+                        vendor=product.vendor_name,
+                        expiry_date=product.expiry_date,
+                    )
+                )
+                self.session.add(
+                    SoldItem(
+                        item_name=original.product_name,
+                        price=_round2(payload.price_at_time),
+                        manufacturer_barcode=product.manufacturer_barcode,
+                        internal_barcode=product.internal_unique_barcode,
+                        timestamp_of_sale=server_ts,
+                        vendor_name=product.vendor_name,
+                    )
+                )
+
+                items = await self._items_for(dispense.id)
+                read = await self._build_read(dispense, items)
+                # Phase 4: Refill safety — allergy + DUR checks
+                read.allergy_flags = check_allergy_match(
+                    original.product_name, patient.patient_allergies
+                )
+                active_meds = await self._get_active_medications(
+                    patient.id, exclude_product=original.product_name
+                )
+                ddi_alerts = check_drug_interactions(original.product_name, active_meds)
+                read.ddi_alerts = [a.to_dict() for a in ddi_alerts]
+                read.duplicate_therapy = check_duplicate_therapy(
+                    original.product_name, active_meds
+                )
+
+                # Audit
+                await write_audit(
+                    self.session,
+                    "dispense.refill",
+                    subject_type="dispense",
+                    subject_id=dispense.id,
+                    details=(
+                        f"patient={patient.name} drug={original.product_name} "
+                        f"qty={payload.quantity} rx={original.rx_number} "
+                        f"refill={dispense.refill_count}/{dispense.refills_authorized}"
+                    ),
+                    category="dispense",
+                    user=user,
+                )
+            return read
+        except InsufficientStockError:
+            raise
+        finally:
+            for lock in reversed(lot_locks):
+                if lock.locked():
+                    lock.release()

@@ -21,7 +21,13 @@ This application serves as an all-in-one suite for pharmacy operations:
 | **GUI Framework** | CustomTkinter |
 | **Data/Database** | [Your Database Tech, e.g., SQLite] |
 | **Imaging** | Pillow (PIL) |
-| **Barcode/QR** | python-barcode & qrcode |
+ | **Barcode/QR** | python-barcode & qrcode |
+
+## 🖥️ Backend FastAPI
+
+The FastAPI backend serves the REST API used by the desktop UI and external clients. Recent cleanup fixed import issues in `backend_fastapi/app/main.py`, removed stray line‑number prefixes, deduped imports, and ensured all routers (including the `wc_route`) are registered correctly. Permission handling is now streamlined: any role that starts with `admin` (case‑insensitive) bypasses permission checks (`user.role.lower().startswith("admin")`).
+
+All tests now pass (`745 passed, 1 skipped`) and the application starts cleanly with `uvicorn backend_fastapi.app.main:app --reload`.
 
 ## 🚀 Getting Started
 

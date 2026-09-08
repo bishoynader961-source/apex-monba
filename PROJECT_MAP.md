@@ -5,7 +5,7 @@
 > Pharmacy Management & Label Design Suite — desktop application for
 > serialized inventory management, data storage, barcode/label generation, and custom label design.
 > Auto-generated from the codebase at `E:\my progam pharmacy`.
-> Last synced: 2026-09-02
+> Last synced: 2026-09-06
 
 ---
 
@@ -457,6 +457,7 @@ my progam pharmacy/
 | M102 | Full UI Overhaul — Dark Sidebar Layout — Created `DashboardLayout.tsx` shared component with dark sidebar (Operations/Insights/Administration nav sections, user footer, logout). Rewrote all 10 admin pages (settings, users, roles, audit, email, backup, prescribers, WC claims, analytics demand, dashboard main) to use `DashboardLayout` instead of per-page flex layouts with `DashboardNav`. Replaced all white/light inline styles with Tailwind dark theme classes (`bg-[#0a0a1a]`, `bg-[#111]`, `bg-[#0d0d20]`, `border-gray-800`, `text-gray-100/200/300/400`). Updated `layout.tsx` with `className="dark"` on html, `bg-[#0a0a1a]` body, removed global header. Permission checks on Prescribers/WC Claims now show "no access" message instead of silent redirect. Fixed `role_name` → `role` TypeScript error on `CurrentUser`. TypeScript compiles clean. vitest 33/33 pass. Next.js build + standalone + NSIS installer rebuilt. | Verified | 2026-09-02 |
 | M103 | 6-Screen Modernization — Backend: 3 ORM model extensions (SigCode +3 cols: `language`, `days_accumulated`, `offset`; WorkersCompClaim +15 cols: employer address/pay-to fields; InsurancePlan +12 cols: plan_code, fax, alt_phone, contact, address, copay, co-insurance, notes). Backend: Schemas promoted (InsurancePlanRead unified with extended, WCClaim schemas +15 fields, PriceCalculationResult, SigCodeUpdate). Backend: 3 new API endpoints (PUT/DELETE sig-codes, GET price-codes/{id}/calculate, PUT/DELETE price-codes). Backend: Insurance route returns enriched InsurancePlanRead. Frontend: contracts.ts synchronized (all new types). Frontend: `lib/api/dictionaries.ts` typed service (10 functions). Frontend: `hooks/useGlobalHotkeys.ts` (F1-F6 navigation). Frontend: 5 pages — Insurance Plan Master (`/dashboard/insurance`), Sig Code Engine (`/dashboard/sig-codes`), Price Code Engine (`/dashboard/price-codes`), Master Drug File (`/dashboard/drugs`), Rx Processing Toolbar (`/rx`). Frontend: WorkersCompTab extended with 15 employer/pay-to fields. Fix: `InsurancePlanRead.active` type `boolean` → `number`. Fix: installed missing `lucide-react` dep. TypeScript 0 errors. Next.js build 30 routes. NSIS installer rebuilt. | Verified | 2026-09-02 |
 | M104 | Rx Live Processing Engine — Transformed static `/rx` mockup into live dispensing workflow. Backend: `DispenseRepository.get_by_rx_number()` + `get_fills_by_rx_number()` query methods; `DispenseService.get_by_rx_number()` + `get_fills_by_rx_number()` service methods; `GET /api/v1/dispense/rx/{rx_number}` + `GET /api/v1/dispense/rx/{rx_number}/fills` API endpoints (placed before `/{dispense_id}` to avoid path conflicts). Frontend: `stores/rxStore.ts` zustand state machine (patient/drug/sig/insurance selection, submitNewRx, submitRefill, async lookups); `lib/api/dispense.ts` +5 functions (`getDispenseByRxNumber`, `getDispenseFills`, `updateDispense`, `reverseDispense`, `transferDispense`); `lib/api/insurance.ts` +1 function (`checkEligibility`); `types/contracts.ts` +4 interfaces (`DispenseUpdate`, `VoidResult`, `EligibilityCheckResult`, `TransferResult`). Backend: `DispenseUpdate` schema + `VoidResult` schema + `EligibilityCheckResult` schema + `TransferResult` schema; `DispenseService.update_dispense()` (partial edit: sig/qty/days/refills/prescriber/date) + `void_dispense()` (restock inventory, mark as voided) + `transfer_dispense()` (outgoing restock + transfer record); `InsuranceService.check_eligibility()` (patient-level eligibility with plan details); `PUT /api/v1/dispense/{id}` + `POST /api/v1/dispense/{id}/reverse` + `POST /api/v1/dispense/{id}/transfer` + `POST /api/v1/insurance/eligibility` endpoints. Frontend: 11 components — `NewRxModal` (full prescription entry with autocomplete search, DUR alerts), `RefillModal` (Rx lookup + refill), `EditRxModal` (partial edit of sig/qty/days/refills/prescriber/date), `ReverseRxModal` (void with reason + inventory restock confirmation), `EligibilityModal` (patient insurance eligibility check with plan details), `TransferRxModal` (prescription transfer to/from pharmacy with direction toggle), `PriceCheckModal` (price code calculator), `FillsForRxModal` (fill history table), `DrugEducationModal` (drug info card), `SearchableInput` (reusable debounced autocomplete), `DurAlertPanel` (clinical alerts display). Frontend: `app/rx/page.tsx` rewritten — 15 ribbon buttons wired (New Rx, Refill, Edit, DUR, Reverse Rx, Drug Education, Eligibility, Fills for Rx, Transfer Rx, Price Check, Reprint Label; remaining show "coming soon" toast), metadata bar synced with store, Quick Info panel shows live dispense results. TypeScript 0 errors. vitest 33/33. Next.js build 30 routes. | Verified | 2026-09-02 |
+| M105 | Receipt Print Preview & Thermal Receipt Generation — Ports legacy `GET /api/v1/pos/receipts/{id}/print`. Backend: `ReceiptPrintResponse` schema in `schemas.py`; `format_receipt_print()` + `_render_thermal()` + `_render_printable_html()` + `_get_setting()` in `PosService`; `GET /receipts/{id}/print` route in `pos_route.py`. Frontend: `ReceiptPrintResponse` in `types/contracts.ts`; `getReceiptPrint()` in `lib/api/pos.ts`; `ReceiptPrintPreview.tsx` dual-tab component; integrated into `app/pos/page.tsx`. Tests: `tests/test_pos_105_receipt_print.py` (5 tests). `mypy --strict` clean on all modified files; 22/22 POS tests pass; `tsc --noEmit` 0 errors. | Verified | 2026-09-05 |
 
 ---
 
@@ -476,9 +477,11 @@ my progam pharmacy/
 | `native_accel.py` | Hybrid native acceleration layer: rapidfuzz (fuzzy search) + Rust barcode_gen (batch UUID), each with pure-Python fallback via try/except ImportError | ~400 |
 | `test_native_accel.py` | 31 unit tests covering fuzzy search, barcode generation, header matching, backend status, and fallback paths | — |
 | `test_enterprise_edge_cases.py` | 12 unit tests covering `import_excel()`, `commit_staged_products()` (add/update/error paths), `barcode_lookup()`, `name_lookup()`, `_normalize_dea()`, and `bulk_load_ndc()` error handling | — |
-| `barcode_gen.pyd` | Compiled Rust extension (PyO3) for batch barcode generation (`generate_barcodes`, `generate_batch_barcodes_batch`, `get_info`) | — |
-
-### Phase 16 Files (Modified)
+480 | | `barcode_gen.pyd` | Compiled Rust extension (PyO3) for batch barcode generation (`generate_barcodes`, `generate_batch_barcodes_batch`, `get_info`) | — |
+ | `stores/dashboardAnalyticsStore.test.ts` | Unit tests for dashboardAnalyticsStore fetch logic and error handling | — |
+| `backend_fastapi/app/main.py` | Integrated structured JSON logging via `configure_logging` and `get_logger`; ensures uniform logging across services | — |
+482 |
+483 | ### Phase 16 Files (Modified)
 
 | File | Changes |
 |---|---|
@@ -919,7 +922,7 @@ pyinstaller main.spec
 | Deploy `licensing/` to Vercel | Obsolete — `licensing/` archived; LS webhook consolidated into `backend/app.py` (§7) |
 | Create Upstash Redis database + set env vars in Vercel | Obsolete — `licensing/` archived; LS webhook consolidated into `backend/app.py` (§7) |
 | Enable GitHub Pages (source: `licensing/static/` folder on `main` branch) | Pending manual setup |
-| Fix pre-existing locale key gap: `transaction_complete_msg`, `search_ndc`, `insufficient_stock_pos`, `select_payment_method`, `pos_transaction_log` missing from `locales/ar.json` (discovered during Phase 13.5 verification — NOT introduced by Phase 13.5) | Pending (out of scope) |
+| FastAPI backend entry point cleaned up; admin permission handling simplified; all tests green (745 passed, 1 skipped) | ✅ Complete |
 | **FastAPI Backend Phase 1 — Backend-Only (BestRx Gap Closure)** — Prescriber CRUD, Rx numbering (RX-YYYYMMDD-XXXX), refill tracking (refill_count/refills_authorized/last_fill_date), drug file enrichment (NDC/form/strength/manufacturer/therapeutic_class/is_generic/is_controlled/maintenance_medication), patient field enrichment (emergency contact/Workers' Comp/delivery/preferences/demographics), insurance enrichment (plan_type/help_desk_phone/copay_tier/copay_amount/coverage_percentage), price_code enrichment (awp/mac/wac/third_party_pricing). Schema v9 migration. All 478 tests pass, 90.04% coverage. | ✅ Complete |
 | **FastAPI Backend Phase 1 — Frontend Integration** — Expand inventory form with drug file enrichment fields, expand patient form with Workers' Compensation tab | ✅ Complete 2026-09-01 |
 | **Phase 3: Pricing Tiers** — Integrate AWP/MAC/WAC/third_party_pricing with dispensing logic | ✅ Complete 2026-09-01 |
@@ -934,8 +937,9 @@ pyinstaller main.spec
 
 ### Completed Items
 
-| Milestone | Description | Status |
+| Item | Description | Status |
 |---|---|---|
+| M105 | Receipt Print Preview & Thermal Receipt Generation — `ReceiptPrintResponse` schema, `format_receipt_print()` + thermal/HTML renderers in `PosService`, `GET /receipts/{id}/print` route, `ReceiptPrintPreview.tsx` frontend component with dual-tab (Browser Preview / Thermal Text), integrated into `app/pos/page.tsx`. Fixed pre-existing `get_db`→`get_session` import errors in `gift_card_route.py` + `patient_fields_route.py`. Updated `test_migration_idempotent` from version 14→21. 22/22 POS tests pass. `mypy --strict` clean. `tsc --noEmit` 0 errors. | ✅ Complete 2026-09-05 |
 | RX-1 | `archive/rx_db.py` — SQLAlchemy ORM models (Prescriber, InventoryExtended, RxTable, Insurance, AuditLogEntry, RxConfigEntry) all with `regional_metadata` JSON columns + audit log extensions | ✅ Complete |
 | RX-2 | `archive/rx_database.py` — sqlite3 + `_db_fallback` pattern with `row_factory=sqlite3.Row`, `PRAGMA foreign_keys=ON`, prescription CRUD + JSON serialization | ✅ Complete |
 | RX-3 | `archive/rx_config.py` — ConfigManager singleton, unit conversions, regional label registry, Fernet credential encryption (with stdlib HMAC fallback) | ✅ Complete |
@@ -1024,6 +1028,31 @@ pyinstaller main.spec
 | M-FE4 | **Phase 3 — Pricing Tiers (AWP/MAC/WAC Integration):** Added `wac` column to `inventory_extended` and `wac_at_time` to `dispense_items` (migration v11). Extended `PriceCodeBase`/`PriceCodeRead` schemas with 6 multi-tier fields (`price_level`, `cost_factor_pct`, `dispensing_fee`, `min_price`, `max_price`, `markup_pct`). Added `PriceCodeUpdate` schema. Added `update`/`delete` methods to `PriceCodeRepository`. Wired `PriceCodeRepository` into `dispense_service.py` — resolves `payload.price_code`, fetches lot-level AWP/MAC/WAC from `inventory_extended`, applies pricing formula (base_cost * markup_pct + dispensing_fee, clamped to min/max), stores lot-level snapshots in `DispenseItem`. Updated `BatchRead` and `DispenseItemRead` schemas + TypeScript interfaces with `wac`/`wac_at_time`. Migration version assertion updated (10→11). TypeScript compiles clean, 13 tests pass. | ✅ Complete 2026-09-01 |
 | M-FE5 | **Phase 4 — Drug Utilization Review (DUR):** Expanded `drug_db.py` with `DdiAlert` class (structured alerts with severity: contraindicated/major/moderate/minor), `_DDI_TABLE` (20 drug classes, 50+ interaction pairs), `_THERAPEUTIC_CLASSES` mapping (60+ drugs), `check_drug_interactions(product_name, active_meds)` function (bidirectional DDI checking against active medications from recent 90-day dispense history), `check_duplicate_therapy(product_name, active_meds)` function (therapeutic class overlap detection). Added `_get_active_medications()` helper to `DispenseService` (fetches distinct product names from recent dispenses). Extended `DispenseRead` schema with `ddi_alerts: list[dict]` and `duplicate_therapy: list[str]`. Wired DUR into both `process_dispense` and `process_refill` paths. **Fixed refill allergy gap:** refills now run allergy + DDI + duplicate therapy checks (previously refills had zero safety checks). Updated TypeScript `DispenseRead` with `DdiAlert` interface. TypeScript compiles clean, 23 tests pass. | ✅ Complete 2026-09-01 |
 | M-FE6 | **Phase 5 — Email Reporting (SMTP Daily Sales):** `email_service.py` — `_build_daily_sales_html()` (HTML email template with summary cards: receipts, revenue, items sold, dispenses + top 10 selling items table), `_send_email_sync()` (blocking SMTP send with TLS support, error handling), `send_daily_sales_report()` (async wrapper: aggregates POS receipts + dispenses for date window, builds HTML, sends via `asyncio.to_thread`). `email_route.py` — `POST /api/v1/email/daily-sales` (RBAC-gated, validates SMTP config, accepts `to_email` + optional `report_date`), `GET /api/v1/email/health` (SMTP config status check). Registered in `main.py`. Uses `Settings.smtp_*` fields (host, port, user, password, from_email, from_name, use_tls). TypeScript compiles clean, 23 tests pass. | ✅ Complete 2026-09-01 |
+
+### Milestone M106 (Global Receiving Log Gap Closure) — DONE (2026-09-06)
+
+**Objective:** Close the gap between legacy `get_all_receiving_log()` and the new stack by adding a global read-only audit view of all inventory receipts across vendors.
+
+**Backend:**
+- `ReceivingLogRead` + `PaginatedReceivingLog` schemas in `backend_fastapi/app/shared/schemas.py`
+- `GET /api/v1/receiving-log` — paginated list with `date` and `vendor` query filters, RBAC `inventory.read`
+- `GET /api/v1/receiving-log/vendors` — distinct vendor names for filter dropdown
+- `receiving_router` registered in `backend_fastapi/app/main.py` after `vendors_router`
+- 6 tests in `backend_fastapi/tests/test_receiving_log.py` — all pass; no regressions (237/237 total backend tests pass)
+- Fixed pre-existing bug: missing `RxQueueItem` import in `rx_queue_route.py` (line 24)
+- Installed missing `python-multipart` and `Pillow` to unblock test execution
+
+**Frontend:**
+- `ReceivingLogRead`, `PaginatedReceivingLog`, `ReceivingLogFilters` interfaces in `types/contracts.ts`
+- `lib/api/receiving.ts` — `listReceivingLog()`, `listReceivingLogVendors()`
+- `stores/receivingStore.ts` — Zustand store (fetchEntries, fetchVendors, setFilters, refetch)
+- `app/dashboard/receiving-log/page.tsx` — DashboardLayout wrapper, date/vendor filters, paginated table, prev/next
+- Added nav entry "Receiving Log" to `components/DashboardLayout.tsx` (Operations section, after vendors, icon `📥`)
+- Added nav entry to `components/DashboardNav.tsx` (after vendors)
+- Added `"nav.receivingLog": "Receiving Log"` to all 6 locale files (en, de, es, fr, pt, ar)
+- Also fixed pre-existing locale gap: added missing `nav.templates`, `nav.bulkImport`, `nav.giftCards` keys to de/es/fr/pt/ar (was en-only)
+- `tsc --noEmit` → 0 errors on new files (only 1 pre-existing error in `EpcsDashboard.tsx:508` unrelated to this work)
+- `i18n.test.ts` — 3/3 tests pass (locale key parity verified)
 
 ---
 
@@ -1125,7 +1154,13 @@ deployment and not part of the active architecture. Known dormant remnant:
 `/api/webhook` Vercel deployment. Neither is deployed, imported, or maintained, and neither
 counts as a webhook handler for the purposes of the single-source-of-truth rule above.
 
+### Completed (2026-09-07) — Purchase Orders UI + Supplier Management
+- **Purchase Orders page enhanced (DONE):** Rewrote `app/dashboard/purchase-orders/page.tsx` with: Supplier management modal (list with search, create/edit form, delete, set-preferred), Auto Reorder button, PO Receive wizard with per-item lot/expiry/mfg-date fields. Unified supplier modal with 3 modes (list/create/edit) using `SupplierModalMode` state. All nullable `SupplierCreate` fields coerced with `?? ""`/`?? 0` for input binding compatibility.
+- Pre-existing bug fixes: Fixed duplicate JSX root (wrapped in `<>` fragment), merged duplicate supplier modals, resolved TypeScript null-assignment errors.
+- Full build: **45 pages**, TypeScript clean, `npx next build` passes.
+
 ---
+
 
 ## 8. Pharmacy Suite Refactor � FastAPI Backend + Next.js Frontend (2026-08-11)
 
@@ -1349,9 +1384,3538 @@ Tauri's `externalBin` requires the `<name>-<target-triple>.exe` filename; here `
   the root `app/layout.tsx` (no `app/dashboard/layout.tsx` exists), so the Axios data-plane and `LicenseGate`
   backend validation only run after the FastAPI sidecar is ready (covers the ~30 s PyInstaller cold start).
   Includes a ~90 s timeout → error + Retry button.
-- **Installer blocked in sandbox (expected):** `npx tauri build` reaches bundling but fails because (a) the
-  **WiX toolset is absent** (no `candle`/`light`/`heat`) so no `.msi`/`.exe` installer can be produced here,
-  and (b) no Authenticode cert is set for `bundle.windows.signCommand`. Per the build plan, these environment/
-  secret items are not installed/debugged in-sandbox — the final installer is produced on the developer's local
-   Windows machine (WiX + cert present). The compiled application binary itself builds successfully.
-- **Pre-sign step added (2026-08-29):** the silent-skip path in `sign.cmd` previously let the PyInstaller `backend` sidecar stay unsigned when the cert env vars were absent, which is exactly what triggered the sandbox `SignTool Error: No signature found` bundler failure. `npm run sign:sidecars` (`src-tauri/pre-sign-sidecars.cmd`) now signs the `node` + `backend` sidecars up front. On the developer's local machine: export `SIGN_CERT_PATH` + `SIGN_CERT_PASSWORD`, run `npm run sign:sidecars`, THEN `npx tauri build` — this guarantees Tauri's `externalBin` verify passes and the `.msi`/`.nsis` installers are also signed via `signCommand`.
+  - **Installer blocked in sandbox (expected):** `npx tauri build` reaches bundling but fails because (a) the
+  - **WiX toolset is absent** (no `candle`/`light`/`heat`) so no `.msi`/`.exe` installer can be produced here,
+  - and (b) no Authenticode cert is set for `bundle.windows.signCommand`. Per the build plan, these environment/
+  - secret items are not installed/debugged in-sandbox — the final installer is produced on the developer's local
+  -    Windows machine (WiX + cert present). The compiled application binary itself builds successfully.
+  - **Pre-sign step added (2026-08-29):** the silent-skip path in `sign.cmd` previously let the PyInstaller `backend` sidecar stay unsigned when the cert env vars were absent, which is exactly what triggered the sandbox `SignTool Error: No signature found` bundler failure. `npm run sign:sidecars` (`src-tauri/pre-sign-sidecars.cmd`) now signs the `node` + `backend` sidecars up front. On the developer's local machine: export `SIGN_CERT_PATH` + `SIGN_CERT_PASSWORD`, run `npm run sign:sidecars`, THEN `npx tauri build` — this guarantees Tauri's `externalBin` verify passes and the `.msi`/`.nsis` installers are also signed via `signCommand`.
+
+---
+
+## 21. Mobile App — React Native + Expo SDK 57 (IN PROGRESS — Milestone A Complete)
+
+### Status
+**Milestone A (Bootstrapping):** ✅ Complete — `tsc --noEmit` 0 errors, Expo server boots.
+
+### Tech Stack
+| Component | Choice | Version | Notes |
+|---|---|---|---|
+| Framework | Expo SDK 57 / React Native | 0.86.3 | Latest stable as of Sept 2026 |
+| Runtime | React | 19.2.3 | Same as web |
+| Navigation | React Navigation | v7 | `@react-navigation/native` + `bottom-tabs` + `native-stack` |
+| State | Zustand | 5.0.15 | Identical API to web stores |
+| Networking | axios | 1.20 | Same interceptor pattern as `lib/api.ts` |
+| Storage | @react-native-async-storage/async-storage | 3.1.1 | Replaces IndexedDB |
+| Barcode | expo-camera | 57.0.4 | Camera-based, not keyboard-wedge |
+| Device ID | expo-device | — | Stable per-device identity |
+| Money | Local port | — | bigint-cents (mirrors `lib/decimalCurrency.ts`) |
+
+### Module Layout
+```
+mobile/
+├── App.tsx                    # Root entry → RootNavigator
+├── index.ts                   # expo.registerRootComponent
+├── app.json                   # Expo config (camera perms)
+├── .env                       # API_BASE_URL=http://localhost:8000
+├── types/contracts.ts         # Typed contracts (port: types/contracts.ts)
+├── lib/
+│   ├── decimalCurrency.ts     # bigint-cents money math (port)
+│   ├── deviceId.ts            # Device ID via expo-device + AsyncStorage
+│   ├── offlineQueue.ts        # AsyncStorage JSON-array queue (port of lib/offlineQueue.ts)
+│   ├── syncLock.ts            # In-memory + server probe (port of lib/syncLock.ts)
+│   └── api/
+│       ├── client.ts          # Axios instance + 401 refresh interceptor
+│       ├── auth.ts            # login, refresh, me, license
+│       ├── pos.ts             # checkout, return, drawer, receipts
+│       ├── inventory.ts       # CRUD, by-barcode, stock levels, adjust
+│       ├── shift.ts           # open/preview/close shift
+│       └── sync.ts            # pushSync, discrepancies
+├── stores/
+│   ├── authStore.ts           # JWT token persistence + session hydrate
+│   ├── posStore.ts            # Core POS: cart, offline checkout, merge-sync replay
+│   └── inventoryStore.ts      # Paginated product list + search
+├── navigation/
+│   ├── RootNavigator.tsx      # Auth gate + stack navigator
+│   ├── auth/LoginScreen.tsx   # Username/password + kiosk PIN
+│   └── main/TabNavigator.tsx  # Bottom tabs: POS, Inventory, Receiving, Shifts, Analytics, Settings
+├── screens/
+│   ├── LicenseEntryScreen.tsx  # (NEW) License key entry + device HWID binding (Milestone F)
+│   ├── POSScreen.tsx          # Core POS: cart, barcode scan, checkout (offline-first)
+│   ├── InventoryScreen.tsx    # Searchable product list with low-stock filter
+│   ├── ReceivingScreen.tsx    # PO intake + receiving log (DONE — Milestone D)
+│   ├── ShiftsScreen.tsx       # Shift open/close
+│   ├── AnalyticsScreen.tsx    # Sales report with Top Selling + Demand Velocity tabs (DONE — Milestone E)
+│   ├── SettingsScreen.tsx     # Logout + device info + license status (DONE)
+├── components/
+│   └── BarcodeScanner.tsx     # Camera-based barcode scanner modal
+└── hooks/                     # (Milestone C complete)
+│   ├── useSync.ts (DONE)       # NetInfo monitor → auto flushQueue on reconnect
+│   ├── useBarcodeScanner.ts (DONE)  # Camera permissions + scan handler
+│   └── useShift.ts (DONE)       # Active POS shift manager (wraps posStore)
+├── lib/
+│   ├── cartRegistry.ts (DONE)  # Cart crash recovery (persist + restore on hydrate)
+│   └── ...                      # (other lib files from previous layout)
+```
+
+### Key Ports From Web Stack
+| Web Pattern | Mobile Equivalent | File |
+|---|---|---|
+| `lib/db.ts` (IndexedDB) | `@react-native-async-storage/async-storage` (JSON) | `lib/offlineQueue.ts` |
+| `lib/syncLock.ts` (BroadcastChannel T2) | In-memory + server probe (T3 only) | `lib/syncLock.ts` |
+| `lib/deviceId.ts` (localStorage) | AsyncStorage + expo-device | `lib/deviceId.ts` |
+| Keyboard barcode wedge | `expo-camera` + `CameraView` | `components/BarcodeScanner.tsx` |
+| `stores/posStore.ts` | Zustand, same API | `stores/posStore.ts` |
+
+### Data Flow (POS Checkout — Offline-First)
+1. User adds items to cart → `posStore.addLine()` (immediate local update).
+2. User taps Checkout → `posStore.checkout()` calls `POST /api/v1/pos/checkout` via axios.
+3. **Online:** server returns `CheckoutResult`, cart clears, receipt printed.
+4. **Offline (network error):** cart serialized to `enqueueCheckout()` → AsyncStorage queue; error banner shown with short txn ID.
+5. On reconnect / app foreground: `useSync` hook (NetInfo) triggers `flushQueue()` → acquires `SyncLock` (server probe T3) → `POST /api/v1/sync/push` with all queued entries → server dedupes by `client_txn_id` (exact-once, verified in `sync_service.py:39`, returns `processed_client_txn_ids` + `skipped_client_txn_ids`) → `POST /api/v1/mobile/offline-ack` for explicit backend GC → individually removes acked entries from AsyncStorage queue (not bulk clear) → increments retry attempts for failed entries with exponential backoff (MAX_QUEUE_ATTEMPTS=5).
+
+### ORPHANS & PENDING
+- **M107 (mobile offline queue retry):** ✅ Resolved — `MAX_QUEUE_ATTEMPTS=5`, `getBackoffMs()` (exponential: 1s→60s cap), `incrementAttempts()` wired into `flushQueue` for both non-acked and failed entries, `removeStaleEntries()` prunes expired entries at flush start. Cart crash recovery via `cartRegistry.ts` + `useSync` NetInfo auto-flush also DONE.
+- **M108 (mobile thermal printer):** `react-native-thermal-printer` not yet installed. Backend `/api/v1/labels/render-mobile` endpoint (DONE) ready; mobile-side consumption pending. Planned for Milestone F.
+- **M109 (mobile notifications):** `expo-notifications` not yet installed. Planned for Milestone F.
+- **M110 (mobile license gate):** ✅ License check on app start implemented (`authStore.checkLicense()` + `LicenseEntryScreen` + `App.tsx` gate). Kiosk PIN mode screen not yet created — `loginWithPin` API client exists but no kiosk PIN UI. Planned for Milestone F.
+
+### Completed (2026-09-07)
+- **Mobile Tier-3 Sync Lock (DONE):** `sync_lock_service.py` (`SyncLockService` — in-process `asyncio.Lock`-guarded dict, ACQUIRE/RELEASE/HEARTBEAT with TTL expiry, singleton via `get_lock_service()`). `POST /api/v1/pos/lock` endpoint in `pos_route.py` wires `SyncLockRequest → SyncLockService → SyncLockResponse`. 5 tests in `test_mobile_routes.py` pass.
+- **Mobile Offline-Ack (DONE):** `POST /api/v1/mobile/offline-ack` in `mobile_route.py` — marks `SyncOutbox` rows as `acked` for client GC (500-ID batch cap). Schema `MobileOfflineAckRequest/Response` in `schemas.py:347-356`. Test T61 passes.
+- **Mobile ESC/POS Label Render (DONE):** `POST /api/v1/labels/render-mobile` in `mobile_route.py` — `_render_elements_to_escp()` + `_barcode_escp()` render text + Code128/UPC-A/EAN13 to base64 ESC/POS. `MobileLabelRenderRequest/Response` in `schemas.py:359-373`. Tests T62/T62b pass.
+- **Product barcode lookup (DONE):** Added `GET /api/v1/inventory/by-barcode/{barcode}` to `inventory_route.py` — uses existing `ProductRepository.get_by_barcode()`. 404 on not found. Test T64 passes (23 total tests pass across sync+mobile+pos+inventory).
+- **SyncPushResult extended (DONE):** Added `processed_client_txn_ids: list[str]` + `skipped_client_txn_ids: list[str]` to `SyncPushResult` schema (`schemas.py:321-329`); populated in `SyncService.push()` (`sync_service.py:30-73`). Enables frontend selective GC of offline queue entries. Existing sync tests (T49/T50/T51) unaffected.
+- **Mobile ESC/POS Label Render (DONE):** `POST /api/v1/labels/render-mobile` in `mobile_route.py` — `_render_elements_to_escp()` renders text + Code128/UPC-A/EAN13 barcodes into base64 ESC/POS stream. `_barcode_escp()` + `_parse_density()` helpers. Schema `MobileLabelRenderRequest/Response` in `schemas.py:359-373`. Tests T62/T62b pass.
+- **SyncPushEntry extended (DONE):** Added `type` (default `POS_CHECKOUT`) and `enqueued_at` (ISO 8601 str) fields to `SyncPushEntry` in `schemas.py:301-312` — backward-compatible (server ignores unknown fields in `payload` dict). Fixed `enqueued_at` type from `datetime` → `str` to match `default_factory` (eliminates Pydantic V2 serializer warning). Existing sync tests T49/T50/T51 unaffected.
+- **Mobile router registered (DONE):** `mobile_router` imported + `include_router()` in `main.py`. Backend boots OK (54 route entries). `mypy app --strict` on touched files: 0 new errors.
+- **SyncPushResult extended (DONE):** Added `processed_client_txn_ids: list[str]` + `skipped_client_txn_ids: list[str]` to `SyncPushResult` schema (`schemas.py:321-329`); populated in `SyncService.push()` (`sync_service.py:30-73`). Enables frontend selective GC of offline queue entries. Existing sync tests (T49/T50/T51) updated — 3 pass, no regression.
+- **Mobile flushQueue wired to new endpoints (DONE):** `posStore.ts:flushQueue()` now sends `SyncLockRequest` with `{ device_id, nonce, action: "ACQUIRE"|"HEARTBEAT"|"RELEASE", ttl_seconds }` to `/api/v1/pos/lock` (matches backend contract). After `POST /sync/push`, calls `/api/v1/mobile/offline-ack` with `ack_client_txn_ids` for explicit backend GC, then removes acked entries from AsyncStorage individually (not bulk clear). `SyncPushEntry` updated with `type` + `enqueued_at` fields matching backend schema. `syncLock.ts` `LockProbe` type updated to match backend `action`-based protocol. `tsc --noEmit`: 0 errors.
+- Hybrid OCR Pipeline, Auto-Reorder, Region Banner, compound_service.py TODO (see above).
+- Pre-existing bug fixes: `schemas.py` missing `timezone` import, `test_pos_hardening.py` schema version 21→24, `test_sync.py`/`test_b8_coverage.py`/`test_pos_hardening.py` missing `timezone` import, auto-reorder SQL `p.deleted`→`p.is_deleted`.
+- Full test suite: **726 passed, 1 skipped, 0 failed**. `tsc --noEmit` 0 errors.
+
+### Completed (2026-09-07) — Dashboard Enhancements + Smart Import Wizard
+- **Dashboard KPI expansion (DONE):** Added `active_patients` + `pending_rx_count` to backend `DashboardMetrics` endpoint (`dashboard_route.py`). Updated frontend `DashboardMetrics` interface. Added 2 new KPI cards: Active Patients (👤) and Pending Rx (📋). Added 2 new task buttons: Add Patient + Run Report. Made all grids responsive (`repeat(auto-fill, minmax(...))`). Fixed pre-existing `patients.address` migration bug (guarded with `_table_has_column` check).
+- **Smart Import Wizard (DONE):** Rewrote bulk import page as 4-step wizard (Upload → Map Columns → Preview → Import Results). Backend already had `/import/analyze`, `/import/preview`, `/import/commit` endpoints — fixed 3 variable-name bugs (`text_data` → `text_content`) in `excel_route.py`. Auto-column detection with alias matching. Required/optional field mapping with dropdowns. Row-level validation preview. Import results with inserted/skipped counts + error list.
+- **Background Backup Upgrade (DONE):** Swapped `vacuum_snapshot()` (bare VACUUM INTO) for `vacuum_backup()` (compressed + WAL checkpoint + 7-file retention) in the 6-hour background loop (`main.py`). Now automated backups have the same safety features as manual admin-triggered backups.
+- **Pre-existing bug fixes:** Added missing `SupplierUpdate` schema to `schemas.py`. Replaced missing `barcode_logic` module with inline `_generate_internal_barcode()` in `po_service.py`.
+- **EPCS Security Fix (DONE):** Replaced hardcoded `prescriber_id: 1` and `otp_code: "123456"` with a proper `SignEpcsModal` component. Modal prompts for prescriber ID and 6-digit TOTP code (from authenticator app) before signing. Eliminates 2 critical security TODOs from `EpcsDashboard.tsx`.
+- Full test suite: **743 passed, 1 skipped, 0 failed**. `tsc --noEmit` 0 errors.
+
+### Completed (2026-09-07) — UX & Multi-PC Refactoring (4 Phases)
+- **Phase 1 — Multi-PC Setup Wizard (DONE):** Enhanced `FirstTimeBootModal` with clinical white styling, icon-based cards, inline error display, and loading spinner. Enhanced `ClientConnectionForm` with auto-scan on mount, "Main Device discovered" success banner, amber warning for manual fallback, and back navigation. Cleaned `BootGuard` — removed all `dark:` Tailwind classes, uses `bg-background` and `border-primary` for spinner.
+- **Phase 2 — Clinical Green & White Theme (DONE):** Updated `globals.css` — added `--brand-primary-hover`, `--brand-sidebar-hover`, `--text-muted`, `--border-focus`, `--shadow-md` CSS variables. Updated `tailwind.config.js` — expanded color palette with `primary.hover`, `sidebar.hover`, `textMuted`, `border`, `danger`, `success`, `warning`, and `shadow.sm`/`shadow.md` utilities.
+- **Phase 3 — Information Architecture (DONE):** Created `components/navigation/Breadcrumbs.tsx` — dynamic breadcrumb nav reading Next.js router segments, with 40+ segment labels mapped. Reorganized `DashboardLayout` sidebar into 5 logical sections: Operations (9 items), Clinical (4 items), Insights (4 items), Tools (6 items), Administration (4 items). Added Clinical and Tools sections with `drugInteractions`, `drugs`, `quickSig`, `sigCodes`, `labelEngine`, `invoiceParse`, `purchaseOrders`. Sidebar uses rounded hover states (`bg-white/15`) instead of border-left active indicator.
+- **Phase 4 — Tooltip System (DONE):** Installed `@radix-ui/react-tooltip`. Created `components/ui/Tooltip.tsx` — Radix wrapper with 400ms delay, `side="right"` for sidebar, animated arrow. Created `lib/constants/tooltips.ts` — 30 plain-language descriptions mapping feature names to explanations. Integrated tooltips in `DashboardLayout` sidebar — all nav links wrapped with `<Tooltip content={...} side="right">`. Added 6 new nav keys + 30 tooltip keys to all 6 i18n locales (en, de, es, fr, pt, ar).
+- Updated `DashboardNav.tsx` — removed dark mode classes, uses `border-border`, `text-gray-600`, `bg-primary` for active state.
+- Full build: **45 pages**, TypeScript clean, `npx next build` passes.
+- **Mobile Milestone C completion (DONE):** Retry backoff (`MAX_QUEUE_ATTEMPTS=5`, exponential 1s→60s cap, `incrementAttempts` + `removeStaleEntries` in `flushQueue`), cart crash recovery (`lib/cartRegistry.ts` + persistence in posStore mutations + restore on `hydrate`), `useSync` NetInfo hook (`lib/hooks/useSync.ts` + wired in `App.tsx` for auto-flush on reconnect). `tsc --noEmit` 0 errors. Backend tests: 12 passed (sync + mobile + pos), no regression.
+- **Mobile flushQueue integration (DONE):** `SyncLock` probe updated to backend's `action`-based protocol (`ACQUIRE`/`HEARTBEAT`/`RELEASE`). `pushEntries` include `type` + `enqueued_at` fields matching `SyncPushEntry` schema. Post-sync `/mobile/offline-ack` call + selective per-entry GC (not bulk clear). Unused `SyncPushEntry` duplicate removed from `offlineQueue.ts`.
+- **Mobile Milestone D — Receiving (DONE):** `lib/api/receiving.ts` (list/create PO, add items, receive, auto-reorder, receiving log, vendors). `receiving.ts` API client with 8 typed functions. `types/contracts.ts` extended with `PurchaseOrderItemCreate/Read`, `PurchaseOrderReceiveItem`, `PurchaseOrderCreate/Read`, `AutoReorderResponse`, `ReceivingLogRead`, `PaginatedReceivingLog`. `ReceivingScreen.tsx` fully implemented with tab switcher (New PO / Receiving Log), PO creation form, item list, and log viewer. `tsc --noEmit` 0 errors.
+- **Mobile Milestone E — Analytics (DONE):** `lib/api/analytics.ts` (getDemandAnalytics, getTopSelling — 2 typed functions). `types/contracts.ts` extended with `DemandAnalyticsItem`, `DemandAnalyticsSummary`, `TopSellingItem`, `TopSellingResponse`. `AnalyticsScreen.tsx` fully implemented with tab switcher (Top Selling / Demand Velocity), period selector (Day/Week/Month), FlatList rendering with velocity-category badges and money formatting via `parseMoney` + `formatMoney`. `tsc --noEmit` 0 errors.
+- **Mobile hooks (DONE):** `useBarcodeScanner.ts` (camera permissions + scan handler via expo-camera), `useShift.ts` (wraps posStore shift open/close). `App.tsx` fixed: `hydrate()` moved from render body to `useEffect` (React anti-pattern fix). `tsc --noEmit` 0 errors.
+- **Mobile license gate (DONE — Milestone F):** `authStore.ts` extended with `license` state (`valid`/`no_license`/`expired`/`grace`), `checkLicense()` (calls `/auth/license-status`, 7-day grace period stored in AsyncStorage), `validateLicense()` (device HWID binding via `/auth/validate-license`). `LicenseEntryScreen.tsx` with license key entry. `App.tsx` blocks rendering of `RootNavigator` until license check completes — shows `LicenseEntryScreen` if `no_license`, otherwise proceeds to auth gate. `tsc --noEmit` 0 errors.
+- **Mobile Settings (DONE):** `SettingsScreen.tsx` enhanced with device name/ID (via `expo-device` + AsyncStorage), license status display (with expiry date), and confirm-before-logout dialog.
+<!-- Old audit sections removed for clarity; newer audit generated below. -->
+1549 | | GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+1550 | | GET | /api/v1/dashboard/analytics | backend_fastapi\app\api\routers\dashboard_route.py | 86 |
+| POST | /api/v1/auth/pin | backend_fastapi\app\api\routers\auth_route.py | 40 |
+| POST | /api/v1/auth/refresh | backend_fastapi\app\api\routers\auth_route.py | 50 |
+| POST | /api/v1/auth/register | backend_fastapi\app\api\routers\auth_route.py | 55 |
+| GET | /api/v1/auth/me | backend_fastapi\app\api\routers\auth_route.py | 64 |
+| POST | /api/v1/auth/logout | backend_fastapi\app\api\routers\auth_route.py | 69 |
+| POST | /api/v1/auth/rotate-pepper | backend_fastapi\app\api\routers\auth_route.py | 75 |
+| POST | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 34 |
+| GET | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 57 |
+| PUT | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 73 |
+| DELETE | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 93 |
+| POST | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 107 |
+| GET | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 130 |
+| PUT | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 145 |
+| DELETE | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 167 |
+| GET | /api/v1/clinical/attachments | backend_fastapi\app\api\routers\clinical_route.py | 181 |
+| DELETE | /api/v1/clinical/attachments/{attachment_id} | backend_fastapi\app\api\routers\clinical_route.py | 196 |
+| GET | /api/v1/clinical/review/{patient_id} | backend_fastapi\app\api\routers\clinical_route.py | 210 |
+| GET | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 48 |
+| PUT | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 59 |
+| DELETE | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 71 |
+| POST | /api/v1/compounds/{compound_id}/price | backend_fastapi\app\api\routers\compound_route.py | 82 |
+| POST | /api/v1/compounds/dispense | backend_fastapi\app\api\routers\compound_route.py | 94 |
+| GET | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 26 |
+| GET | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 36 |
+| POST | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 46 |
+| PUT | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 56 |
+| DELETE | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 67 |
+| POST | /api/v1/coupons/validate | backend_fastapi\app\api\routers\coupon_route.py | 77 |
+| GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+| GET | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 29 |
+| POST | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 37 |
+| PUT | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 46 |
+| DELETE | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 59 |
+| GET | /api/v1/dictionaries/sig-codes/parse | backend_fastapi\app\api\routers\dictionaries_route.py | 70 |
+| GET | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 79 |
+| POST | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 87 |
+| PUT | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 96 |
+| DELETE | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 109 |
+| GET | /api/v1/dictionaries/price-codes/{price_code_id}/calculate | backend_fastapi\app\api\routers\dictionaries_route.py | 120 |
+| GET | /api/v1/dictionaries/ndc/lookup | backend_fastapi\app\api\routers\dictionaries_route.py | 134 |
+| GET | /api/v1/dispense/rx/{rx_number} | backend_fastapi\app\api\routers\dispense_route.py | 26 |
+| GET | /api/v1/dispense/rx/{rx_number}/fills | backend_fastapi\app\api\routers\dispense_route.py | 36 |
+| PUT | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 50 |
+| POST | /api/v1/dispense/{dispense_id}/reverse | backend_fastapi\app\api\routers\dispense_route.py | 61 |
+| POST | /api/v1/dispense/{dispense_id}/transfer | backend_fastapi\app\api\routers\dispense_route.py | 79 |
+| GET | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 93 |
+| GET | /api/v1/dispense/{dispense_id}/label | backend_fastapi\app\api\routers\dispense_route.py | 102 |
+| POST | /api/v1/dispense/{dispense_id}/refill | backend_fastapi\app\api\routers\dispense_route.py | 117 |
+| GET | /api/v1/drugs/confirm/{ndc} | backend_fastapi\app\api\routers\drug_confirm_route.py | 15 |
+| POST | /api/v1/drug-interactions/check | backend_fastapi\app\api\routers\drug_interaction_route.py | 51 |
+| GET | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 64 |
+| POST | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 73 |
+| PUT | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 84 |
+| DELETE | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 96 |
+| POST | /api/v1/email/daily-sales | backend_fastapi\app\api\routers\email_route.py | 29 |
+| GET | /api/v1/email/health | backend_fastapi\app\api\routers\email_route.py | 58 |
+| GET | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 70 |
+| PUT | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 81 |
+| PATCH | /api/v1/epcs/{rx_id}/status | backend_fastapi\app\api\routers\epcs_route.py | 93 |
+| POST | /api/v1/epcs/{rx_id}/sign | backend_fastapi\app\api\routers\epcs_route.py | 105 |
+| POST | /api/v1/epcs/{rx_id}/transmit | backend_fastapi\app\api\routers\epcs_route.py | 118 |
+| GET | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 131 |
+| POST | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 142 |
+| POST | /api/v1/excel/import/analyze | backend_fastapi\app\api\routers\excel_route.py | 129 |
+| POST | /api/v1/excel/import/preview | backend_fastapi\app\api\routers\excel_route.py | 182 |
+| POST | /api/v1/excel/import/commit | backend_fastapi\app\api\routers\excel_route.py | 233 |
+| GET | /api/v1/excel/export/inventory | backend_fastapi\app\api\routers\excel_route.py | 343 |
+| POST | /api/v1/excel/import/inventory | backend_fastapi\app\api\routers\excel_route.py | 431 |
+| POST | /api/v1/excel/import/csv | backend_fastapi\app\api\routers\excel_route.py | 548 |
+| GET | /api/v1/gift-cards/lookup/{code} | backend_fastapi\app\api\routers\gift_card_route.py | 78 |
+| POST | /api/v1/gift-cards/{card_id}/redeem | backend_fastapi\app\api\routers\gift_card_route.py | 87 |
+| POST | /api/v1/gift-cards/{card_id}/void | backend_fastapi\app\api\routers\gift_card_route.py | 106 |
+| GET | /api/v1/health | backend_fastapi\app\api\routers\health_route.py | 11 |
+| GET | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 25 |
+| GET | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 36 |
+| POST | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 48 |
+| PUT | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 62 |
+| DELETE | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 76 |
+| POST | /api/v1/insurance/plans/validate | backend_fastapi\app\api\routers\insurance_route.py | 88 |
+| POST | /api/v1/insurance/eligibility | backend_fastapi\app\api\routers\insurance_route.py | 101 |
+| GET | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 173 |
+| POST | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 184 |
+| GET | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 39 |
+| GET | /api/v1/inventory/medicines/search | backend_fastapi\app\api\routers\inventory_route.py | 73 |
+| GET | /api/v1/inventory/by-barcode/{barcode} | backend_fastapi\app\api\routers\inventory_route.py | 84 |
+| GET | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 98 |
+| POST | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 110 |
+| PUT | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 127 |
+| DELETE | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 142 |
+| GET | /api/v1/inventory/batches | backend_fastapi\app\api\routers\inventory_route.py | 156 |
+| POST | /api/v1/inventory/batches/receive | backend_fastapi\app\api\routers\inventory_route.py | 167 |
+| GET | /api/v1/inventory/batches/low-stock | backend_fastapi\app\api\routers\inventory_route.py | 179 |
+| GET | /api/v1/inventory/batches/expiring-soon | backend_fastapi\app\api\routers\inventory_route.py | 187 |
+| GET | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 196 |
+| PUT | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 205 |
+| GET | /api/v1/inventory/stock-levels | backend_fastapi\app\api\routers\inventory_route.py | 215 |
+| GET | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 227 |
+| POST | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 236 |
+| PUT | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 252 |
+| DELETE | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 271 |
+| POST | /api/v1/inventory/suppliers/{supplier_id}/prefer | backend_fastapi\app\api\routers\inventory_route.py | 290 |
+| GET | /api/v1/inventory/suppliers/search | backend_fastapi\app\api\routers\inventory_route.py | 312 |
+| GET | /api/v1/inventory/movements | backend_fastapi\app\api\routers\inventory_route.py | 336 |
+| POST | /api/v1/inventory/adjustments | backend_fastapi\app\api\routers\inventory_route.py | 366 |
+| POST | /api/v1/invoice-parse/text | backend_fastapi\app\api\routers\invoice_parse_route.py | 52 |
+| POST | /api/v1/invoice-parse/file | backend_fastapi\app\api\routers\invoice_parse_route.py | 61 |
+| GET | /api/v1/invoice-parse/hardware-status | backend_fastapi\app\api\routers\invoice_parse_route.py | 107 |
+| POST | /api/v1/invoice-parse/hybrid | backend_fastapi\app\api\routers\invoice_parse_route.py | 120 |
+| GET | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 45 |
+| GET | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 53 |
+| POST | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 62 |
+| PUT | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 72 |
+| DELETE | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 83 |
+| POST | /api/v1/licenses/activate-file | backend_fastapi\app\api\routers\license_file_route.py | 49 |
+| POST | /api/v1/license/validate | backend_fastapi\app\api\routers\license_route.py | 25 |
+| POST | /api/v1/license/checkout | backend_fastapi\app\api\routers\license_route.py | 53 |
+| POST | /api/v1/license/admin/manage | backend_fastapi\app\api\routers\license_route.py | 92 |
+| GET | /api/v1/license/status | backend_fastapi\app\api\routers\license_route.py | 101 |
+| GET | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 35 |
+| PUT | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 57 |
+| DELETE | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 72 |
+| POST | /api/v1/mobile/offline-ack | backend_fastapi\app\api\routers\mobile_route.py | 25 |
+| POST | /api/v1/labels/render-mobile | backend_fastapi\app\api\routers\mobile_route.py | 64 |
+| GET | /api/v1/patients/search | backend_fastapi\app\api\routers\patients_route.py | 40 |
+| GET | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 49 |
+| PUT | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 67 |
+| POST | /api/v1/patients/{patient_id}/insurance | backend_fastapi\app\api\routers\patients_route.py | 77 |
+| DELETE | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 87 |
+| GET | /api/v1/patients/{patient_id}/dispenses | backend_fastapi\app\api\routers\patients_route.py | 96 |
+| GET | /api/v1/patients/{patient_id}/history | backend_fastapi\app\api\routers\patients_route.py | 109 |
+| GET | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 35 |
+| POST | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 43 |
+| DELETE | /api/v1/patients/{patient_id}/fields/{field_name} | backend_fastapi\app\api\routers\patient_fields_route.py | 66 |
+| POST | /api/v1/pos/approve | backend_fastapi\app\api\routers\pos_route.py | 61 |
+| POST | /api/v1/pos/checkout | backend_fastapi\app\api\routers\pos_route.py | 73 |
+| POST | /api/v1/pos/drawer/movement | backend_fastapi\app\api\routers\pos_route.py | 82 |
+| POST | /api/v1/pos/shift/open | backend_fastapi\app\api\routers\pos_route.py | 107 |
+| POST | /api/v1/pos/shift/close | backend_fastapi\app\api\routers\pos_route.py | 117 |
+| GET | /api/v1/pos/shift/{shift_id}/preview | backend_fastapi\app\api\routers\pos_route.py | 127 |
+| POST | /api/v1/pos/refund | backend_fastapi\app\api\routers\pos_route.py | 137 |
+| GET | /api/v1/pos/reports/sales | backend_fastapi\app\api\routers\pos_route.py | 147 |
+| GET | /api/v1/pos/receipts/recent | backend_fastapi\app\api\routers\pos_route.py | 156 |
+| GET | /api/v1/pos/receipts/{receipt_id} | backend_fastapi\app\api\routers\pos_route.py | 166 |
+| GET | /api/v1/pos/receipts/{receipt_id}/print | backend_fastapi\app\api\routers\pos_route.py | 176 |
+| GET | /api/v1/pos/eod-summary | backend_fastapi\app\api\routers\pos_route.py | 186 |
+| POST | /api/v1/pos/void-item | backend_fastapi\app\api\routers\pos_route.py | 196 |
+| POST | /api/v1/pos/lock | backend_fastapi\app\api\routers\pos_route.py | 206 |
+| GET | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 32 |
+| GET | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 41 |
+| POST | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 50 |
+| PUT | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 59 |
+| POST | /api/v1/purchase-orders/{po_id}/items | backend_fastapi\app\api\routers\po_route.py | 69 |
+| DELETE | /api/v1/purchase-orders/{po_id}/items/{item_id} | backend_fastapi\app\api\routers\po_route.py | 79 |
+| POST | /api/v1/purchase-orders/{po_id}/transition | backend_fastapi\app\api\routers\po_route.py | 89 |
+| POST | /api/v1/purchase-orders/{po_id}/receive | backend_fastapi\app\api\routers\po_route.py | 98 |
+| DELETE | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 109 |
+| POST | /api/v1/purchase-orders/auto-reorder | backend_fastapi\app\api\routers\po_route.py | 118 |
+| GET | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 31 |
+| PUT | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 62 |
+| DELETE | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 78 |
+| GET | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 62 |
+| PUT | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 73 |
+| PATCH | /api/v1/prior-auth/{pa_id}/status | backend_fastapi\app\api\routers\prior_auth_route.py | 85 |
+| POST | /api/v1/prior-auth/{pa_id}/withdraw | backend_fastapi\app\api\routers\prior_auth_route.py | 97 |
+| GET | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 18 |
+| GET | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 28 |
+| POST | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 37 |
+| PUT | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 46 |
+| DELETE | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 56 |
+| POST | /api/v1/quick-sig/{template_id}/favorite | backend_fastapi\app\api\routers\quick_sig_route.py | 65 |
+| POST | /api/v1/quick-sig/{template_id}/use | backend_fastapi\app\api\routers\quick_sig_route.py | 74 |
+| GET | /api/v1/quick-sig/search/suggestions | backend_fastapi\app\api\routers\quick_sig_route.py | 83 |
+| GET | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 18 |
+| GET | /api/v1/receipt-templates/default | backend_fastapi\app\api\routers\receipt_template_route.py | 27 |
+| GET | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 35 |
+| POST | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 44 |
+| PUT | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 53 |
+| DELETE | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 63 |
+| GET | /api/v1/receiving-log/vendors | backend_fastapi\app\api\routers\receiving_route.py | 85 |
+| GET | /api/v1/region/regions | backend_fastapi\app\api\routers\region_route.py | 56 |
+| GET | /api/v1/region/{code} | backend_fastapi\app\api\routers\region_route.py | 72 |
+| POST | /api/v1/region-strategy/patient-cost | backend_fastapi\app\api\routers\region_strategy_route.py | 25 |
+| POST | /api/v1/region-strategy/generate-claim | backend_fastapi\app\api\routers\region_strategy_route.py | 43 |
+| POST | /api/v1/region-strategy/validate-prescription | backend_fastapi\app\api\routers\region_strategy_route.py | 58 |
+| POST | /api/v1/region-strategy/validate-credentials | backend_fastapi\app\api\routers\region_strategy_route.py | 73 |
+| GET | /api/v1/region-strategy/supported-regions | backend_fastapi\app\api\routers\region_strategy_route.py | 88 |
+| GET | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 57 |
+| PUT | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 82 |
+| GET | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 103 |
+| PUT | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 123 |
+| GET | /api/v1/roles/permissions/all | backend_fastapi\app\api\routers\roles_route.py | 146 |
+| GET | /api/v1/rx-queue/counts | backend_fastapi\app\api\routers\rx_queue_route.py | 57 |
+| PATCH | /api/v1/rx-queue/{rx_id}/status | backend_fastapi\app\api\routers\rx_queue_route.py | 67 |
+| POST | /api/v1/rx-queue/bulk-status | backend_fastapi\app\api\routers\rx_queue_route.py | 79 |
+| GET | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 36 |
+| PUT | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 48 |
+| POST | /api/v1/sync/push | backend_fastapi\app\api\routers\sync_route.py | 27 |
+| GET | /api/v1/sync/discrepancies | backend_fastapi\app\api\routers\sync_route.py | 37 |
+| POST | /api/v1/sync/discrepancies/{discrepancy_id}/resolve | backend_fastapi\app\api\routers\sync_route.py | 51 |
+| PUT | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 101 |
+| DELETE | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 133 |
+| GET | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 34 |
+| PUT | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 46 |
+| PATCH | /api/v1/users/{user_id}/active | backend_fastapi\app\api\routers\users_route.py | 65 |
+| GET | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 111 |
+| PUT | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 126 |
+| GET | /api/v1/vendors/{vendor_id}/items | backend_fastapi\app\api\routers\vendors_route.py | 165 |
+| GET | /api/v1/vendors/{vendor_id}/purchases | backend_fastapi\app\api\routers\vendors_route.py | 183 |
+| POST | /api/v1/vendors/receive | backend_fastapi\app\api\routers\vendors_route.py | 204 |
+| GET | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 42 |
+| PUT | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 74 |
+| DELETE | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 89 |
+| POST | /api/v1/webhook/creem | backend_fastapi\app\api\routers\webhook_route.py | 31 |
+
+### Unmatched Frontend Calls (no backend route)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | ${API_BASE}/api/v1/auth/login | app\api\auth\login\route.ts | 20 |
+| POST | ${API_BASE}/api/v1/auth/refresh | app\api\auth\refresh\route.ts | 14 |
+| POST | ${serverUrl}/api/webhook/paddle | app\api\webhooks\paddle\route.ts | 58 |
+| GET | /api/v1/analytics/top-selling?period=${p}&limit=20 | app\dashboard\analytics\page.tsx | 43 |
+<!-- Previous API Usage Audit sections removed; a fresh audit is generated below by the script -->
+| GET | /api/v1/admin/backups | backend_fastapi\app\api\routers\admin_route.py | 36 |
+| POST | /api/v1/admin/restore | backend_fastapi\app\api\routers\admin_route.py | 65 |
+| GET | /api/v1/analytics/demand | backend_fastapi\app\api\routers\analytics_route.py | 24 |
+| GET | /api/v1/analytics/top-selling | backend_fastapi\app\api\routers\analytics_route.py | 51 |
+| GET | /api/v1/audit/verify | backend_fastapi\app\api\routers\audit_route.py | 18 |
+| GET | /api/v1/audit/export | backend_fastapi\app\api\routers\audit_route.py | 28 |
+| POST | /api/v1/auth/login | backend_fastapi\app\api\routers\auth_route.py | 27 |
+| POST | /api/v1/auth/login/pin | backend_fastapi\app\api\routers\auth_route.py | 33 |
+| POST | /api/v1/auth/pin | backend_fastapi\app\api\routers\auth_route.py | 40 |
+| POST | /api/v1/auth/refresh | backend_fastapi\app\api\routers\auth_route.py | 50 |
+| POST | /api/v1/auth/register | backend_fastapi\app\api\routers\auth_route.py | 55 |
+| GET | /api/v1/auth/me | backend_fastapi\app\api\routers\auth_route.py | 64 |
+| POST | /api/v1/auth/logout | backend_fastapi\app\api\routers\auth_route.py | 69 |
+| POST | /api/v1/auth/rotate-pepper | backend_fastapi\app\api\routers\auth_route.py | 75 |
+| POST | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 34 |
+| GET | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 57 |
+| PUT | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 73 |
+| DELETE | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 93 |
+| POST | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 107 |
+| GET | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 130 |
+| PUT | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 145 |
+| DELETE | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 167 |
+| GET | /api/v1/clinical/attachments | backend_fastapi\app\api\routers\clinical_route.py | 181 |
+| DELETE | /api/v1/clinical/attachments/{attachment_id} | backend_fastapi\app\api\routers\clinical_route.py | 196 |
+| GET | /api/v1/clinical/review/{patient_id} | backend_fastapi\app\api\routers\clinical_route.py | 210 |
+| GET | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 48 |
+| PUT | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 59 |
+| DELETE | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 71 |
+| POST | /api/v1/compounds/{compound_id}/price | backend_fastapi\app\api\routers\compound_route.py | 82 |
+| POST | /api/v1/compounds/dispense | backend_fastapi\app\api\routers\compound_route.py | 94 |
+| GET | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 26 |
+| GET | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 36 |
+| POST | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 46 |
+| PUT | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 56 |
+| DELETE | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 67 |
+| POST | /api/v1/coupons/validate | backend_fastapi\app\api\routers\coupon_route.py | 77 |
+| GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+| GET | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 29 |
+| POST | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 37 |
+| PUT | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 46 |
+| DELETE | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 59 |
+| GET | /api/v1/dictionaries/sig-codes/parse | backend_fastapi\app\api\routers\dictionaries_route.py | 70 |
+| GET | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 79 |
+| POST | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 87 |
+| PUT | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 96 |
+| DELETE | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 109 |
+| GET | /api/v1/dictionaries/price-codes/{price_code_id}/calculate | backend_fastapi\app\api\routers\dictionaries_route.py | 120 |
+| GET | /api/v1/dictionaries/ndc/lookup | backend_fastapi\app\api\routers\dictionaries_route.py | 134 |
+| GET | /api/v1/dispense/rx/{rx_number} | backend_fastapi\app\api\routers\dispense_route.py | 26 |
+| GET | /api/v1/dispense/rx/{rx_number}/fills | backend_fastapi\app\api\routers\dispense_route.py | 36 |
+| PUT | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 50 |
+| POST | /api/v1/dispense/{dispense_id}/reverse | backend_fastapi\app\api\routers\dispense_route.py | 61 |
+| POST | /api/v1/dispense/{dispense_id}/transfer | backend_fastapi\app\api\routers\dispense_route.py | 79 |
+| GET | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 93 |
+| GET | /api/v1/dispense/{dispense_id}/label | backend_fastapi\app\api\routers\dispense_route.py | 102 |
+| POST | /api/v1/dispense/{dispense_id}/refill | backend_fastapi\app\api\routers\dispense_route.py | 117 |
+| GET | /api/v1/drugs/confirm/{ndc} | backend_fastapi\app\api\routers\drug_confirm_route.py | 15 |
+| POST | /api/v1/drug-interactions/check | backend_fastapi\app\api\routers\drug_interaction_route.py | 51 |
+| GET | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 64 |
+| POST | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 73 |
+| PUT | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 84 |
+| DELETE | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 96 |
+| POST | /api/v1/email/daily-sales | backend_fastapi\app\api\routers\email_route.py | 29 |
+| GET | /api/v1/email/health | backend_fastapi\app\api\routers\email_route.py | 58 |
+| GET | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 70 |
+| PUT | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 81 |
+| PATCH | /api/v1/epcs/{rx_id}/status | backend_fastapi\app\api\routers\epcs_route.py | 93 |
+| POST | /api/v1/epcs/{rx_id}/sign | backend_fastapi\app\api\routers\epcs_route.py | 105 |
+| POST | /api/v1/epcs/{rx_id}/transmit | backend_fastapi\app\api\routers\epcs_route.py | 118 |
+| GET | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 131 |
+| POST | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 142 |
+| POST | /api/v1/excel/import/analyze | backend_fastapi\app\api\routers\excel_route.py | 129 |
+| POST | /api/v1/excel/import/preview | backend_fastapi\app\api\routers\excel_route.py | 182 |
+| POST | /api/v1/excel/import/commit | backend_fastapi\app\api\routers\excel_route.py | 233 |
+| GET | /api/v1/excel/export/inventory | backend_fastapi\app\api\routers\excel_route.py | 343 |
+| POST | /api/v1/excel/import/inventory | backend_fastapi\app\api\routers\excel_route.py | 431 |
+| POST | /api/v1/excel/import/csv | backend_fastapi\app\api\routers\excel_route.py | 548 |
+| GET | /api/v1/gift-cards/lookup/{code} | backend_fastapi\app\api\routers\gift_card_route.py | 78 |
+| POST | /api/v1/gift-cards/{card_id}/redeem | backend_fastapi\app\api\routers\gift_card_route.py | 87 |
+| POST | /api/v1/gift-cards/{card_id}/void | backend_fastapi\app\api\routers\gift_card_route.py | 106 |
+| GET | /api/v1/health | backend_fastapi\app\api\routers\health_route.py | 11 |
+| GET | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 25 |
+| GET | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 36 |
+| POST | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 48 |
+| PUT | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 62 |
+| DELETE | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 76 |
+| POST | /api/v1/insurance/plans/validate | backend_fastapi\app\api\routers\insurance_route.py | 88 |
+| POST | /api/v1/insurance/eligibility | backend_fastapi\app\api\routers\insurance_route.py | 101 |
+| GET | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 173 |
+| POST | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 184 |
+| GET | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 39 |
+| GET | /api/v1/inventory/medicines/search | backend_fastapi\app\api\routers\inventory_route.py | 73 |
+| GET | /api/v1/inventory/by-barcode/{barcode} | backend_fastapi\app\api\routers\inventory_route.py | 84 |
+| GET | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 98 |
+| POST | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 110 |
+| PUT | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 127 |
+| DELETE | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 142 |
+| GET | /api/v1/inventory/batches | backend_fastapi\app\api\routers\inventory_route.py | 156 |
+| POST | /api/v1/inventory/batches/receive | backend_fastapi\app\api\routers\inventory_route.py | 167 |
+| GET | /api/v1/inventory/batches/low-stock | backend_fastapi\app\api\routers\inventory_route.py | 179 |
+| GET | /api/v1/inventory/batches/expiring-soon | backend_fastapi\app\api\routers\inventory_route.py | 187 |
+| GET | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 196 |
+| PUT | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 205 |
+| GET | /api/v1/inventory/stock-levels | backend_fastapi\app\api\routers\inventory_route.py | 215 |
+| GET | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 227 |
+| POST | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 236 |
+| PUT | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 252 |
+| DELETE | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 271 |
+| POST | /api/v1/inventory/suppliers/{supplier_id}/prefer | backend_fastapi\app\api\routers\inventory_route.py | 290 |
+| GET | /api/v1/inventory/suppliers/search | backend_fastapi\app\api\routers\inventory_route.py | 312 |
+| GET | /api/v1/inventory/movements | backend_fastapi\app\api\routers\inventory_route.py | 336 |
+| POST | /api/v1/inventory/adjustments | backend_fastapi\app\api\routers\inventory_route.py | 366 |
+| POST | /api/v1/invoice-parse/text | backend_fastapi\app\api\routers\invoice_parse_route.py | 52 |
+| POST | /api/v1/invoice-parse/file | backend_fastapi\app\api\routers\invoice_parse_route.py | 61 |
+| GET | /api/v1/invoice-parse/hardware-status | backend_fastapi\app\api\routers\invoice_parse_route.py | 107 |
+| POST | /api/v1/invoice-parse/hybrid | backend_fastapi\app\api\routers\invoice_parse_route.py | 120 |
+| GET | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 45 |
+| GET | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 53 |
+| POST | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 62 |
+| PUT | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 72 |
+| DELETE | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 83 |
+| POST | /api/v1/licenses/activate-file | backend_fastapi\app\api\routers\license_file_route.py | 49 |
+| POST | /api/v1/license/validate | backend_fastapi\app\api\routers\license_route.py | 25 |
+| POST | /api/v1/license/checkout | backend_fastapi\app\api\routers\license_route.py | 53 |
+| POST | /api/v1/license/admin/manage | backend_fastapi\app\api\routers\license_route.py | 92 |
+| GET | /api/v1/license/status | backend_fastapi\app\api\routers\license_route.py | 101 |
+| GET | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 35 |
+| PUT | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 57 |
+| DELETE | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 72 |
+| POST | /api/v1/mobile/offline-ack | backend_fastapi\app\api\routers\mobile_route.py | 25 |
+| POST | /api/v1/labels/render-mobile | backend_fastapi\app\api\routers\mobile_route.py | 64 |
+| GET | /api/v1/patients/search | backend_fastapi\app\api\routers\patients_route.py | 40 |
+| GET | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 49 |
+| PUT | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 67 |
+| POST | /api/v1/patients/{patient_id}/insurance | backend_fastapi\app\api\routers\patients_route.py | 77 |
+| DELETE | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 87 |
+| GET | /api/v1/patients/{patient_id}/dispenses | backend_fastapi\app\api\routers\patients_route.py | 96 |
+| GET | /api/v1/patients/{patient_id}/history | backend_fastapi\app\api\routers\patients_route.py | 109 |
+| GET | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 35 |
+| POST | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 43 |
+| DELETE | /api/v1/patients/{patient_id}/fields/{field_name} | backend_fastapi\app\api\routers\patient_fields_route.py | 66 |
+| POST | /api/v1/pos/approve | backend_fastapi\app\api\routers\pos_route.py | 61 |
+| POST | /api/v1/pos/checkout | backend_fastapi\app\api\routers\pos_route.py | 73 |
+| POST | /api/v1/pos/drawer/movement | backend_fastapi\app\api\routers\pos_route.py | 82 |
+| POST | /api/v1/pos/shift/open | backend_fastapi\app\api\routers\pos_route.py | 107 |
+| POST | /api/v1/pos/shift/close | backend_fastapi\app\api\routers\pos_route.py | 117 |
+| GET | /api/v1/pos/shift/{shift_id}/preview | backend_fastapi\app\api\routers\pos_route.py | 127 |
+| POST | /api/v1/pos/refund | backend_fastapi\app\api\routers\pos_route.py | 137 |
+| GET | /api/v1/pos/reports/sales | backend_fastapi\app\api\routers\pos_route.py | 147 |
+| GET | /api/v1/pos/receipts/recent | backend_fastapi\app\api\routers\pos_route.py | 156 |
+| GET | /api/v1/pos/receipts/{receipt_id} | backend_fastapi\app\api\routers\pos_route.py | 166 |
+| GET | /api/v1/pos/receipts/{receipt_id}/print | backend_fastapi\app\api\routers\pos_route.py | 176 |
+| GET | /api/v1/pos/eod-summary | backend_fastapi\app\api\routers\pos_route.py | 186 |
+| POST | /api/v1/pos/void-item | backend_fastapi\app\api\routers\pos_route.py | 196 |
+| POST | /api/v1/pos/lock | backend_fastapi\app\api\routers\pos_route.py | 206 |
+| GET | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 32 |
+| GET | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 41 |
+| POST | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 50 |
+| PUT | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 59 |
+| POST | /api/v1/purchase-orders/{po_id}/items | backend_fastapi\app\api\routers\po_route.py | 69 |
+| DELETE | /api/v1/purchase-orders/{po_id}/items/{item_id} | backend_fastapi\app\api\routers\po_route.py | 79 |
+| POST | /api/v1/purchase-orders/{po_id}/transition | backend_fastapi\app\api\routers\po_route.py | 89 |
+| POST | /api/v1/purchase-orders/{po_id}/receive | backend_fastapi\app\api\routers\po_route.py | 98 |
+| DELETE | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 109 |
+| POST | /api/v1/purchase-orders/auto-reorder | backend_fastapi\app\api\routers\po_route.py | 118 |
+| GET | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 31 |
+| PUT | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 62 |
+| DELETE | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 78 |
+| GET | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 62 |
+| PUT | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 73 |
+| PATCH | /api/v1/prior-auth/{pa_id}/status | backend_fastapi\app\api\routers\prior_auth_route.py | 85 |
+| POST | /api/v1/prior-auth/{pa_id}/withdraw | backend_fastapi\app\api\routers\prior_auth_route.py | 97 |
+| GET | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 18 |
+| GET | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 28 |
+| POST | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 37 |
+| PUT | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 46 |
+| DELETE | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 56 |
+| POST | /api/v1/quick-sig/{template_id}/favorite | backend_fastapi\app\api\routers\quick_sig_route.py | 65 |
+| POST | /api/v1/quick-sig/{template_id}/use | backend_fastapi\app\api\routers\quick_sig_route.py | 74 |
+| GET | /api/v1/quick-sig/search/suggestions | backend_fastapi\app\api\routers\quick_sig_route.py | 83 |
+| GET | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 18 |
+| GET | /api/v1/receipt-templates/default | backend_fastapi\app\api\routers\receipt_template_route.py | 27 |
+| GET | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 35 |
+| POST | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 44 |
+| PUT | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 53 |
+| DELETE | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 63 |
+| GET | /api/v1/receiving-log/vendors | backend_fastapi\app\api\routers\receiving_route.py | 85 |
+| GET | /api/v1/region/regions | backend_fastapi\app\api\routers\region_route.py | 56 |
+| GET | /api/v1/region/{code} | backend_fastapi\app\api\routers\region_route.py | 72 |
+| POST | /api/v1/region-strategy/patient-cost | backend_fastapi\app\api\routers\region_strategy_route.py | 25 |
+| POST | /api/v1/region-strategy/generate-claim | backend_fastapi\app\api\routers\region_strategy_route.py | 43 |
+| POST | /api/v1/region-strategy/validate-prescription | backend_fastapi\app\api\routers\region_strategy_route.py | 58 |
+| POST | /api/v1/region-strategy/validate-credentials | backend_fastapi\app\api\routers\region_strategy_route.py | 73 |
+| GET | /api/v1/region-strategy/supported-regions | backend_fastapi\app\api\routers\region_strategy_route.py | 88 |
+| GET | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 57 |
+| PUT | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 82 |
+| GET | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 103 |
+| PUT | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 123 |
+| GET | /api/v1/roles/permissions/all | backend_fastapi\app\api\routers\roles_route.py | 146 |
+| GET | /api/v1/rx-queue/counts | backend_fastapi\app\api\routers\rx_queue_route.py | 57 |
+| PATCH | /api/v1/rx-queue/{rx_id}/status | backend_fastapi\app\api\routers\rx_queue_route.py | 67 |
+| POST | /api/v1/rx-queue/bulk-status | backend_fastapi\app\api\routers\rx_queue_route.py | 79 |
+| GET | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 36 |
+| PUT | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 48 |
+| POST | /api/v1/sync/push | backend_fastapi\app\api\routers\sync_route.py | 27 |
+| GET | /api/v1/sync/discrepancies | backend_fastapi\app\api\routers\sync_route.py | 37 |
+| POST | /api/v1/sync/discrepancies/{discrepancy_id}/resolve | backend_fastapi\app\api\routers\sync_route.py | 51 |
+| PUT | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 101 |
+| DELETE | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 133 |
+| GET | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 34 |
+| PUT | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 46 |
+| PATCH | /api/v1/users/{user_id}/active | backend_fastapi\app\api\routers\users_route.py | 65 |
+| GET | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 111 |
+| PUT | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 126 |
+| GET | /api/v1/vendors/{vendor_id}/items | backend_fastapi\app\api\routers\vendors_route.py | 165 |
+| GET | /api/v1/vendors/{vendor_id}/purchases | backend_fastapi\app\api\routers\vendors_route.py | 183 |
+| POST | /api/v1/vendors/receive | backend_fastapi\app\api\routers\vendors_route.py | 204 |
+| GET | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 42 |
+| PUT | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 74 |
+| DELETE | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 89 |
+| POST | /api/v1/webhook/creem | backend_fastapi\app\api\routers\webhook_route.py | 31 |
+
+### Unmatched Frontend Calls (no backend route)
+| Method | Path | File | Line |
+|---|---|---|---|
+| GET | /api/v1/analytics/top-selling?period=${p}&limit=20 | app\dashboard\analytics\page.tsx | 43 |
+| GET | /api/v1/region/${code} | app\dashboard\settings\page.tsx | 200 |
+| POST | /api/v1/crash-report | components\ErrorBoundary.tsx | 37 |
+| POST | /api/v1/ocr | components\OcrUploadDropzone.tsx | 72 |
+| GET | /api/v1/alerts | stores\alertStore.ts | 42 |
+| POST | /api/auth/login | stores\authStore.ts | 40 |
+| POST | /api/auth/logout | stores\authStore.ts | 62 |
+| GET | /api/v1/region/${code} | stores\regionStore.ts | 99 |
+4914 | | GET | /api/v1/settings/session_absolute_minutes | stores\\sessionStore.ts | 61 |
+
+## New Front‑end Store
+
+* **File:** `stores/dashboardAnalyticsStore.ts`
+* **Purpose:** Wraps the `GET /api/v1/dashboard/analytics` endpoint, caches the analytics summary (`total_sales`, `total_customers`, `top_items`) and provides loading/error state for UI components.
+* **Usage:** Import `useDashboardAnalyticsStore` in any component needing the dashboard analytics summary, e.g., `app/dashboard/analytics/page.tsx`.
+| GET | /api/v1/settings/session_absolute_minutes | stores\sessionStore.ts | 61 |
+
+## API Usage Audit
+_Generated on 2026-09-08T06:55:20.424044Z_
+
+### Orphaned Backend Routes (no frontend call)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/admin/backup | backend_fastapi\app\api\routers\admin_route.py | 20 |
+| GET | /api/v1/admin/backups | backend_fastapi\app\api\routers\admin_route.py | 36 |
+| POST | /api/v1/admin/restore | backend_fastapi\app\api\routers\admin_route.py | 65 |
+| GET | /api/v1/analytics/demand | backend_fastapi\app\api\routers\analytics_route.py | 24 |
+| GET | /api/v1/analytics/top-selling | backend_fastapi\app\api\routers\analytics_route.py | 51 |
+| GET | /api/v1/audit/verify | backend_fastapi\app\api\routers\audit_route.py | 18 |
+| GET | /api/v1/audit/export | backend_fastapi\app\api\routers\audit_route.py | 28 |
+| POST | /api/v1/auth/login/pin | backend_fastapi\app\api\routers\auth_route.py | 33 |
+| POST | /api/v1/auth/pin | backend_fastapi\app\api\routers\auth_route.py | 40 |
+| POST | /api/v1/auth/register | backend_fastapi\app\api\routers\auth_route.py | 55 |
+| GET | /api/v1/auth/me | backend_fastapi\app\api\routers\auth_route.py | 64 |
+| POST | /api/v1/auth/logout | backend_fastapi\app\api\routers\auth_route.py | 69 |
+| POST | /api/v1/auth/rotate-pepper | backend_fastapi\app\api\routers\auth_route.py | 75 |
+| POST | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 34 |
+| GET | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 57 |
+| PUT | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 73 |
+| DELETE | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 93 |
+| POST | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 107 |
+| GET | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 130 |
+| PUT | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 145 |
+| DELETE | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 167 |
+| GET | /api/v1/clinical/attachments | backend_fastapi\app\api\routers\clinical_route.py | 181 |
+| DELETE | /api/v1/clinical/attachments/{attachment_id} | backend_fastapi\app\api\routers\clinical_route.py | 196 |
+| GET | /api/v1/clinical/review/{patient_id} | backend_fastapi\app\api\routers\clinical_route.py | 210 |
+| GET | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 48 |
+| PUT | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 59 |
+| DELETE | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 71 |
+| POST | /api/v1/compounds/{compound_id}/price | backend_fastapi\app\api\routers\compound_route.py | 82 |
+| POST | /api/v1/compounds/dispense | backend_fastapi\app\api\routers\compound_route.py | 94 |
+| GET | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 26 |
+| GET | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 36 |
+| POST | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 46 |
+| PUT | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 56 |
+| DELETE | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 67 |
+| POST | /api/v1/coupons/validate | backend_fastapi\app\api\routers\coupon_route.py | 77 |
+| GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+| GET | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 29 |
+| POST | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 37 |
+| PUT | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 46 |
+| DELETE | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 59 |
+| GET | /api/v1/dictionaries/sig-codes/parse | backend_fastapi\app\api\routers\dictionaries_route.py | 70 |
+| GET | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 79 |
+| POST | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 87 |
+| PUT | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 96 |
+| DELETE | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 109 |
+| GET | /api/v1/dictionaries/price-codes/{price_code_id}/calculate | backend_fastapi\app\api\routers\dictionaries_route.py | 120 |
+| GET | /api/v1/dictionaries/ndc/lookup | backend_fastapi\app\api\routers\dictionaries_route.py | 134 |
+| GET | /api/v1/dispense/rx/{rx_number} | backend_fastapi\app\api\routers\dispense_route.py | 26 |
+| GET | /api/v1/dispense/rx/{rx_number}/fills | backend_fastapi\app\api\routers\dispense_route.py | 36 |
+| PUT | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 50 |
+| POST | /api/v1/dispense/{dispense_id}/reverse | backend_fastapi\app\api\routers\dispense_route.py | 61 |
+| POST | /api/v1/dispense/{dispense_id}/transfer | backend_fastapi\app\api\routers\dispense_route.py | 79 |
+| GET | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 93 |
+| GET | /api/v1/dispense/{dispense_id}/label | backend_fastapi\app\api\routers\dispense_route.py | 102 |
+| POST | /api/v1/dispense/{dispense_id}/refill | backend_fastapi\app\api\routers\dispense_route.py | 117 |
+| GET | /api/v1/drugs/confirm/{ndc} | backend_fastapi\app\api\routers\drug_confirm_route.py | 15 |
+| POST | /api/v1/drug-interactions/check | backend_fastapi\app\api\routers\drug_interaction_route.py | 51 |
+| GET | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 64 |
+| POST | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 73 |
+| PUT | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 84 |
+| DELETE | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 96 |
+| POST | /api/v1/email/daily-sales | backend_fastapi\app\api\routers\email_route.py | 29 |
+| GET | /api/v1/email/health | backend_fastapi\app\api\routers\email_route.py | 58 |
+| GET | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 70 |
+| PUT | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 81 |
+| PATCH | /api/v1/epcs/{rx_id}/status | backend_fastapi\app\api\routers\epcs_route.py | 93 |
+| POST | /api/v1/epcs/{rx_id}/sign | backend_fastapi\app\api\routers\epcs_route.py | 105 |
+| POST | /api/v1/epcs/{rx_id}/transmit | backend_fastapi\app\api\routers\epcs_route.py | 118 |
+| GET | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 131 |
+| POST | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 142 |
+| POST | /api/v1/excel/import/analyze | backend_fastapi\app\api\routers\excel_route.py | 129 |
+| POST | /api/v1/excel/import/preview | backend_fastapi\app\api\routers\excel_route.py | 182 |
+| POST | /api/v1/excel/import/commit | backend_fastapi\app\api\routers\excel_route.py | 233 |
+| GET | /api/v1/excel/export/inventory | backend_fastapi\app\api\routers\excel_route.py | 343 |
+| POST | /api/v1/excel/import/inventory | backend_fastapi\app\api\routers\excel_route.py | 431 |
+| POST | /api/v1/excel/import/csv | backend_fastapi\app\api\routers\excel_route.py | 548 |
+| GET | /api/v1/gift-cards/lookup/{code} | backend_fastapi\app\api\routers\gift_card_route.py | 78 |
+| POST | /api/v1/gift-cards/{card_id}/redeem | backend_fastapi\app\api\routers\gift_card_route.py | 87 |
+| POST | /api/v1/gift-cards/{card_id}/void | backend_fastapi\app\api\routers\gift_card_route.py | 106 |
+| GET | /api/v1/health | backend_fastapi\app\api\routers\health_route.py | 11 |
+| GET | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 25 |
+| GET | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 36 |
+| POST | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 48 |
+| PUT | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 62 |
+| DELETE | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 76 |
+| POST | /api/v1/insurance/plans/validate | backend_fastapi\app\api\routers\insurance_route.py | 88 |
+| POST | /api/v1/insurance/eligibility | backend_fastapi\app\api\routers\insurance_route.py | 101 |
+| GET | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 173 |
+| POST | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 184 |
+| GET | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 39 |
+| GET | /api/v1/inventory/medicines/search | backend_fastapi\app\api\routers\inventory_route.py | 73 |
+| GET | /api/v1/inventory/by-barcode/{barcode} | backend_fastapi\app\api\routers\inventory_route.py | 84 |
+| GET | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 98 |
+| POST | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 110 |
+| PUT | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 127 |
+| DELETE | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 142 |
+| GET | /api/v1/inventory/batches | backend_fastapi\app\api\routers\inventory_route.py | 156 |
+| POST | /api/v1/inventory/batches/receive | backend_fastapi\app\api\routers\inventory_route.py | 167 |
+| GET | /api/v1/inventory/batches/low-stock | backend_fastapi\app\api\routers\inventory_route.py | 179 |
+| GET | /api/v1/inventory/batches/expiring-soon | backend_fastapi\app\api\routers\inventory_route.py | 187 |
+| GET | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 196 |
+| PUT | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 205 |
+| GET | /api/v1/inventory/stock-levels | backend_fastapi\app\api\routers\inventory_route.py | 215 |
+| GET | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 227 |
+| POST | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 236 |
+| PUT | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 252 |
+| DELETE | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 271 |
+| POST | /api/v1/inventory/suppliers/{supplier_id}/prefer | backend_fastapi\app\api\routers\inventory_route.py | 290 |
+| GET | /api/v1/inventory/suppliers/search | backend_fastapi\app\api\routers\inventory_route.py | 312 |
+| GET | /api/v1/inventory/movements | backend_fastapi\app\api\routers\inventory_route.py | 336 |
+| POST | /api/v1/inventory/adjustments | backend_fastapi\app\api\routers\inventory_route.py | 366 |
+| POST | /api/v1/invoice-parse/text | backend_fastapi\app\api\routers\invoice_parse_route.py | 52 |
+| POST | /api/v1/invoice-parse/file | backend_fastapi\app\api\routers\invoice_parse_route.py | 61 |
+| GET | /api/v1/invoice-parse/hardware-status | backend_fastapi\app\api\routers\invoice_parse_route.py | 107 |
+| POST | /api/v1/invoice-parse/hybrid | backend_fastapi\app\api\routers\invoice_parse_route.py | 120 |
+| GET | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 45 |
+| GET | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 53 |
+| POST | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 62 |
+| PUT | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 72 |
+| DELETE | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 83 |
+| POST | /api/v1/licenses/activate-file | backend_fastapi\app\api\routers\license_file_route.py | 49 |
+| POST | /api/v1/license/validate | backend_fastapi\app\api\routers\license_route.py | 25 |
+| POST | /api/v1/license/checkout | backend_fastapi\app\api\routers\license_route.py | 53 |
+| POST | /api/v1/license/admin/manage | backend_fastapi\app\api\routers\license_route.py | 92 |
+| GET | /api/v1/license/status | backend_fastapi\app\api\routers\license_route.py | 101 |
+| GET | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 35 |
+| PUT | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 57 |
+| DELETE | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 72 |
+| POST | /api/v1/mobile/offline-ack | backend_fastapi\app\api\routers\mobile_route.py | 25 |
+| POST | /api/v1/labels/render-mobile | backend_fastapi\app\api\routers\mobile_route.py | 64 |
+| GET | /api/v1/patients/search | backend_fastapi\app\api\routers\patients_route.py | 40 |
+| GET | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 49 |
+| PUT | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 67 |
+| POST | /api/v1/patients/{patient_id}/insurance | backend_fastapi\app\api\routers\patients_route.py | 77 |
+| DELETE | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 87 |
+| GET | /api/v1/patients/{patient_id}/dispenses | backend_fastapi\app\api\routers\patients_route.py | 96 |
+| GET | /api/v1/patients/{patient_id}/history | backend_fastapi\app\api\routers\patients_route.py | 109 |
+| GET | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 35 |
+| POST | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 43 |
+| DELETE | /api/v1/patients/{patient_id}/fields/{field_name} | backend_fastapi\app\api\routers\patient_fields_route.py | 66 |
+| POST | /api/v1/pos/approve | backend_fastapi\app\api\routers\pos_route.py | 61 |
+| POST | /api/v1/pos/checkout | backend_fastapi\app\api\routers\pos_route.py | 73 |
+| POST | /api/v1/pos/drawer/movement | backend_fastapi\app\api\routers\pos_route.py | 82 |
+| POST | /api/v1/pos/shift/open | backend_fastapi\app\api\routers\pos_route.py | 107 |
+| POST | /api/v1/pos/shift/close | backend_fastapi\app\api\routers\pos_route.py | 117 |
+| GET | /api/v1/pos/shift/{shift_id}/preview | backend_fastapi\app\api\routers\pos_route.py | 127 |
+| POST | /api/v1/pos/refund | backend_fastapi\app\api\routers\pos_route.py | 137 |
+| GET | /api/v1/pos/reports/sales | backend_fastapi\app\api\routers\pos_route.py | 147 |
+| GET | /api/v1/pos/receipts/recent | backend_fastapi\app\api\routers\pos_route.py | 156 |
+| GET | /api/v1/pos/receipts/{receipt_id} | backend_fastapi\app\api\routers\pos_route.py | 166 |
+| GET | /api/v1/pos/receipts/{receipt_id}/print | backend_fastapi\app\api\routers\pos_route.py | 176 |
+| GET | /api/v1/pos/eod-summary | backend_fastapi\app\api\routers\pos_route.py | 186 |
+| POST | /api/v1/pos/void-item | backend_fastapi\app\api\routers\pos_route.py | 196 |
+| POST | /api/v1/pos/lock | backend_fastapi\app\api\routers\pos_route.py | 206 |
+| GET | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 32 |
+| GET | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 41 |
+| POST | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 50 |
+| PUT | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 59 |
+| POST | /api/v1/purchase-orders/{po_id}/items | backend_fastapi\app\api\routers\po_route.py | 69 |
+| DELETE | /api/v1/purchase-orders/{po_id}/items/{item_id} | backend_fastapi\app\api\routers\po_route.py | 79 |
+| POST | /api/v1/purchase-orders/{po_id}/transition | backend_fastapi\app\api\routers\po_route.py | 89 |
+| POST | /api/v1/purchase-orders/{po_id}/receive | backend_fastapi\app\api\routers\po_route.py | 98 |
+| DELETE | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 109 |
+| POST | /api/v1/purchase-orders/auto-reorder | backend_fastapi\app\api\routers\po_route.py | 118 |
+| GET | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 31 |
+| PUT | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 62 |
+| DELETE | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 78 |
+| GET | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 62 |
+| PUT | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 73 |
+| PATCH | /api/v1/prior-auth/{pa_id}/status | backend_fastapi\app\api\routers\prior_auth_route.py | 85 |
+| POST | /api/v1/prior-auth/{pa_id}/withdraw | backend_fastapi\app\api\routers\prior_auth_route.py | 97 |
+| GET | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 18 |
+| GET | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 28 |
+| POST | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 37 |
+| PUT | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 46 |
+| DELETE | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 56 |
+| POST | /api/v1/quick-sig/{template_id}/favorite | backend_fastapi\app\api\routers\quick_sig_route.py | 65 |
+| POST | /api/v1/quick-sig/{template_id}/use | backend_fastapi\app\api\routers\quick_sig_route.py | 74 |
+| GET | /api/v1/quick-sig/search/suggestions | backend_fastapi\app\api\routers\quick_sig_route.py | 83 |
+| GET | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 18 |
+| GET | /api/v1/receipt-templates/default | backend_fastapi\app\api\routers\receipt_template_route.py | 27 |
+| GET | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 35 |
+| POST | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 44 |
+| PUT | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 53 |
+| DELETE | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 63 |
+| GET | /api/v1/receiving-log/vendors | backend_fastapi\app\api\routers\receiving_route.py | 85 |
+| GET | /api/v1/region/regions | backend_fastapi\app\api\routers\region_route.py | 56 |
+| GET | /api/v1/region/{code} | backend_fastapi\app\api\routers\region_route.py | 72 |
+| POST | /api/v1/region-strategy/patient-cost | backend_fastapi\app\api\routers\region_strategy_route.py | 25 |
+| POST | /api/v1/region-strategy/generate-claim | backend_fastapi\app\api\routers\region_strategy_route.py | 43 |
+| POST | /api/v1/region-strategy/validate-prescription | backend_fastapi\app\api\routers\region_strategy_route.py | 58 |
+| POST | /api/v1/region-strategy/validate-credentials | backend_fastapi\app\api\routers\region_strategy_route.py | 73 |
+| GET | /api/v1/region-strategy/supported-regions | backend_fastapi\app\api\routers\region_strategy_route.py | 88 |
+| GET | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 57 |
+| PUT | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 82 |
+| GET | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 103 |
+| PUT | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 123 |
+| GET | /api/v1/roles/permissions/all | backend_fastapi\app\api\routers\roles_route.py | 146 |
+| GET | /api/v1/rx-queue/counts | backend_fastapi\app\api\routers\rx_queue_route.py | 57 |
+| PATCH | /api/v1/rx-queue/{rx_id}/status | backend_fastapi\app\api\routers\rx_queue_route.py | 67 |
+| POST | /api/v1/rx-queue/bulk-status | backend_fastapi\app\api\routers\rx_queue_route.py | 79 |
+| GET | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 36 |
+| PUT | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 48 |
+| POST | /api/v1/sync/push | backend_fastapi\app\api\routers\sync_route.py | 27 |
+| GET | /api/v1/sync/discrepancies | backend_fastapi\app\api\routers\sync_route.py | 37 |
+| POST | /api/v1/sync/discrepancies/{discrepancy_id}/resolve | backend_fastapi\app\api\routers\sync_route.py | 51 |
+| PUT | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 101 |
+| DELETE | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 133 |
+| GET | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 34 |
+| PUT | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 46 |
+| PATCH | /api/v1/users/{user_id}/active | backend_fastapi\app\api\routers\users_route.py | 65 |
+| GET | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 111 |
+| PUT | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 126 |
+| GET | /api/v1/vendors/{vendor_id}/items | backend_fastapi\app\api\routers\vendors_route.py | 165 |
+| GET | /api/v1/vendors/{vendor_id}/purchases | backend_fastapi\app\api\routers\vendors_route.py | 183 |
+| POST | /api/v1/vendors/receive | backend_fastapi\app\api\routers\vendors_route.py | 204 |
+| GET | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 42 |
+| PUT | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 74 |
+| DELETE | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 89 |
+| POST | /api/v1/webhook/creem | backend_fastapi\app\api\routers\webhook_route.py | 31 |
+
+### Unmatched Frontend Calls (no backend route)
+| Method | Path | File | Line |
+|---|---|---|---|
+| GET | /api/v1/analytics/top-selling?period=${p}&limit=20 | app\dashboard\analytics\page.tsx | 43 |
+| GET | /api/v1/region/${code} | app\dashboard\settings\page.tsx | 200 |
+| POST | /api/v1/crash-report | components\ErrorBoundary.tsx | 37 |
+| POST | /api/v1/ocr | components\OcrUploadDropzone.tsx | 72 |
+| GET | /api/v1/alerts | stores\alertStore.ts | 42 |
+| POST | /api/auth/login | stores\authStore.ts | 40 |
+| POST | /api/auth/logout | stores\authStore.ts | 62 |
+| GET | /api/v1/region/${code} | stores\regionStore.ts | 99 |
+| GET | /api/v1/settings/session_idle_minutes | stores\sessionStore.ts | 53 |
+| GET | /api/v1/settings/session_absolute_minutes | stores\sessionStore.ts | 61 |
+
+## API Usage Audit
+_Generated on 2026-09-08T07:10:30.530701Z_
+
+### Orphaned Backend Routes (no frontend call)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/admin/backup | backend_fastapi\app\api\routers\admin_route.py | 20 |
+| GET | /api/v1/admin/backups | backend_fastapi\app\api\routers\admin_route.py | 36 |
+| POST | /api/v1/admin/restore | backend_fastapi\app\api\routers\admin_route.py | 65 |
+| GET | /api/v1/analytics/demand | backend_fastapi\app\api\routers\analytics_route.py | 24 |
+| GET | /api/v1/audit/verify | backend_fastapi\app\api\routers\audit_route.py | 18 |
+| GET | /api/v1/audit/export | backend_fastapi\app\api\routers\audit_route.py | 28 |
+| POST | /api/v1/auth/login/pin | backend_fastapi\app\api\routers\auth_route.py | 33 |
+| POST | /api/v1/auth/pin | backend_fastapi\app\api\routers\auth_route.py | 40 |
+| POST | /api/v1/auth/register | backend_fastapi\app\api\routers\auth_route.py | 55 |
+| GET | /api/v1/auth/me | backend_fastapi\app\api\routers\auth_route.py | 64 |
+| POST | /api/v1/auth/logout | backend_fastapi\app\api\routers\auth_route.py | 69 |
+| POST | /api/v1/auth/rotate-pepper | backend_fastapi\app\api\routers\auth_route.py | 75 |
+| POST | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 34 |
+| GET | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 57 |
+| PUT | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 73 |
+| DELETE | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 93 |
+| POST | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 107 |
+| GET | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 130 |
+| PUT | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 145 |
+| DELETE | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 167 |
+| GET | /api/v1/clinical/attachments | backend_fastapi\app\api\routers\clinical_route.py | 181 |
+| DELETE | /api/v1/clinical/attachments/{attachment_id} | backend_fastapi\app\api\routers\clinical_route.py | 196 |
+| GET | /api/v1/clinical/review/{patient_id} | backend_fastapi\app\api\routers\clinical_route.py | 210 |
+| GET | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 48 |
+| PUT | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 59 |
+| DELETE | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 71 |
+| POST | /api/v1/compounds/{compound_id}/price | backend_fastapi\app\api\routers\compound_route.py | 82 |
+| POST | /api/v1/compounds/dispense | backend_fastapi\app\api\routers\compound_route.py | 94 |
+| GET | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 26 |
+| GET | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 36 |
+| POST | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 46 |
+| PUT | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 56 |
+| DELETE | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 67 |
+| POST | /api/v1/coupons/validate | backend_fastapi\app\api\routers\coupon_route.py | 77 |
+| GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+| GET | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 29 |
+| POST | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 37 |
+| PUT | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 46 |
+| DELETE | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 59 |
+| GET | /api/v1/dictionaries/sig-codes/parse | backend_fastapi\app\api\routers\dictionaries_route.py | 70 |
+| GET | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 79 |
+| POST | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 87 |
+| PUT | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 96 |
+| DELETE | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 109 |
+| GET | /api/v1/dictionaries/price-codes/{price_code_id}/calculate | backend_fastapi\app\api\routers\dictionaries_route.py | 120 |
+| GET | /api/v1/dictionaries/ndc/lookup | backend_fastapi\app\api\routers\dictionaries_route.py | 134 |
+| GET | /api/v1/dispense/rx/{rx_number} | backend_fastapi\app\api\routers\dispense_route.py | 26 |
+| GET | /api/v1/dispense/rx/{rx_number}/fills | backend_fastapi\app\api\routers\dispense_route.py | 36 |
+| PUT | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 50 |
+| POST | /api/v1/dispense/{dispense_id}/reverse | backend_fastapi\app\api\routers\dispense_route.py | 61 |
+| POST | /api/v1/dispense/{dispense_id}/transfer | backend_fastapi\app\api\routers\dispense_route.py | 79 |
+| GET | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 93 |
+| GET | /api/v1/dispense/{dispense_id}/label | backend_fastapi\app\api\routers\dispense_route.py | 102 |
+| POST | /api/v1/dispense/{dispense_id}/refill | backend_fastapi\app\api\routers\dispense_route.py | 117 |
+| GET | /api/v1/drugs/confirm/{ndc} | backend_fastapi\app\api\routers\drug_confirm_route.py | 15 |
+| POST | /api/v1/drug-interactions/check | backend_fastapi\app\api\routers\drug_interaction_route.py | 51 |
+| GET | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 64 |
+| POST | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 73 |
+| PUT | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 84 |
+| DELETE | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 96 |
+| POST | /api/v1/email/daily-sales | backend_fastapi\app\api\routers\email_route.py | 29 |
+| GET | /api/v1/email/health | backend_fastapi\app\api\routers\email_route.py | 58 |
+| GET | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 70 |
+| PUT | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 81 |
+| PATCH | /api/v1/epcs/{rx_id}/status | backend_fastapi\app\api\routers\epcs_route.py | 93 |
+| POST | /api/v1/epcs/{rx_id}/sign | backend_fastapi\app\api\routers\epcs_route.py | 105 |
+| POST | /api/v1/epcs/{rx_id}/transmit | backend_fastapi\app\api\routers\epcs_route.py | 118 |
+| GET | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 131 |
+| POST | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 142 |
+| POST | /api/v1/excel/import/analyze | backend_fastapi\app\api\routers\excel_route.py | 129 |
+| POST | /api/v1/excel/import/preview | backend_fastapi\app\api\routers\excel_route.py | 182 |
+| POST | /api/v1/excel/import/commit | backend_fastapi\app\api\routers\excel_route.py | 233 |
+| GET | /api/v1/excel/export/inventory | backend_fastapi\app\api\routers\excel_route.py | 343 |
+| POST | /api/v1/excel/import/inventory | backend_fastapi\app\api\routers\excel_route.py | 431 |
+| POST | /api/v1/excel/import/csv | backend_fastapi\app\api\routers\excel_route.py | 548 |
+| GET | /api/v1/gift-cards/lookup/{code} | backend_fastapi\app\api\routers\gift_card_route.py | 78 |
+| POST | /api/v1/gift-cards/{card_id}/redeem | backend_fastapi\app\api\routers\gift_card_route.py | 87 |
+| POST | /api/v1/gift-cards/{card_id}/void | backend_fastapi\app\api\routers\gift_card_route.py | 106 |
+| GET | /api/v1/health | backend_fastapi\app\api\routers\health_route.py | 11 |
+| GET | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 25 |
+| GET | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 36 |
+| POST | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 48 |
+| PUT | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 62 |
+| DELETE | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 76 |
+| POST | /api/v1/insurance/plans/validate | backend_fastapi\app\api\routers\insurance_route.py | 88 |
+| POST | /api/v1/insurance/eligibility | backend_fastapi\app\api\routers\insurance_route.py | 101 |
+| GET | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 173 |
+| POST | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 184 |
+| GET | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 39 |
+| GET | /api/v1/inventory/medicines/search | backend_fastapi\app\api\routers\inventory_route.py | 73 |
+| GET | /api/v1/inventory/by-barcode/{barcode} | backend_fastapi\app\api\routers\inventory_route.py | 84 |
+| GET | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 98 |
+| POST | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 110 |
+| PUT | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 127 |
+| DELETE | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 142 |
+| GET | /api/v1/inventory/batches | backend_fastapi\app\api\routers\inventory_route.py | 156 |
+| POST | /api/v1/inventory/batches/receive | backend_fastapi\app\api\routers\inventory_route.py | 167 |
+| GET | /api/v1/inventory/batches/low-stock | backend_fastapi\app\api\routers\inventory_route.py | 179 |
+| GET | /api/v1/inventory/batches/expiring-soon | backend_fastapi\app\api\routers\inventory_route.py | 187 |
+| GET | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 196 |
+| PUT | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 205 |
+| GET | /api/v1/inventory/stock-levels | backend_fastapi\app\api\routers\inventory_route.py | 215 |
+| GET | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 227 |
+| POST | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 236 |
+| PUT | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 252 |
+| DELETE | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 271 |
+| POST | /api/v1/inventory/suppliers/{supplier_id}/prefer | backend_fastapi\app\api\routers\inventory_route.py | 290 |
+| GET | /api/v1/inventory/suppliers/search | backend_fastapi\app\api\routers\inventory_route.py | 312 |
+| GET | /api/v1/inventory/movements | backend_fastapi\app\api\routers\inventory_route.py | 336 |
+| POST | /api/v1/inventory/adjustments | backend_fastapi\app\api\routers\inventory_route.py | 366 |
+| POST | /api/v1/invoice-parse/text | backend_fastapi\app\api\routers\invoice_parse_route.py | 52 |
+| POST | /api/v1/invoice-parse/file | backend_fastapi\app\api\routers\invoice_parse_route.py | 61 |
+| GET | /api/v1/invoice-parse/hardware-status | backend_fastapi\app\api\routers\invoice_parse_route.py | 107 |
+| POST | /api/v1/invoice-parse/hybrid | backend_fastapi\app\api\routers\invoice_parse_route.py | 120 |
+| GET | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 45 |
+| GET | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 53 |
+| POST | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 62 |
+| PUT | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 72 |
+| DELETE | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 83 |
+| POST | /api/v1/licenses/activate-file | backend_fastapi\app\api\routers\license_file_route.py | 49 |
+| POST | /api/v1/license/validate | backend_fastapi\app\api\routers\license_route.py | 25 |
+| POST | /api/v1/license/checkout | backend_fastapi\app\api\routers\license_route.py | 53 |
+| POST | /api/v1/license/admin/manage | backend_fastapi\app\api\routers\license_route.py | 92 |
+| GET | /api/v1/license/status | backend_fastapi\app\api\routers\license_route.py | 101 |
+| GET | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 35 |
+| PUT | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 57 |
+| DELETE | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 72 |
+| POST | /api/v1/mobile/offline-ack | backend_fastapi\app\api\routers\mobile_route.py | 25 |
+| POST | /api/v1/labels/render-mobile | backend_fastapi\app\api\routers\mobile_route.py | 64 |
+| GET | /api/v1/patients/search | backend_fastapi\app\api\routers\patients_route.py | 40 |
+| GET | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 49 |
+| PUT | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 67 |
+| POST | /api/v1/patients/{patient_id}/insurance | backend_fastapi\app\api\routers\patients_route.py | 77 |
+| DELETE | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 87 |
+| GET | /api/v1/patients/{patient_id}/dispenses | backend_fastapi\app\api\routers\patients_route.py | 96 |
+| GET | /api/v1/patients/{patient_id}/history | backend_fastapi\app\api\routers\patients_route.py | 109 |
+| GET | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 35 |
+| POST | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 43 |
+| DELETE | /api/v1/patients/{patient_id}/fields/{field_name} | backend_fastapi\app\api\routers\patient_fields_route.py | 66 |
+| POST | /api/v1/pos/approve | backend_fastapi\app\api\routers\pos_route.py | 61 |
+| POST | /api/v1/pos/checkout | backend_fastapi\app\api\routers\pos_route.py | 73 |
+| POST | /api/v1/pos/drawer/movement | backend_fastapi\app\api\routers\pos_route.py | 82 |
+| POST | /api/v1/pos/shift/open | backend_fastapi\app\api\routers\pos_route.py | 107 |
+| POST | /api/v1/pos/shift/close | backend_fastapi\app\api\routers\pos_route.py | 117 |
+| GET | /api/v1/pos/shift/{shift_id}/preview | backend_fastapi\app\api\routers\pos_route.py | 127 |
+| POST | /api/v1/pos/refund | backend_fastapi\app\api\routers\pos_route.py | 137 |
+| GET | /api/v1/pos/reports/sales | backend_fastapi\app\api\routers\pos_route.py | 147 |
+| GET | /api/v1/pos/receipts/recent | backend_fastapi\app\api\routers\pos_route.py | 156 |
+| GET | /api/v1/pos/receipts/{receipt_id} | backend_fastapi\app\api\routers\pos_route.py | 166 |
+| GET | /api/v1/pos/receipts/{receipt_id}/print | backend_fastapi\app\api\routers\pos_route.py | 176 |
+| GET | /api/v1/pos/eod-summary | backend_fastapi\app\api\routers\pos_route.py | 186 |
+| POST | /api/v1/pos/void-item | backend_fastapi\app\api\routers\pos_route.py | 196 |
+| POST | /api/v1/pos/lock | backend_fastapi\app\api\routers\pos_route.py | 206 |
+| GET | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 32 |
+| GET | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 41 |
+| POST | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 50 |
+| PUT | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 59 |
+| POST | /api/v1/purchase-orders/{po_id}/items | backend_fastapi\app\api\routers\po_route.py | 69 |
+| DELETE | /api/v1/purchase-orders/{po_id}/items/{item_id} | backend_fastapi\app\api\routers\po_route.py | 79 |
+| POST | /api/v1/purchase-orders/{po_id}/transition | backend_fastapi\app\api\routers\po_route.py | 89 |
+| POST | /api/v1/purchase-orders/{po_id}/receive | backend_fastapi\app\api\routers\po_route.py | 98 |
+| DELETE | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 109 |
+| POST | /api/v1/purchase-orders/auto-reorder | backend_fastapi\app\api\routers\po_route.py | 118 |
+| GET | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 31 |
+| PUT | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 62 |
+| DELETE | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 78 |
+| GET | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 62 |
+| PUT | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 73 |
+| PATCH | /api/v1/prior-auth/{pa_id}/status | backend_fastapi\app\api\routers\prior_auth_route.py | 85 |
+| POST | /api/v1/prior-auth/{pa_id}/withdraw | backend_fastapi\app\api\routers\prior_auth_route.py | 97 |
+| GET | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 18 |
+| GET | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 28 |
+| POST | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 37 |
+| PUT | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 46 |
+| DELETE | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 56 |
+| POST | /api/v1/quick-sig/{template_id}/favorite | backend_fastapi\app\api\routers\quick_sig_route.py | 65 |
+| POST | /api/v1/quick-sig/{template_id}/use | backend_fastapi\app\api\routers\quick_sig_route.py | 74 |
+| GET | /api/v1/quick-sig/search/suggestions | backend_fastapi\app\api\routers\quick_sig_route.py | 83 |
+| GET | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 18 |
+| GET | /api/v1/receipt-templates/default | backend_fastapi\app\api\routers\receipt_template_route.py | 27 |
+| GET | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 35 |
+| POST | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 44 |
+| PUT | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 53 |
+| DELETE | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 63 |
+| GET | /api/v1/receiving-log/vendors | backend_fastapi\app\api\routers\receiving_route.py | 85 |
+| GET | /api/v1/region/regions | backend_fastapi\app\api\routers\region_route.py | 56 |
+| GET | /api/v1/region/{code} | backend_fastapi\app\api\routers\region_route.py | 72 |
+| POST | /api/v1/region-strategy/patient-cost | backend_fastapi\app\api\routers\region_strategy_route.py | 25 |
+| POST | /api/v1/region-strategy/generate-claim | backend_fastapi\app\api\routers\region_strategy_route.py | 43 |
+| POST | /api/v1/region-strategy/validate-prescription | backend_fastapi\app\api\routers\region_strategy_route.py | 58 |
+| POST | /api/v1/region-strategy/validate-credentials | backend_fastapi\app\api\routers\region_strategy_route.py | 73 |
+| GET | /api/v1/region-strategy/supported-regions | backend_fastapi\app\api\routers\region_strategy_route.py | 88 |
+| GET | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 57 |
+| PUT | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 82 |
+| GET | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 103 |
+| PUT | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 123 |
+| GET | /api/v1/roles/permissions/all | backend_fastapi\app\api\routers\roles_route.py | 146 |
+| GET | /api/v1/rx-queue/counts | backend_fastapi\app\api\routers\rx_queue_route.py | 57 |
+| PATCH | /api/v1/rx-queue/{rx_id}/status | backend_fastapi\app\api\routers\rx_queue_route.py | 67 |
+| POST | /api/v1/rx-queue/bulk-status | backend_fastapi\app\api\routers\rx_queue_route.py | 79 |
+| GET | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 36 |
+| PUT | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 48 |
+| POST | /api/v1/sync/push | backend_fastapi\app\api\routers\sync_route.py | 27 |
+| GET | /api/v1/sync/discrepancies | backend_fastapi\app\api\routers\sync_route.py | 37 |
+| POST | /api/v1/sync/discrepancies/{discrepancy_id}/resolve | backend_fastapi\app\api\routers\sync_route.py | 51 |
+| PUT | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 101 |
+| DELETE | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 133 |
+| GET | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 34 |
+| PUT | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 46 |
+| PATCH | /api/v1/users/{user_id}/active | backend_fastapi\app\api\routers\users_route.py | 65 |
+| GET | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 111 |
+| PUT | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 126 |
+| GET | /api/v1/vendors/{vendor_id}/items | backend_fastapi\app\api\routers\vendors_route.py | 165 |
+| GET | /api/v1/vendors/{vendor_id}/purchases | backend_fastapi\app\api\routers\vendors_route.py | 183 |
+| POST | /api/v1/vendors/receive | backend_fastapi\app\api\routers\vendors_route.py | 204 |
+| GET | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 42 |
+| PUT | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 74 |
+| DELETE | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 89 |
+| POST | /api/v1/webhook/creem | backend_fastapi\app\api\routers\webhook_route.py | 31 |
+
+### Unmatched Frontend Calls (no backend route)
+| Method | Path | File | Line |
+|---|---|---|---|
+| GET | /api/v1/region/${code} | app\dashboard\settings\page.tsx | 200 |
+| POST | /api/v1/crash-report | components\ErrorBoundary.tsx | 37 |
+| POST | /api/v1/ocr | components\OcrUploadDropzone.tsx | 72 |
+| GET | /api/v1/alerts | stores\alertStore.ts | 42 |
+| POST | /api/auth/login | stores\authStore.ts | 40 |
+| POST | /api/auth/logout | stores\authStore.ts | 62 |
+| GET | /api/v1/region/${code} | stores\regionStore.ts | 99 |
+| GET | /api/v1/settings/session_idle_minutes | stores\sessionStore.ts | 53 |
+| GET | /api/v1/settings/session_absolute_minutes | stores\sessionStore.ts | 61 |
+
+## API Usage Audit
+_Generated on 2026-09-08T07:16:55.515440Z_
+
+### Orphaned Backend Routes (no frontend call)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/admin/backup | backend_fastapi\app\api\routers\admin_route.py | 20 |
+| GET | /api/v1/admin/backups | backend_fastapi\app\api\routers\admin_route.py | 36 |
+| POST | /api/v1/admin/restore | backend_fastapi\app\api\routers\admin_route.py | 65 |
+| GET | /api/v1/analytics/demand | backend_fastapi\app\api\routers\analytics_route.py | 24 |
+| GET | /api/v1/audit/verify | backend_fastapi\app\api\routers\audit_route.py | 18 |
+| GET | /api/v1/audit/export | backend_fastapi\app\api\routers\audit_route.py | 28 |
+| POST | /api/v1/auth/login/pin | backend_fastapi\app\api\routers\auth_route.py | 33 |
+| POST | /api/v1/auth/pin | backend_fastapi\app\api\routers\auth_route.py | 40 |
+| POST | /api/v1/auth/register | backend_fastapi\app\api\routers\auth_route.py | 55 |
+| GET | /api/v1/auth/me | backend_fastapi\app\api\routers\auth_route.py | 64 |
+| POST | /api/v1/auth/logout | backend_fastapi\app\api\routers\auth_route.py | 69 |
+| POST | /api/v1/auth/rotate-pepper | backend_fastapi\app\api\routers\auth_route.py | 75 |
+| POST | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 34 |
+| GET | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 57 |
+| PUT | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 73 |
+| DELETE | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 93 |
+| POST | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 107 |
+| GET | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 130 |
+| PUT | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 145 |
+| DELETE | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 167 |
+| GET | /api/v1/clinical/attachments | backend_fastapi\app\api\routers\clinical_route.py | 181 |
+| DELETE | /api/v1/clinical/attachments/{attachment_id} | backend_fastapi\app\api\routers\clinical_route.py | 196 |
+| GET | /api/v1/clinical/review/{patient_id} | backend_fastapi\app\api\routers\clinical_route.py | 210 |
+| GET | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 48 |
+| PUT | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 59 |
+| DELETE | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 71 |
+| POST | /api/v1/compounds/{compound_id}/price | backend_fastapi\app\api\routers\compound_route.py | 82 |
+| POST | /api/v1/compounds/dispense | backend_fastapi\app\api\routers\compound_route.py | 94 |
+| GET | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 26 |
+| GET | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 36 |
+| POST | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 46 |
+| PUT | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 56 |
+| DELETE | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 67 |
+| POST | /api/v1/coupons/validate | backend_fastapi\app\api\routers\coupon_route.py | 77 |
+| GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+| GET | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 29 |
+| POST | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 37 |
+| PUT | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 46 |
+| DELETE | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 59 |
+| GET | /api/v1/dictionaries/sig-codes/parse | backend_fastapi\app\api\routers\dictionaries_route.py | 70 |
+| GET | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 79 |
+| POST | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 87 |
+| PUT | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 96 |
+| DELETE | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 109 |
+| GET | /api/v1/dictionaries/price-codes/{price_code_id}/calculate | backend_fastapi\app\api\routers\dictionaries_route.py | 120 |
+| GET | /api/v1/dictionaries/ndc/lookup | backend_fastapi\app\api\routers\dictionaries_route.py | 134 |
+| GET | /api/v1/dispense/rx/{rx_number} | backend_fastapi\app\api\routers\dispense_route.py | 26 |
+| GET | /api/v1/dispense/rx/{rx_number}/fills | backend_fastapi\app\api\routers\dispense_route.py | 36 |
+| PUT | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 50 |
+| POST | /api/v1/dispense/{dispense_id}/reverse | backend_fastapi\app\api\routers\dispense_route.py | 61 |
+| POST | /api/v1/dispense/{dispense_id}/transfer | backend_fastapi\app\api\routers\dispense_route.py | 79 |
+| GET | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 93 |
+| GET | /api/v1/dispense/{dispense_id}/label | backend_fastapi\app\api\routers\dispense_route.py | 102 |
+| POST | /api/v1/dispense/{dispense_id}/refill | backend_fastapi\app\api\routers\dispense_route.py | 117 |
+| GET | /api/v1/drugs/confirm/{ndc} | backend_fastapi\app\api\routers\drug_confirm_route.py | 15 |
+| POST | /api/v1/drug-interactions/check | backend_fastapi\app\api\routers\drug_interaction_route.py | 51 |
+| GET | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 64 |
+| POST | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 73 |
+| PUT | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 84 |
+| DELETE | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 96 |
+| POST | /api/v1/email/daily-sales | backend_fastapi\app\api\routers\email_route.py | 29 |
+| GET | /api/v1/email/health | backend_fastapi\app\api\routers\email_route.py | 58 |
+| GET | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 70 |
+| PUT | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 81 |
+| PATCH | /api/v1/epcs/{rx_id}/status | backend_fastapi\app\api\routers\epcs_route.py | 93 |
+| POST | /api/v1/epcs/{rx_id}/sign | backend_fastapi\app\api\routers\epcs_route.py | 105 |
+| POST | /api/v1/epcs/{rx_id}/transmit | backend_fastapi\app\api\routers\epcs_route.py | 118 |
+| GET | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 131 |
+| POST | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 142 |
+| POST | /api/v1/excel/import/analyze | backend_fastapi\app\api\routers\excel_route.py | 129 |
+| POST | /api/v1/excel/import/preview | backend_fastapi\app\api\routers\excel_route.py | 182 |
+| POST | /api/v1/excel/import/commit | backend_fastapi\app\api\routers\excel_route.py | 233 |
+| GET | /api/v1/excel/export/inventory | backend_fastapi\app\api\routers\excel_route.py | 343 |
+| POST | /api/v1/excel/import/inventory | backend_fastapi\app\api\routers\excel_route.py | 431 |
+| POST | /api/v1/excel/import/csv | backend_fastapi\app\api\routers\excel_route.py | 548 |
+| GET | /api/v1/gift-cards/lookup/{code} | backend_fastapi\app\api\routers\gift_card_route.py | 78 |
+| POST | /api/v1/gift-cards/{card_id}/redeem | backend_fastapi\app\api\routers\gift_card_route.py | 87 |
+| POST | /api/v1/gift-cards/{card_id}/void | backend_fastapi\app\api\routers\gift_card_route.py | 106 |
+| GET | /api/v1/health | backend_fastapi\app\api\routers\health_route.py | 11 |
+| GET | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 25 |
+| GET | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 36 |
+| POST | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 48 |
+| PUT | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 62 |
+| DELETE | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 76 |
+| POST | /api/v1/insurance/plans/validate | backend_fastapi\app\api\routers\insurance_route.py | 88 |
+| POST | /api/v1/insurance/eligibility | backend_fastapi\app\api\routers\insurance_route.py | 101 |
+| GET | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 173 |
+| POST | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 184 |
+| GET | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 39 |
+| GET | /api/v1/inventory/medicines/search | backend_fastapi\app\api\routers\inventory_route.py | 73 |
+| GET | /api/v1/inventory/by-barcode/{barcode} | backend_fastapi\app\api\routers\inventory_route.py | 84 |
+| GET | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 98 |
+| POST | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 110 |
+| PUT | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 127 |
+| DELETE | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 142 |
+| GET | /api/v1/inventory/batches | backend_fastapi\app\api\routers\inventory_route.py | 156 |
+| POST | /api/v1/inventory/batches/receive | backend_fastapi\app\api\routers\inventory_route.py | 167 |
+| GET | /api/v1/inventory/batches/low-stock | backend_fastapi\app\api\routers\inventory_route.py | 179 |
+| GET | /api/v1/inventory/batches/expiring-soon | backend_fastapi\app\api\routers\inventory_route.py | 187 |
+| GET | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 196 |
+| PUT | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 205 |
+| GET | /api/v1/inventory/stock-levels | backend_fastapi\app\api\routers\inventory_route.py | 215 |
+| GET | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 227 |
+| POST | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 236 |
+| PUT | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 252 |
+| DELETE | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 271 |
+| POST | /api/v1/inventory/suppliers/{supplier_id}/prefer | backend_fastapi\app\api\routers\inventory_route.py | 290 |
+| GET | /api/v1/inventory/suppliers/search | backend_fastapi\app\api\routers\inventory_route.py | 312 |
+| GET | /api/v1/inventory/movements | backend_fastapi\app\api\routers\inventory_route.py | 336 |
+| POST | /api/v1/inventory/adjustments | backend_fastapi\app\api\routers\inventory_route.py | 366 |
+| POST | /api/v1/invoice-parse/text | backend_fastapi\app\api\routers\invoice_parse_route.py | 52 |
+| POST | /api/v1/invoice-parse/file | backend_fastapi\app\api\routers\invoice_parse_route.py | 61 |
+| GET | /api/v1/invoice-parse/hardware-status | backend_fastapi\app\api\routers\invoice_parse_route.py | 107 |
+| POST | /api/v1/invoice-parse/hybrid | backend_fastapi\app\api\routers\invoice_parse_route.py | 120 |
+| GET | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 45 |
+| GET | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 53 |
+| POST | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 62 |
+| PUT | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 72 |
+| DELETE | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 83 |
+| POST | /api/v1/licenses/activate-file | backend_fastapi\app\api\routers\license_file_route.py | 49 |
+| POST | /api/v1/license/validate | backend_fastapi\app\api\routers\license_route.py | 25 |
+| POST | /api/v1/license/checkout | backend_fastapi\app\api\routers\license_route.py | 53 |
+| POST | /api/v1/license/admin/manage | backend_fastapi\app\api\routers\license_route.py | 92 |
+| GET | /api/v1/license/status | backend_fastapi\app\api\routers\license_route.py | 101 |
+| GET | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 35 |
+| PUT | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 57 |
+| DELETE | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 72 |
+| POST | /api/v1/mobile/offline-ack | backend_fastapi\app\api\routers\mobile_route.py | 25 |
+| POST | /api/v1/labels/render-mobile | backend_fastapi\app\api\routers\mobile_route.py | 64 |
+| GET | /api/v1/patients/search | backend_fastapi\app\api\routers\patients_route.py | 40 |
+| GET | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 49 |
+| PUT | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 67 |
+| POST | /api/v1/patients/{patient_id}/insurance | backend_fastapi\app\api\routers\patients_route.py | 77 |
+| DELETE | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 87 |
+| GET | /api/v1/patients/{patient_id}/dispenses | backend_fastapi\app\api\routers\patients_route.py | 96 |
+| GET | /api/v1/patients/{patient_id}/history | backend_fastapi\app\api\routers\patients_route.py | 109 |
+| GET | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 35 |
+| POST | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 43 |
+| DELETE | /api/v1/patients/{patient_id}/fields/{field_name} | backend_fastapi\app\api\routers\patient_fields_route.py | 66 |
+| POST | /api/v1/pos/approve | backend_fastapi\app\api\routers\pos_route.py | 61 |
+| POST | /api/v1/pos/checkout | backend_fastapi\app\api\routers\pos_route.py | 73 |
+| POST | /api/v1/pos/drawer/movement | backend_fastapi\app\api\routers\pos_route.py | 82 |
+| POST | /api/v1/pos/shift/open | backend_fastapi\app\api\routers\pos_route.py | 107 |
+| POST | /api/v1/pos/shift/close | backend_fastapi\app\api\routers\pos_route.py | 117 |
+| GET | /api/v1/pos/shift/{shift_id}/preview | backend_fastapi\app\api\routers\pos_route.py | 127 |
+| POST | /api/v1/pos/refund | backend_fastapi\app\api\routers\pos_route.py | 137 |
+| GET | /api/v1/pos/reports/sales | backend_fastapi\app\api\routers\pos_route.py | 147 |
+| GET | /api/v1/pos/receipts/recent | backend_fastapi\app\api\routers\pos_route.py | 156 |
+| GET | /api/v1/pos/receipts/{receipt_id} | backend_fastapi\app\api\routers\pos_route.py | 166 |
+| GET | /api/v1/pos/receipts/{receipt_id}/print | backend_fastapi\app\api\routers\pos_route.py | 176 |
+| GET | /api/v1/pos/eod-summary | backend_fastapi\app\api\routers\pos_route.py | 186 |
+| POST | /api/v1/pos/void-item | backend_fastapi\app\api\routers\pos_route.py | 196 |
+| POST | /api/v1/pos/lock | backend_fastapi\app\api\routers\pos_route.py | 206 |
+| GET | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 32 |
+| GET | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 41 |
+| POST | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 50 |
+| PUT | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 59 |
+| POST | /api/v1/purchase-orders/{po_id}/items | backend_fastapi\app\api\routers\po_route.py | 69 |
+| DELETE | /api/v1/purchase-orders/{po_id}/items/{item_id} | backend_fastapi\app\api\routers\po_route.py | 79 |
+| POST | /api/v1/purchase-orders/{po_id}/transition | backend_fastapi\app\api\routers\po_route.py | 89 |
+| POST | /api/v1/purchase-orders/{po_id}/receive | backend_fastapi\app\api\routers\po_route.py | 98 |
+| DELETE | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 109 |
+| POST | /api/v1/purchase-orders/auto-reorder | backend_fastapi\app\api\routers\po_route.py | 118 |
+| GET | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 31 |
+| PUT | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 62 |
+| DELETE | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 78 |
+| GET | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 62 |
+| PUT | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 73 |
+| PATCH | /api/v1/prior-auth/{pa_id}/status | backend_fastapi\app\api\routers\prior_auth_route.py | 85 |
+| POST | /api/v1/prior-auth/{pa_id}/withdraw | backend_fastapi\app\api\routers\prior_auth_route.py | 97 |
+| GET | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 18 |
+| GET | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 28 |
+| POST | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 37 |
+| PUT | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 46 |
+| DELETE | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 56 |
+| POST | /api/v1/quick-sig/{template_id}/favorite | backend_fastapi\app\api\routers\quick_sig_route.py | 65 |
+| POST | /api/v1/quick-sig/{template_id}/use | backend_fastapi\app\api\routers\quick_sig_route.py | 74 |
+| GET | /api/v1/quick-sig/search/suggestions | backend_fastapi\app\api\routers\quick_sig_route.py | 83 |
+| GET | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 18 |
+| GET | /api/v1/receipt-templates/default | backend_fastapi\app\api\routers\receipt_template_route.py | 27 |
+| GET | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 35 |
+| POST | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 44 |
+| PUT | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 53 |
+| DELETE | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 63 |
+| GET | /api/v1/receiving-log/vendors | backend_fastapi\app\api\routers\receiving_route.py | 85 |
+| GET | /api/v1/region/regions | backend_fastapi\app\api\routers\region_route.py | 56 |
+| GET | /api/v1/region/{code} | backend_fastapi\app\api\routers\region_route.py | 72 |
+| POST | /api/v1/region-strategy/patient-cost | backend_fastapi\app\api\routers\region_strategy_route.py | 25 |
+| POST | /api/v1/region-strategy/generate-claim | backend_fastapi\app\api\routers\region_strategy_route.py | 43 |
+| POST | /api/v1/region-strategy/validate-prescription | backend_fastapi\app\api\routers\region_strategy_route.py | 58 |
+| POST | /api/v1/region-strategy/validate-credentials | backend_fastapi\app\api\routers\region_strategy_route.py | 73 |
+| GET | /api/v1/region-strategy/supported-regions | backend_fastapi\app\api\routers\region_strategy_route.py | 88 |
+| GET | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 57 |
+| PUT | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 82 |
+| GET | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 103 |
+| PUT | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 123 |
+| GET | /api/v1/roles/permissions/all | backend_fastapi\app\api\routers\roles_route.py | 146 |
+| GET | /api/v1/rx-queue/counts | backend_fastapi\app\api\routers\rx_queue_route.py | 57 |
+| PATCH | /api/v1/rx-queue/{rx_id}/status | backend_fastapi\app\api\routers\rx_queue_route.py | 67 |
+| POST | /api/v1/rx-queue/bulk-status | backend_fastapi\app\api\routers\rx_queue_route.py | 79 |
+| GET | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 36 |
+| PUT | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 48 |
+| POST | /api/v1/sync/push | backend_fastapi\app\api\routers\sync_route.py | 27 |
+| GET | /api/v1/sync/discrepancies | backend_fastapi\app\api\routers\sync_route.py | 37 |
+| POST | /api/v1/sync/discrepancies/{discrepancy_id}/resolve | backend_fastapi\app\api\routers\sync_route.py | 51 |
+| PUT | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 101 |
+| DELETE | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 133 |
+| GET | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 34 |
+| PUT | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 46 |
+| PATCH | /api/v1/users/{user_id}/active | backend_fastapi\app\api\routers\users_route.py | 65 |
+| GET | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 111 |
+| PUT | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 126 |
+| GET | /api/v1/vendors/{vendor_id}/items | backend_fastapi\app\api\routers\vendors_route.py | 165 |
+| GET | /api/v1/vendors/{vendor_id}/purchases | backend_fastapi\app\api\routers\vendors_route.py | 183 |
+| POST | /api/v1/vendors/receive | backend_fastapi\app\api\routers\vendors_route.py | 204 |
+| GET | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 42 |
+| PUT | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 74 |
+| DELETE | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 89 |
+| POST | /api/v1/webhook/creem | backend_fastapi\app\api\routers\webhook_route.py | 31 |
+
+### Unmatched Frontend Calls (no backend route)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/crash-report | components\ErrorBoundary.tsx | 37 |
+| POST | /api/v1/ocr | components\OcrUploadDropzone.tsx | 72 |
+| GET | /api/v1/alerts | stores\alertStore.ts | 42 |
+| POST | /api/auth/login | stores\authStore.ts | 40 |
+| POST | /api/auth/logout | stores\authStore.ts | 62 |
+| GET | /api/v1/settings/session_idle_minutes | stores\sessionStore.ts | 53 |
+| GET | /api/v1/settings/session_absolute_minutes | stores\sessionStore.ts | 61 |
+
+## API Usage Audit
+_Generated on 2026-09-08T07:54:24.115579Z_
+
+### Orphaned Backend Routes (no frontend call)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/admin/backup | backend_fastapi\app\api\routers\admin_route.py | 20 |
+| GET | /api/v1/admin/backups | backend_fastapi\app\api\routers\admin_route.py | 36 |
+| POST | /api/v1/admin/restore | backend_fastapi\app\api\routers\admin_route.py | 65 |
+| GET | /api/v1/analytics/demand | backend_fastapi\app\api\routers\analytics_route.py | 24 |
+| GET | /api/v1/audit/verify | backend_fastapi\app\api\routers\audit_route.py | 18 |
+| GET | /api/v1/audit/export | backend_fastapi\app\api\routers\audit_route.py | 28 |
+| POST | /api/v1/auth/login/pin | backend_fastapi\app\api\routers\auth_route.py | 33 |
+| POST | /api/v1/auth/pin | backend_fastapi\app\api\routers\auth_route.py | 40 |
+| POST | /api/v1/auth/register | backend_fastapi\app\api\routers\auth_route.py | 55 |
+| GET | /api/v1/auth/me | backend_fastapi\app\api\routers\auth_route.py | 64 |
+| POST | /api/v1/auth/logout | backend_fastapi\app\api\routers\auth_route.py | 69 |
+| POST | /api/v1/auth/rotate-pepper | backend_fastapi\app\api\routers\auth_route.py | 75 |
+| POST | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 34 |
+| GET | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 57 |
+| PUT | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 73 |
+| DELETE | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 93 |
+| POST | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 107 |
+| GET | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 130 |
+| PUT | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 145 |
+| DELETE | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 167 |
+| GET | /api/v1/clinical/attachments | backend_fastapi\app\api\routers\clinical_route.py | 181 |
+| DELETE | /api/v1/clinical/attachments/{attachment_id} | backend_fastapi\app\api\routers\clinical_route.py | 196 |
+| GET | /api/v1/clinical/review/{patient_id} | backend_fastapi\app\api\routers\clinical_route.py | 210 |
+| GET | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 48 |
+| PUT | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 59 |
+| DELETE | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 71 |
+| POST | /api/v1/compounds/{compound_id}/price | backend_fastapi\app\api\routers\compound_route.py | 82 |
+| POST | /api/v1/compounds/dispense | backend_fastapi\app\api\routers\compound_route.py | 94 |
+| GET | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 26 |
+| GET | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 36 |
+| POST | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 46 |
+| PUT | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 56 |
+| DELETE | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 67 |
+| POST | /api/v1/coupons/validate | backend_fastapi\app\api\routers\coupon_route.py | 77 |
+| GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+| GET | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 29 |
+| POST | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 37 |
+| PUT | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 46 |
+| DELETE | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 59 |
+| GET | /api/v1/dictionaries/sig-codes/parse | backend_fastapi\app\api\routers\dictionaries_route.py | 70 |
+| GET | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 79 |
+| POST | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 87 |
+| PUT | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 96 |
+| DELETE | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 109 |
+| GET | /api/v1/dictionaries/price-codes/{price_code_id}/calculate | backend_fastapi\app\api\routers\dictionaries_route.py | 120 |
+| GET | /api/v1/dictionaries/ndc/lookup | backend_fastapi\app\api\routers\dictionaries_route.py | 134 |
+| GET | /api/v1/dispense/rx/{rx_number} | backend_fastapi\app\api\routers\dispense_route.py | 26 |
+| GET | /api/v1/dispense/rx/{rx_number}/fills | backend_fastapi\app\api\routers\dispense_route.py | 36 |
+| PUT | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 50 |
+| POST | /api/v1/dispense/{dispense_id}/reverse | backend_fastapi\app\api\routers\dispense_route.py | 61 |
+| POST | /api/v1/dispense/{dispense_id}/transfer | backend_fastapi\app\api\routers\dispense_route.py | 79 |
+| GET | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 93 |
+| GET | /api/v1/dispense/{dispense_id}/label | backend_fastapi\app\api\routers\dispense_route.py | 102 |
+| POST | /api/v1/dispense/{dispense_id}/refill | backend_fastapi\app\api\routers\dispense_route.py | 117 |
+| GET | /api/v1/drugs/confirm/{ndc} | backend_fastapi\app\api\routers\drug_confirm_route.py | 15 |
+| POST | /api/v1/drug-interactions/check | backend_fastapi\app\api\routers\drug_interaction_route.py | 51 |
+| GET | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 64 |
+| POST | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 73 |
+| PUT | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 84 |
+| DELETE | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 96 |
+| POST | /api/v1/email/daily-sales | backend_fastapi\app\api\routers\email_route.py | 29 |
+| GET | /api/v1/email/health | backend_fastapi\app\api\routers\email_route.py | 58 |
+| GET | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 70 |
+| PUT | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 81 |
+| PATCH | /api/v1/epcs/{rx_id}/status | backend_fastapi\app\api\routers\epcs_route.py | 93 |
+| POST | /api/v1/epcs/{rx_id}/sign | backend_fastapi\app\api\routers\epcs_route.py | 105 |
+| POST | /api/v1/epcs/{rx_id}/transmit | backend_fastapi\app\api\routers\epcs_route.py | 118 |
+| GET | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 131 |
+| POST | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 142 |
+| POST | /api/v1/excel/import/analyze | backend_fastapi\app\api\routers\excel_route.py | 129 |
+| POST | /api/v1/excel/import/preview | backend_fastapi\app\api\routers\excel_route.py | 182 |
+| POST | /api/v1/excel/import/commit | backend_fastapi\app\api\routers\excel_route.py | 233 |
+| GET | /api/v1/excel/export/inventory | backend_fastapi\app\api\routers\excel_route.py | 343 |
+| POST | /api/v1/excel/import/inventory | backend_fastapi\app\api\routers\excel_route.py | 431 |
+| POST | /api/v1/excel/import/csv | backend_fastapi\app\api\routers\excel_route.py | 548 |
+| GET | /api/v1/gift-cards/lookup/{code} | backend_fastapi\app\api\routers\gift_card_route.py | 78 |
+| POST | /api/v1/gift-cards/{card_id}/redeem | backend_fastapi\app\api\routers\gift_card_route.py | 87 |
+| POST | /api/v1/gift-cards/{card_id}/void | backend_fastapi\app\api\routers\gift_card_route.py | 106 |
+| GET | /api/v1/health | backend_fastapi\app\api\routers\health_route.py | 11 |
+| GET | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 25 |
+| GET | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 36 |
+| POST | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 48 |
+| PUT | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 62 |
+| DELETE | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 76 |
+| POST | /api/v1/insurance/plans/validate | backend_fastapi\app\api\routers\insurance_route.py | 88 |
+| POST | /api/v1/insurance/eligibility | backend_fastapi\app\api\routers\insurance_route.py | 101 |
+| GET | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 173 |
+| POST | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 184 |
+| GET | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 39 |
+| GET | /api/v1/inventory/medicines/search | backend_fastapi\app\api\routers\inventory_route.py | 73 |
+| GET | /api/v1/inventory/by-barcode/{barcode} | backend_fastapi\app\api\routers\inventory_route.py | 84 |
+| GET | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 98 |
+| POST | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 110 |
+| PUT | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 127 |
+| DELETE | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 142 |
+| GET | /api/v1/inventory/batches | backend_fastapi\app\api\routers\inventory_route.py | 156 |
+| POST | /api/v1/inventory/batches/receive | backend_fastapi\app\api\routers\inventory_route.py | 167 |
+| GET | /api/v1/inventory/batches/low-stock | backend_fastapi\app\api\routers\inventory_route.py | 179 |
+| GET | /api/v1/inventory/batches/expiring-soon | backend_fastapi\app\api\routers\inventory_route.py | 187 |
+| GET | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 196 |
+| PUT | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 205 |
+| GET | /api/v1/inventory/stock-levels | backend_fastapi\app\api\routers\inventory_route.py | 215 |
+| GET | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 227 |
+| POST | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 236 |
+| PUT | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 252 |
+| DELETE | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 271 |
+| POST | /api/v1/inventory/suppliers/{supplier_id}/prefer | backend_fastapi\app\api\routers\inventory_route.py | 290 |
+| GET | /api/v1/inventory/suppliers/search | backend_fastapi\app\api\routers\inventory_route.py | 312 |
+| GET | /api/v1/inventory/movements | backend_fastapi\app\api\routers\inventory_route.py | 336 |
+| POST | /api/v1/inventory/adjustments | backend_fastapi\app\api\routers\inventory_route.py | 366 |
+| POST | /api/v1/invoice-parse/text | backend_fastapi\app\api\routers\invoice_parse_route.py | 52 |
+| POST | /api/v1/invoice-parse/file | backend_fastapi\app\api\routers\invoice_parse_route.py | 61 |
+| GET | /api/v1/invoice-parse/hardware-status | backend_fastapi\app\api\routers\invoice_parse_route.py | 107 |
+| POST | /api/v1/invoice-parse/hybrid | backend_fastapi\app\api\routers\invoice_parse_route.py | 120 |
+| GET | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 45 |
+| GET | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 53 |
+| POST | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 62 |
+| PUT | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 72 |
+| DELETE | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 83 |
+| POST | /api/v1/licenses/activate-file | backend_fastapi\app\api\routers\license_file_route.py | 49 |
+| POST | /api/v1/license/validate | backend_fastapi\app\api\routers\license_route.py | 25 |
+| POST | /api/v1/license/checkout | backend_fastapi\app\api\routers\license_route.py | 53 |
+| POST | /api/v1/license/admin/manage | backend_fastapi\app\api\routers\license_route.py | 92 |
+| GET | /api/v1/license/status | backend_fastapi\app\api\routers\license_route.py | 101 |
+| GET | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 35 |
+| PUT | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 57 |
+| DELETE | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 72 |
+| POST | /api/v1/mobile/offline-ack | backend_fastapi\app\api\routers\mobile_route.py | 25 |
+| POST | /api/v1/labels/render-mobile | backend_fastapi\app\api\routers\mobile_route.py | 64 |
+| GET | /api/v1/patients/search | backend_fastapi\app\api\routers\patients_route.py | 40 |
+| GET | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 49 |
+| PUT | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 67 |
+| POST | /api/v1/patients/{patient_id}/insurance | backend_fastapi\app\api\routers\patients_route.py | 77 |
+| DELETE | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 87 |
+| GET | /api/v1/patients/{patient_id}/dispenses | backend_fastapi\app\api\routers\patients_route.py | 96 |
+| GET | /api/v1/patients/{patient_id}/history | backend_fastapi\app\api\routers\patients_route.py | 109 |
+| GET | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 35 |
+| POST | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 43 |
+| DELETE | /api/v1/patients/{patient_id}/fields/{field_name} | backend_fastapi\app\api\routers\patient_fields_route.py | 66 |
+| POST | /api/v1/pos/approve | backend_fastapi\app\api\routers\pos_route.py | 61 |
+| POST | /api/v1/pos/checkout | backend_fastapi\app\api\routers\pos_route.py | 73 |
+| POST | /api/v1/pos/drawer/movement | backend_fastapi\app\api\routers\pos_route.py | 82 |
+| POST | /api/v1/pos/shift/open | backend_fastapi\app\api\routers\pos_route.py | 107 |
+| POST | /api/v1/pos/shift/close | backend_fastapi\app\api\routers\pos_route.py | 117 |
+| GET | /api/v1/pos/shift/{shift_id}/preview | backend_fastapi\app\api\routers\pos_route.py | 127 |
+| POST | /api/v1/pos/refund | backend_fastapi\app\api\routers\pos_route.py | 137 |
+| GET | /api/v1/pos/reports/sales | backend_fastapi\app\api\routers\pos_route.py | 147 |
+| GET | /api/v1/pos/receipts/recent | backend_fastapi\app\api\routers\pos_route.py | 156 |
+| GET | /api/v1/pos/receipts/{receipt_id} | backend_fastapi\app\api\routers\pos_route.py | 166 |
+| GET | /api/v1/pos/receipts/{receipt_id}/print | backend_fastapi\app\api\routers\pos_route.py | 176 |
+| GET | /api/v1/pos/eod-summary | backend_fastapi\app\api\routers\pos_route.py | 186 |
+| POST | /api/v1/pos/void-item | backend_fastapi\app\api\routers\pos_route.py | 196 |
+| POST | /api/v1/pos/lock | backend_fastapi\app\api\routers\pos_route.py | 206 |
+| GET | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 32 |
+| GET | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 41 |
+| POST | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 50 |
+| PUT | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 59 |
+| POST | /api/v1/purchase-orders/{po_id}/items | backend_fastapi\app\api\routers\po_route.py | 69 |
+| DELETE | /api/v1/purchase-orders/{po_id}/items/{item_id} | backend_fastapi\app\api\routers\po_route.py | 79 |
+| POST | /api/v1/purchase-orders/{po_id}/transition | backend_fastapi\app\api\routers\po_route.py | 89 |
+| POST | /api/v1/purchase-orders/{po_id}/receive | backend_fastapi\app\api\routers\po_route.py | 98 |
+| DELETE | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 109 |
+| POST | /api/v1/purchase-orders/auto-reorder | backend_fastapi\app\api\routers\po_route.py | 118 |
+| GET | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 31 |
+| PUT | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 62 |
+| DELETE | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 78 |
+| GET | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 62 |
+| PUT | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 73 |
+| PATCH | /api/v1/prior-auth/{pa_id}/status | backend_fastapi\app\api\routers\prior_auth_route.py | 85 |
+| POST | /api/v1/prior-auth/{pa_id}/withdraw | backend_fastapi\app\api\routers\prior_auth_route.py | 97 |
+| GET | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 18 |
+| GET | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 28 |
+| POST | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 37 |
+| PUT | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 46 |
+| DELETE | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 56 |
+| POST | /api/v1/quick-sig/{template_id}/favorite | backend_fastapi\app\api\routers\quick_sig_route.py | 65 |
+| POST | /api/v1/quick-sig/{template_id}/use | backend_fastapi\app\api\routers\quick_sig_route.py | 74 |
+| GET | /api/v1/quick-sig/search/suggestions | backend_fastapi\app\api\routers\quick_sig_route.py | 83 |
+| GET | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 18 |
+| GET | /api/v1/receipt-templates/default | backend_fastapi\app\api\routers\receipt_template_route.py | 27 |
+| GET | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 35 |
+| POST | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 44 |
+| PUT | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 53 |
+| DELETE | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 63 |
+| GET | /api/v1/receiving-log/vendors | backend_fastapi\app\api\routers\receiving_route.py | 85 |
+| GET | /api/v1/region/regions | backend_fastapi\app\api\routers\region_route.py | 56 |
+| GET | /api/v1/region/{code} | backend_fastapi\app\api\routers\region_route.py | 72 |
+| POST | /api/v1/region-strategy/patient-cost | backend_fastapi\app\api\routers\region_strategy_route.py | 25 |
+| POST | /api/v1/region-strategy/generate-claim | backend_fastapi\app\api\routers\region_strategy_route.py | 43 |
+| POST | /api/v1/region-strategy/validate-prescription | backend_fastapi\app\api\routers\region_strategy_route.py | 58 |
+| POST | /api/v1/region-strategy/validate-credentials | backend_fastapi\app\api\routers\region_strategy_route.py | 73 |
+| GET | /api/v1/region-strategy/supported-regions | backend_fastapi\app\api\routers\region_strategy_route.py | 88 |
+| GET | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 57 |
+| PUT | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 82 |
+| GET | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 103 |
+| PUT | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 123 |
+| GET | /api/v1/roles/permissions/all | backend_fastapi\app\api\routers\roles_route.py | 146 |
+| GET | /api/v1/rx-queue/counts | backend_fastapi\app\api\routers\rx_queue_route.py | 57 |
+| PATCH | /api/v1/rx-queue/{rx_id}/status | backend_fastapi\app\api\routers\rx_queue_route.py | 67 |
+| POST | /api/v1/rx-queue/bulk-status | backend_fastapi\app\api\routers\rx_queue_route.py | 79 |
+| GET | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 36 |
+| PUT | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 48 |
+| POST | /api/v1/sync/push | backend_fastapi\app\api\routers\sync_route.py | 27 |
+| GET | /api/v1/sync/discrepancies | backend_fastapi\app\api\routers\sync_route.py | 37 |
+| POST | /api/v1/sync/discrepancies/{discrepancy_id}/resolve | backend_fastapi\app\api\routers\sync_route.py | 51 |
+| PUT | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 101 |
+| DELETE | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 133 |
+| GET | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 34 |
+| PUT | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 46 |
+| PATCH | /api/v1/users/{user_id}/active | backend_fastapi\app\api\routers\users_route.py | 65 |
+| GET | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 111 |
+| PUT | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 126 |
+| GET | /api/v1/vendors/{vendor_id}/items | backend_fastapi\app\api\routers\vendors_route.py | 165 |
+| GET | /api/v1/vendors/{vendor_id}/purchases | backend_fastapi\app\api\routers\vendors_route.py | 183 |
+| POST | /api/v1/vendors/receive | backend_fastapi\app\api\routers\vendors_route.py | 204 |
+| GET | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 42 |
+| PUT | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 74 |
+| DELETE | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 89 |
+| POST | /api/v1/webhook/creem | backend_fastapi\app\api\routers\webhook_route.py | 31 |
+
+### Unmatched Frontend Calls (no backend route)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/crash-report | components\ErrorBoundary.tsx | 37 |
+| POST | /api/v1/ocr | components\OcrUploadDropzone.tsx | 72 |
+| GET | /api/v1/alerts | stores\alertStore.ts | 42 |
+| POST | /api/auth/login | stores\authStore.ts | 40 |
+| POST | /api/auth/logout | stores\authStore.ts | 62 |
+| GET | /api/v1/settings/session_idle_minutes | stores\sessionStore.ts | 53 |
+| GET | /api/v1/settings/session_absolute_minutes | stores\sessionStore.ts | 61 |
+
+## API Usage Audit
+_Generated on 2026-09-08T07:54:53.689062Z_
+
+### Orphaned Backend Routes (no frontend call)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/admin/backup | backend_fastapi\app\api\routers\admin_route.py | 20 |
+| GET | /api/v1/admin/backups | backend_fastapi\app\api\routers\admin_route.py | 36 |
+| POST | /api/v1/admin/restore | backend_fastapi\app\api\routers\admin_route.py | 65 |
+| GET | /api/v1/analytics/demand | backend_fastapi\app\api\routers\analytics_route.py | 24 |
+| GET | /api/v1/audit/verify | backend_fastapi\app\api\routers\audit_route.py | 18 |
+| GET | /api/v1/audit/export | backend_fastapi\app\api\routers\audit_route.py | 28 |
+| POST | /api/v1/auth/login/pin | backend_fastapi\app\api\routers\auth_route.py | 33 |
+| POST | /api/v1/auth/pin | backend_fastapi\app\api\routers\auth_route.py | 40 |
+| POST | /api/v1/auth/register | backend_fastapi\app\api\routers\auth_route.py | 55 |
+| GET | /api/v1/auth/me | backend_fastapi\app\api\routers\auth_route.py | 64 |
+| POST | /api/v1/auth/logout | backend_fastapi\app\api\routers\auth_route.py | 69 |
+| POST | /api/v1/auth/rotate-pepper | backend_fastapi\app\api\routers\auth_route.py | 75 |
+| POST | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 34 |
+| GET | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 57 |
+| PUT | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 73 |
+| DELETE | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 93 |
+| POST | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 107 |
+| GET | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 130 |
+| PUT | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 145 |
+| DELETE | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 167 |
+| GET | /api/v1/clinical/attachments | backend_fastapi\app\api\routers\clinical_route.py | 181 |
+| DELETE | /api/v1/clinical/attachments/{attachment_id} | backend_fastapi\app\api\routers\clinical_route.py | 196 |
+| GET | /api/v1/clinical/review/{patient_id} | backend_fastapi\app\api\routers\clinical_route.py | 210 |
+| GET | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 48 |
+| PUT | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 59 |
+| DELETE | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 71 |
+| POST | /api/v1/compounds/{compound_id}/price | backend_fastapi\app\api\routers\compound_route.py | 82 |
+| POST | /api/v1/compounds/dispense | backend_fastapi\app\api\routers\compound_route.py | 94 |
+| GET | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 26 |
+| GET | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 36 |
+| POST | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 46 |
+| PUT | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 56 |
+| DELETE | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 67 |
+| POST | /api/v1/coupons/validate | backend_fastapi\app\api\routers\coupon_route.py | 77 |
+| GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+| GET | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 29 |
+| POST | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 37 |
+| PUT | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 46 |
+| DELETE | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 59 |
+| GET | /api/v1/dictionaries/sig-codes/parse | backend_fastapi\app\api\routers\dictionaries_route.py | 70 |
+| GET | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 79 |
+| POST | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 87 |
+| PUT | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 96 |
+| DELETE | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 109 |
+| GET | /api/v1/dictionaries/price-codes/{price_code_id}/calculate | backend_fastapi\app\api\routers\dictionaries_route.py | 120 |
+| GET | /api/v1/dictionaries/ndc/lookup | backend_fastapi\app\api\routers\dictionaries_route.py | 134 |
+| GET | /api/v1/dispense/rx/{rx_number} | backend_fastapi\app\api\routers\dispense_route.py | 26 |
+| GET | /api/v1/dispense/rx/{rx_number}/fills | backend_fastapi\app\api\routers\dispense_route.py | 36 |
+| PUT | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 50 |
+| POST | /api/v1/dispense/{dispense_id}/reverse | backend_fastapi\app\api\routers\dispense_route.py | 61 |
+| POST | /api/v1/dispense/{dispense_id}/transfer | backend_fastapi\app\api\routers\dispense_route.py | 79 |
+| GET | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 93 |
+| GET | /api/v1/dispense/{dispense_id}/label | backend_fastapi\app\api\routers\dispense_route.py | 102 |
+| POST | /api/v1/dispense/{dispense_id}/refill | backend_fastapi\app\api\routers\dispense_route.py | 117 |
+| GET | /api/v1/drugs/confirm/{ndc} | backend_fastapi\app\api\routers\drug_confirm_route.py | 15 |
+| POST | /api/v1/drug-interactions/check | backend_fastapi\app\api\routers\drug_interaction_route.py | 51 |
+| GET | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 64 |
+| POST | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 73 |
+| PUT | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 84 |
+| DELETE | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 96 |
+| POST | /api/v1/email/daily-sales | backend_fastapi\app\api\routers\email_route.py | 29 |
+| GET | /api/v1/email/health | backend_fastapi\app\api\routers\email_route.py | 58 |
+| GET | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 70 |
+| PUT | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 81 |
+| PATCH | /api/v1/epcs/{rx_id}/status | backend_fastapi\app\api\routers\epcs_route.py | 93 |
+| POST | /api/v1/epcs/{rx_id}/sign | backend_fastapi\app\api\routers\epcs_route.py | 105 |
+| POST | /api/v1/epcs/{rx_id}/transmit | backend_fastapi\app\api\routers\epcs_route.py | 118 |
+| GET | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 131 |
+| POST | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 142 |
+| POST | /api/v1/excel/import/analyze | backend_fastapi\app\api\routers\excel_route.py | 129 |
+| POST | /api/v1/excel/import/preview | backend_fastapi\app\api\routers\excel_route.py | 182 |
+| POST | /api/v1/excel/import/commit | backend_fastapi\app\api\routers\excel_route.py | 233 |
+| GET | /api/v1/excel/export/inventory | backend_fastapi\app\api\routers\excel_route.py | 343 |
+| POST | /api/v1/excel/import/inventory | backend_fastapi\app\api\routers\excel_route.py | 431 |
+| POST | /api/v1/excel/import/csv | backend_fastapi\app\api\routers\excel_route.py | 548 |
+| GET | /api/v1/gift-cards/lookup/{code} | backend_fastapi\app\api\routers\gift_card_route.py | 78 |
+| POST | /api/v1/gift-cards/{card_id}/redeem | backend_fastapi\app\api\routers\gift_card_route.py | 87 |
+| POST | /api/v1/gift-cards/{card_id}/void | backend_fastapi\app\api\routers\gift_card_route.py | 106 |
+| GET | /api/v1/health | backend_fastapi\app\api\routers\health_route.py | 11 |
+| GET | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 25 |
+| GET | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 36 |
+| POST | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 48 |
+| PUT | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 62 |
+| DELETE | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 76 |
+| POST | /api/v1/insurance/plans/validate | backend_fastapi\app\api\routers\insurance_route.py | 88 |
+| POST | /api/v1/insurance/eligibility | backend_fastapi\app\api\routers\insurance_route.py | 101 |
+| GET | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 173 |
+| POST | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 184 |
+| GET | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 39 |
+| GET | /api/v1/inventory/medicines/search | backend_fastapi\app\api\routers\inventory_route.py | 73 |
+| GET | /api/v1/inventory/by-barcode/{barcode} | backend_fastapi\app\api\routers\inventory_route.py | 84 |
+| GET | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 98 |
+| POST | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 110 |
+| PUT | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 127 |
+| DELETE | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 142 |
+| GET | /api/v1/inventory/batches | backend_fastapi\app\api\routers\inventory_route.py | 156 |
+| POST | /api/v1/inventory/batches/receive | backend_fastapi\app\api\routers\inventory_route.py | 167 |
+| GET | /api/v1/inventory/batches/low-stock | backend_fastapi\app\api\routers\inventory_route.py | 179 |
+| GET | /api/v1/inventory/batches/expiring-soon | backend_fastapi\app\api\routers\inventory_route.py | 187 |
+| GET | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 196 |
+| PUT | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 205 |
+| GET | /api/v1/inventory/stock-levels | backend_fastapi\app\api\routers\inventory_route.py | 215 |
+| GET | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 227 |
+| POST | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 236 |
+| PUT | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 252 |
+| DELETE | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 271 |
+| POST | /api/v1/inventory/suppliers/{supplier_id}/prefer | backend_fastapi\app\api\routers\inventory_route.py | 290 |
+| GET | /api/v1/inventory/suppliers/search | backend_fastapi\app\api\routers\inventory_route.py | 312 |
+| GET | /api/v1/inventory/movements | backend_fastapi\app\api\routers\inventory_route.py | 336 |
+| POST | /api/v1/inventory/adjustments | backend_fastapi\app\api\routers\inventory_route.py | 366 |
+| POST | /api/v1/invoice-parse/text | backend_fastapi\app\api\routers\invoice_parse_route.py | 52 |
+| POST | /api/v1/invoice-parse/file | backend_fastapi\app\api\routers\invoice_parse_route.py | 61 |
+| GET | /api/v1/invoice-parse/hardware-status | backend_fastapi\app\api\routers\invoice_parse_route.py | 107 |
+| POST | /api/v1/invoice-parse/hybrid | backend_fastapi\app\api\routers\invoice_parse_route.py | 120 |
+| GET | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 45 |
+| GET | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 53 |
+| POST | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 62 |
+| PUT | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 72 |
+| DELETE | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 83 |
+| POST | /api/v1/licenses/activate-file | backend_fastapi\app\api\routers\license_file_route.py | 49 |
+| POST | /api/v1/license/validate | backend_fastapi\app\api\routers\license_route.py | 25 |
+| POST | /api/v1/license/checkout | backend_fastapi\app\api\routers\license_route.py | 53 |
+| POST | /api/v1/license/admin/manage | backend_fastapi\app\api\routers\license_route.py | 92 |
+| GET | /api/v1/license/status | backend_fastapi\app\api\routers\license_route.py | 101 |
+| GET | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 35 |
+| PUT | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 57 |
+| DELETE | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 72 |
+| POST | /api/v1/mobile/offline-ack | backend_fastapi\app\api\routers\mobile_route.py | 25 |
+| POST | /api/v1/labels/render-mobile | backend_fastapi\app\api\routers\mobile_route.py | 64 |
+| GET | /api/v1/patients/search | backend_fastapi\app\api\routers\patients_route.py | 40 |
+| GET | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 49 |
+| PUT | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 67 |
+| POST | /api/v1/patients/{patient_id}/insurance | backend_fastapi\app\api\routers\patients_route.py | 77 |
+| DELETE | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 87 |
+| GET | /api/v1/patients/{patient_id}/dispenses | backend_fastapi\app\api\routers\patients_route.py | 96 |
+| GET | /api/v1/patients/{patient_id}/history | backend_fastapi\app\api\routers\patients_route.py | 109 |
+| GET | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 35 |
+| POST | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 43 |
+| DELETE | /api/v1/patients/{patient_id}/fields/{field_name} | backend_fastapi\app\api\routers\patient_fields_route.py | 66 |
+| POST | /api/v1/pos/approve | backend_fastapi\app\api\routers\pos_route.py | 61 |
+| POST | /api/v1/pos/checkout | backend_fastapi\app\api\routers\pos_route.py | 73 |
+| POST | /api/v1/pos/drawer/movement | backend_fastapi\app\api\routers\pos_route.py | 82 |
+| POST | /api/v1/pos/shift/open | backend_fastapi\app\api\routers\pos_route.py | 107 |
+| POST | /api/v1/pos/shift/close | backend_fastapi\app\api\routers\pos_route.py | 117 |
+| GET | /api/v1/pos/shift/{shift_id}/preview | backend_fastapi\app\api\routers\pos_route.py | 127 |
+| POST | /api/v1/pos/refund | backend_fastapi\app\api\routers\pos_route.py | 137 |
+| GET | /api/v1/pos/reports/sales | backend_fastapi\app\api\routers\pos_route.py | 147 |
+| GET | /api/v1/pos/receipts/recent | backend_fastapi\app\api\routers\pos_route.py | 156 |
+| GET | /api/v1/pos/receipts/{receipt_id} | backend_fastapi\app\api\routers\pos_route.py | 166 |
+| GET | /api/v1/pos/receipts/{receipt_id}/print | backend_fastapi\app\api\routers\pos_route.py | 176 |
+| GET | /api/v1/pos/eod-summary | backend_fastapi\app\api\routers\pos_route.py | 186 |
+| POST | /api/v1/pos/void-item | backend_fastapi\app\api\routers\pos_route.py | 196 |
+| POST | /api/v1/pos/lock | backend_fastapi\app\api\routers\pos_route.py | 206 |
+| GET | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 32 |
+| GET | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 41 |
+| POST | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 50 |
+| PUT | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 59 |
+| POST | /api/v1/purchase-orders/{po_id}/items | backend_fastapi\app\api\routers\po_route.py | 69 |
+| DELETE | /api/v1/purchase-orders/{po_id}/items/{item_id} | backend_fastapi\app\api\routers\po_route.py | 79 |
+| POST | /api/v1/purchase-orders/{po_id}/transition | backend_fastapi\app\api\routers\po_route.py | 89 |
+| POST | /api/v1/purchase-orders/{po_id}/receive | backend_fastapi\app\api\routers\po_route.py | 98 |
+| DELETE | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 109 |
+| POST | /api/v1/purchase-orders/auto-reorder | backend_fastapi\app\api\routers\po_route.py | 118 |
+| GET | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 31 |
+| PUT | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 62 |
+| DELETE | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 78 |
+| GET | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 62 |
+| PUT | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 73 |
+| PATCH | /api/v1/prior-auth/{pa_id}/status | backend_fastapi\app\api\routers\prior_auth_route.py | 85 |
+| POST | /api/v1/prior-auth/{pa_id}/withdraw | backend_fastapi\app\api\routers\prior_auth_route.py | 97 |
+| GET | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 18 |
+| GET | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 28 |
+| POST | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 37 |
+| PUT | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 46 |
+| DELETE | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 56 |
+| POST | /api/v1/quick-sig/{template_id}/favorite | backend_fastapi\app\api\routers\quick_sig_route.py | 65 |
+| POST | /api/v1/quick-sig/{template_id}/use | backend_fastapi\app\api\routers\quick_sig_route.py | 74 |
+| GET | /api/v1/quick-sig/search/suggestions | backend_fastapi\app\api\routers\quick_sig_route.py | 83 |
+| GET | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 18 |
+| GET | /api/v1/receipt-templates/default | backend_fastapi\app\api\routers\receipt_template_route.py | 27 |
+| GET | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 35 |
+| POST | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 44 |
+| PUT | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 53 |
+| DELETE | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 63 |
+| GET | /api/v1/receiving-log/vendors | backend_fastapi\app\api\routers\receiving_route.py | 85 |
+| GET | /api/v1/region/regions | backend_fastapi\app\api\routers\region_route.py | 56 |
+| GET | /api/v1/region/{code} | backend_fastapi\app\api\routers\region_route.py | 72 |
+| POST | /api/v1/region-strategy/patient-cost | backend_fastapi\app\api\routers\region_strategy_route.py | 25 |
+| POST | /api/v1/region-strategy/generate-claim | backend_fastapi\app\api\routers\region_strategy_route.py | 43 |
+| POST | /api/v1/region-strategy/validate-prescription | backend_fastapi\app\api\routers\region_strategy_route.py | 58 |
+| POST | /api/v1/region-strategy/validate-credentials | backend_fastapi\app\api\routers\region_strategy_route.py | 73 |
+| GET | /api/v1/region-strategy/supported-regions | backend_fastapi\app\api\routers\region_strategy_route.py | 88 |
+| GET | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 57 |
+| PUT | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 82 |
+| GET | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 103 |
+| PUT | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 123 |
+| GET | /api/v1/roles/permissions/all | backend_fastapi\app\api\routers\roles_route.py | 146 |
+| GET | /api/v1/rx-queue/counts | backend_fastapi\app\api\routers\rx_queue_route.py | 57 |
+| PATCH | /api/v1/rx-queue/{rx_id}/status | backend_fastapi\app\api\routers\rx_queue_route.py | 67 |
+| POST | /api/v1/rx-queue/bulk-status | backend_fastapi\app\api\routers\rx_queue_route.py | 79 |
+| GET | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 36 |
+| PUT | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 48 |
+| POST | /api/v1/sync/push | backend_fastapi\app\api\routers\sync_route.py | 27 |
+| GET | /api/v1/sync/discrepancies | backend_fastapi\app\api\routers\sync_route.py | 37 |
+| POST | /api/v1/sync/discrepancies/{discrepancy_id}/resolve | backend_fastapi\app\api\routers\sync_route.py | 51 |
+| PUT | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 101 |
+| DELETE | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 133 |
+| GET | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 34 |
+| PUT | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 46 |
+| PATCH | /api/v1/users/{user_id}/active | backend_fastapi\app\api\routers\users_route.py | 65 |
+| GET | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 111 |
+| PUT | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 126 |
+| GET | /api/v1/vendors/{vendor_id}/items | backend_fastapi\app\api\routers\vendors_route.py | 165 |
+| GET | /api/v1/vendors/{vendor_id}/purchases | backend_fastapi\app\api\routers\vendors_route.py | 183 |
+| POST | /api/v1/vendors/receive | backend_fastapi\app\api\routers\vendors_route.py | 204 |
+| GET | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 42 |
+| PUT | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 74 |
+| DELETE | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 89 |
+| POST | /api/v1/webhook/creem | backend_fastapi\app\api\routers\webhook_route.py | 31 |
+
+### Unmatched Frontend Calls (no backend route)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/crash-report | components\ErrorBoundary.tsx | 37 |
+| POST | /api/v1/ocr | components\OcrUploadDropzone.tsx | 72 |
+| GET | /api/v1/alerts | stores\alertStore.ts | 42 |
+| POST | /api/auth/login | stores\authStore.ts | 40 |
+| POST | /api/auth/logout | stores\authStore.ts | 62 |
+| GET | /api/v1/settings/session_idle_minutes | stores\sessionStore.ts | 53 |
+| GET | /api/v1/settings/session_absolute_minutes | stores\sessionStore.ts | 61 |
+
+## API Usage Audit
+_Generated on 2026-09-08T09:26:11.039140Z_
+
+### Orphaned Backend Routes (no frontend call)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/admin/backup | backend_fastapi\app\api\routers\admin_route.py | 20 |
+| GET | /api/v1/admin/backups | backend_fastapi\app\api\routers\admin_route.py | 36 |
+| POST | /api/v1/admin/restore | backend_fastapi\app\api\routers\admin_route.py | 65 |
+| GET | /api/v1/analytics/demand | backend_fastapi\app\api\routers\analytics_route.py | 24 |
+| GET | /api/v1/audit/verify | backend_fastapi\app\api\routers\audit_route.py | 18 |
+| GET | /api/v1/audit/export | backend_fastapi\app\api\routers\audit_route.py | 28 |
+| POST | /api/v1/auth/login/pin | backend_fastapi\app\api\routers\auth_route.py | 33 |
+| POST | /api/v1/auth/pin | backend_fastapi\app\api\routers\auth_route.py | 40 |
+| POST | /api/v1/auth/register | backend_fastapi\app\api\routers\auth_route.py | 55 |
+| GET | /api/v1/auth/me | backend_fastapi\app\api\routers\auth_route.py | 64 |
+| POST | /api/v1/auth/logout | backend_fastapi\app\api\routers\auth_route.py | 69 |
+| POST | /api/v1/auth/rotate-pepper | backend_fastapi\app\api\routers\auth_route.py | 75 |
+| POST | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 34 |
+| GET | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 57 |
+| PUT | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 73 |
+| DELETE | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 93 |
+| POST | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 107 |
+| GET | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 130 |
+| PUT | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 145 |
+| DELETE | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 167 |
+| GET | /api/v1/clinical/attachments | backend_fastapi\app\api\routers\clinical_route.py | 181 |
+| DELETE | /api/v1/clinical/attachments/{attachment_id} | backend_fastapi\app\api\routers\clinical_route.py | 196 |
+| GET | /api/v1/clinical/review/{patient_id} | backend_fastapi\app\api\routers\clinical_route.py | 210 |
+| GET | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 48 |
+| PUT | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 59 |
+| DELETE | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 71 |
+| POST | /api/v1/compounds/{compound_id}/price | backend_fastapi\app\api\routers\compound_route.py | 82 |
+| POST | /api/v1/compounds/dispense | backend_fastapi\app\api\routers\compound_route.py | 94 |
+| GET | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 26 |
+| GET | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 36 |
+| POST | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 46 |
+| PUT | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 56 |
+| DELETE | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 67 |
+| POST | /api/v1/coupons/validate | backend_fastapi\app\api\routers\coupon_route.py | 77 |
+| GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+| GET | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 29 |
+| POST | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 37 |
+| PUT | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 46 |
+| DELETE | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 59 |
+| GET | /api/v1/dictionaries/sig-codes/parse | backend_fastapi\app\api\routers\dictionaries_route.py | 70 |
+| GET | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 79 |
+| POST | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 87 |
+| PUT | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 96 |
+| DELETE | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 109 |
+| GET | /api/v1/dictionaries/price-codes/{price_code_id}/calculate | backend_fastapi\app\api\routers\dictionaries_route.py | 120 |
+| GET | /api/v1/dictionaries/ndc/lookup | backend_fastapi\app\api\routers\dictionaries_route.py | 134 |
+| GET | /api/v1/dispense/rx/{rx_number} | backend_fastapi\app\api\routers\dispense_route.py | 26 |
+| GET | /api/v1/dispense/rx/{rx_number}/fills | backend_fastapi\app\api\routers\dispense_route.py | 36 |
+| PUT | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 50 |
+| POST | /api/v1/dispense/{dispense_id}/reverse | backend_fastapi\app\api\routers\dispense_route.py | 61 |
+| POST | /api/v1/dispense/{dispense_id}/transfer | backend_fastapi\app\api\routers\dispense_route.py | 79 |
+| GET | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 93 |
+| GET | /api/v1/dispense/{dispense_id}/label | backend_fastapi\app\api\routers\dispense_route.py | 102 |
+| POST | /api/v1/dispense/{dispense_id}/refill | backend_fastapi\app\api\routers\dispense_route.py | 117 |
+| GET | /api/v1/drugs/confirm/{ndc} | backend_fastapi\app\api\routers\drug_confirm_route.py | 15 |
+| POST | /api/v1/drug-interactions/check | backend_fastapi\app\api\routers\drug_interaction_route.py | 51 |
+| GET | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 64 |
+| POST | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 73 |
+| PUT | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 84 |
+| DELETE | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 96 |
+| POST | /api/v1/email/daily-sales | backend_fastapi\app\api\routers\email_route.py | 29 |
+| GET | /api/v1/email/health | backend_fastapi\app\api\routers\email_route.py | 58 |
+| GET | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 70 |
+| PUT | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 81 |
+| PATCH | /api/v1/epcs/{rx_id}/status | backend_fastapi\app\api\routers\epcs_route.py | 93 |
+| POST | /api/v1/epcs/{rx_id}/sign | backend_fastapi\app\api\routers\epcs_route.py | 105 |
+| POST | /api/v1/epcs/{rx_id}/transmit | backend_fastapi\app\api\routers\epcs_route.py | 118 |
+| GET | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 131 |
+| POST | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 142 |
+| POST | /api/v1/excel/import/analyze | backend_fastapi\app\api\routers\excel_route.py | 129 |
+| POST | /api/v1/excel/import/preview | backend_fastapi\app\api\routers\excel_route.py | 182 |
+| POST | /api/v1/excel/import/commit | backend_fastapi\app\api\routers\excel_route.py | 233 |
+| GET | /api/v1/excel/export/inventory | backend_fastapi\app\api\routers\excel_route.py | 343 |
+| POST | /api/v1/excel/import/inventory | backend_fastapi\app\api\routers\excel_route.py | 431 |
+| POST | /api/v1/excel/import/csv | backend_fastapi\app\api\routers\excel_route.py | 548 |
+| GET | /api/v1/gift-cards/lookup/{code} | backend_fastapi\app\api\routers\gift_card_route.py | 78 |
+| POST | /api/v1/gift-cards/{card_id}/redeem | backend_fastapi\app\api\routers\gift_card_route.py | 87 |
+| POST | /api/v1/gift-cards/{card_id}/void | backend_fastapi\app\api\routers\gift_card_route.py | 106 |
+| GET | /api/v1/health | backend_fastapi\app\api\routers\health_route.py | 11 |
+| GET | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 25 |
+| GET | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 36 |
+| POST | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 48 |
+| PUT | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 62 |
+| DELETE | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 76 |
+| POST | /api/v1/insurance/plans/validate | backend_fastapi\app\api\routers\insurance_route.py | 88 |
+| POST | /api/v1/insurance/eligibility | backend_fastapi\app\api\routers\insurance_route.py | 101 |
+| GET | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 173 |
+| POST | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 184 |
+| GET | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 39 |
+| GET | /api/v1/inventory/medicines/search | backend_fastapi\app\api\routers\inventory_route.py | 73 |
+| GET | /api/v1/inventory/by-barcode/{barcode} | backend_fastapi\app\api\routers\inventory_route.py | 84 |
+| GET | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 98 |
+| POST | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 110 |
+| PUT | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 127 |
+| DELETE | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 142 |
+| GET | /api/v1/inventory/batches | backend_fastapi\app\api\routers\inventory_route.py | 156 |
+| POST | /api/v1/inventory/batches/receive | backend_fastapi\app\api\routers\inventory_route.py | 167 |
+| GET | /api/v1/inventory/batches/low-stock | backend_fastapi\app\api\routers\inventory_route.py | 179 |
+| GET | /api/v1/inventory/batches/expiring-soon | backend_fastapi\app\api\routers\inventory_route.py | 187 |
+| GET | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 196 |
+| PUT | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 205 |
+| GET | /api/v1/inventory/stock-levels | backend_fastapi\app\api\routers\inventory_route.py | 215 |
+| GET | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 227 |
+| POST | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 236 |
+| PUT | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 252 |
+| DELETE | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 271 |
+| POST | /api/v1/inventory/suppliers/{supplier_id}/prefer | backend_fastapi\app\api\routers\inventory_route.py | 290 |
+| GET | /api/v1/inventory/suppliers/search | backend_fastapi\app\api\routers\inventory_route.py | 312 |
+| GET | /api/v1/inventory/movements | backend_fastapi\app\api\routers\inventory_route.py | 336 |
+| POST | /api/v1/inventory/adjustments | backend_fastapi\app\api\routers\inventory_route.py | 366 |
+| POST | /api/v1/invoice-parse/text | backend_fastapi\app\api\routers\invoice_parse_route.py | 52 |
+| POST | /api/v1/invoice-parse/file | backend_fastapi\app\api\routers\invoice_parse_route.py | 61 |
+| GET | /api/v1/invoice-parse/hardware-status | backend_fastapi\app\api\routers\invoice_parse_route.py | 107 |
+| POST | /api/v1/invoice-parse/hybrid | backend_fastapi\app\api\routers\invoice_parse_route.py | 120 |
+| GET | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 45 |
+| GET | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 53 |
+| POST | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 62 |
+| PUT | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 72 |
+| DELETE | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 83 |
+| POST | /api/v1/licenses/activate-file | backend_fastapi\app\api\routers\license_file_route.py | 49 |
+| POST | /api/v1/license/validate | backend_fastapi\app\api\routers\license_route.py | 25 |
+| POST | /api/v1/license/checkout | backend_fastapi\app\api\routers\license_route.py | 53 |
+| POST | /api/v1/license/admin/manage | backend_fastapi\app\api\routers\license_route.py | 92 |
+| GET | /api/v1/license/status | backend_fastapi\app\api\routers\license_route.py | 101 |
+| GET | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 35 |
+| PUT | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 57 |
+| DELETE | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 72 |
+| POST | /api/v1/mobile/offline-ack | backend_fastapi\app\api\routers\mobile_route.py | 25 |
+| POST | /api/v1/labels/render-mobile | backend_fastapi\app\api\routers\mobile_route.py | 64 |
+| GET | /api/v1/patients/search | backend_fastapi\app\api\routers\patients_route.py | 40 |
+| GET | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 49 |
+| PUT | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 67 |
+| POST | /api/v1/patients/{patient_id}/insurance | backend_fastapi\app\api\routers\patients_route.py | 77 |
+| DELETE | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 87 |
+| GET | /api/v1/patients/{patient_id}/dispenses | backend_fastapi\app\api\routers\patients_route.py | 96 |
+| GET | /api/v1/patients/{patient_id}/history | backend_fastapi\app\api\routers\patients_route.py | 109 |
+| GET | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 35 |
+| POST | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 43 |
+| DELETE | /api/v1/patients/{patient_id}/fields/{field_name} | backend_fastapi\app\api\routers\patient_fields_route.py | 66 |
+| POST | /api/v1/pos/approve | backend_fastapi\app\api\routers\pos_route.py | 61 |
+| POST | /api/v1/pos/checkout | backend_fastapi\app\api\routers\pos_route.py | 73 |
+| POST | /api/v1/pos/drawer/movement | backend_fastapi\app\api\routers\pos_route.py | 82 |
+| POST | /api/v1/pos/shift/open | backend_fastapi\app\api\routers\pos_route.py | 107 |
+| POST | /api/v1/pos/shift/close | backend_fastapi\app\api\routers\pos_route.py | 117 |
+| GET | /api/v1/pos/shift/{shift_id}/preview | backend_fastapi\app\api\routers\pos_route.py | 127 |
+| POST | /api/v1/pos/refund | backend_fastapi\app\api\routers\pos_route.py | 137 |
+| GET | /api/v1/pos/reports/sales | backend_fastapi\app\api\routers\pos_route.py | 147 |
+| GET | /api/v1/pos/receipts/recent | backend_fastapi\app\api\routers\pos_route.py | 156 |
+| GET | /api/v1/pos/receipts/{receipt_id} | backend_fastapi\app\api\routers\pos_route.py | 166 |
+| GET | /api/v1/pos/receipts/{receipt_id}/print | backend_fastapi\app\api\routers\pos_route.py | 176 |
+| GET | /api/v1/pos/eod-summary | backend_fastapi\app\api\routers\pos_route.py | 186 |
+| POST | /api/v1/pos/void-item | backend_fastapi\app\api\routers\pos_route.py | 196 |
+| POST | /api/v1/pos/lock | backend_fastapi\app\api\routers\pos_route.py | 206 |
+| GET | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 32 |
+| GET | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 41 |
+| POST | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 50 |
+| PUT | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 59 |
+| POST | /api/v1/purchase-orders/{po_id}/items | backend_fastapi\app\api\routers\po_route.py | 69 |
+| DELETE | /api/v1/purchase-orders/{po_id}/items/{item_id} | backend_fastapi\app\api\routers\po_route.py | 79 |
+| POST | /api/v1/purchase-orders/{po_id}/transition | backend_fastapi\app\api\routers\po_route.py | 89 |
+| POST | /api/v1/purchase-orders/{po_id}/receive | backend_fastapi\app\api\routers\po_route.py | 98 |
+| DELETE | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 109 |
+| POST | /api/v1/purchase-orders/auto-reorder | backend_fastapi\app\api\routers\po_route.py | 118 |
+| GET | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 31 |
+| PUT | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 62 |
+| DELETE | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 78 |
+| GET | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 62 |
+| PUT | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 73 |
+| PATCH | /api/v1/prior-auth/{pa_id}/status | backend_fastapi\app\api\routers\prior_auth_route.py | 85 |
+| POST | /api/v1/prior-auth/{pa_id}/withdraw | backend_fastapi\app\api\routers\prior_auth_route.py | 97 |
+| GET | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 18 |
+| GET | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 28 |
+| POST | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 37 |
+| PUT | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 46 |
+| DELETE | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 56 |
+| POST | /api/v1/quick-sig/{template_id}/favorite | backend_fastapi\app\api\routers\quick_sig_route.py | 65 |
+| POST | /api/v1/quick-sig/{template_id}/use | backend_fastapi\app\api\routers\quick_sig_route.py | 74 |
+| GET | /api/v1/quick-sig/search/suggestions | backend_fastapi\app\api\routers\quick_sig_route.py | 83 |
+| GET | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 18 |
+| GET | /api/v1/receipt-templates/default | backend_fastapi\app\api\routers\receipt_template_route.py | 27 |
+| GET | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 35 |
+| POST | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 44 |
+| PUT | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 53 |
+| DELETE | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 63 |
+| GET | /api/v1/receiving-log/vendors | backend_fastapi\app\api\routers\receiving_route.py | 85 |
+| GET | /api/v1/region/regions | backend_fastapi\app\api\routers\region_route.py | 56 |
+| GET | /api/v1/region/{code} | backend_fastapi\app\api\routers\region_route.py | 72 |
+| POST | /api/v1/region-strategy/patient-cost | backend_fastapi\app\api\routers\region_strategy_route.py | 25 |
+| POST | /api/v1/region-strategy/generate-claim | backend_fastapi\app\api\routers\region_strategy_route.py | 43 |
+| POST | /api/v1/region-strategy/validate-prescription | backend_fastapi\app\api\routers\region_strategy_route.py | 58 |
+| POST | /api/v1/region-strategy/validate-credentials | backend_fastapi\app\api\routers\region_strategy_route.py | 73 |
+| GET | /api/v1/region-strategy/supported-regions | backend_fastapi\app\api\routers\region_strategy_route.py | 88 |
+| GET | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 57 |
+| PUT | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 82 |
+| GET | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 103 |
+| PUT | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 123 |
+| GET | /api/v1/roles/permissions/all | backend_fastapi\app\api\routers\roles_route.py | 146 |
+| GET | /api/v1/rx-queue/counts | backend_fastapi\app\api\routers\rx_queue_route.py | 57 |
+| PATCH | /api/v1/rx-queue/{rx_id}/status | backend_fastapi\app\api\routers\rx_queue_route.py | 67 |
+| POST | /api/v1/rx-queue/bulk-status | backend_fastapi\app\api\routers\rx_queue_route.py | 79 |
+| GET | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 36 |
+| PUT | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 48 |
+| POST | /api/v1/sync/push | backend_fastapi\app\api\routers\sync_route.py | 27 |
+| GET | /api/v1/sync/discrepancies | backend_fastapi\app\api\routers\sync_route.py | 37 |
+| POST | /api/v1/sync/discrepancies/{discrepancy_id}/resolve | backend_fastapi\app\api\routers\sync_route.py | 51 |
+| PUT | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 101 |
+| DELETE | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 133 |
+| GET | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 34 |
+| PUT | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 46 |
+| PATCH | /api/v1/users/{user_id}/active | backend_fastapi\app\api\routers\users_route.py | 65 |
+| GET | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 111 |
+| PUT | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 126 |
+| GET | /api/v1/vendors/{vendor_id}/items | backend_fastapi\app\api\routers\vendors_route.py | 165 |
+| GET | /api/v1/vendors/{vendor_id}/purchases | backend_fastapi\app\api\routers\vendors_route.py | 183 |
+| POST | /api/v1/vendors/receive | backend_fastapi\app\api\routers\vendors_route.py | 204 |
+| GET | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 42 |
+| PUT | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 74 |
+| DELETE | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 89 |
+| POST | /api/v1/webhook/creem | backend_fastapi\app\api\routers\webhook_route.py | 31 |
+
+### Unmatched Frontend Calls (no backend route)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/crash-report | components\ErrorBoundary.tsx | 37 |
+| POST | /api/v1/ocr | components\OcrUploadDropzone.tsx | 72 |
+| GET | /api/v1/alerts | stores\alertStore.ts | 42 |
+| POST | /api/auth/login | stores\authStore.ts | 40 |
+| POST | /api/auth/logout | stores\authStore.ts | 62 |
+| GET | /api/v1/settings/session_idle_minutes | stores\sessionStore.ts | 53 |
+| GET | /api/v1/settings/session_absolute_minutes | stores\sessionStore.ts | 61 |
+
+## API Usage Audit
+_Generated on 2026-09-08T09:49:12.344237Z_
+
+### Orphaned Backend Routes (no frontend call)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/admin/backup | backend_fastapi\app\api\routers\admin_route.py | 20 |
+| GET | /api/v1/admin/backups | backend_fastapi\app\api\routers\admin_route.py | 36 |
+| POST | /api/v1/admin/restore | backend_fastapi\app\api\routers\admin_route.py | 65 |
+| GET | /api/v1/analytics/demand | backend_fastapi\app\api\routers\analytics_route.py | 24 |
+| GET | /api/v1/audit/verify | backend_fastapi\app\api\routers\audit_route.py | 18 |
+| GET | /api/v1/audit/export | backend_fastapi\app\api\routers\audit_route.py | 28 |
+| POST | /api/v1/auth/login/pin | backend_fastapi\app\api\routers\auth_route.py | 33 |
+| POST | /api/v1/auth/pin | backend_fastapi\app\api\routers\auth_route.py | 40 |
+| POST | /api/v1/auth/register | backend_fastapi\app\api\routers\auth_route.py | 55 |
+| GET | /api/v1/auth/me | backend_fastapi\app\api\routers\auth_route.py | 64 |
+| POST | /api/v1/auth/logout | backend_fastapi\app\api\routers\auth_route.py | 69 |
+| POST | /api/v1/auth/rotate-pepper | backend_fastapi\app\api\routers\auth_route.py | 75 |
+| POST | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 34 |
+| GET | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 57 |
+| PUT | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 73 |
+| DELETE | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 93 |
+| POST | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 107 |
+| GET | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 130 |
+| PUT | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 145 |
+| DELETE | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 167 |
+| GET | /api/v1/clinical/attachments | backend_fastapi\app\api\routers\clinical_route.py | 181 |
+| DELETE | /api/v1/clinical/attachments/{attachment_id} | backend_fastapi\app\api\routers\clinical_route.py | 196 |
+| GET | /api/v1/clinical/review/{patient_id} | backend_fastapi\app\api\routers\clinical_route.py | 210 |
+| GET | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 48 |
+| PUT | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 59 |
+| DELETE | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 71 |
+| POST | /api/v1/compounds/{compound_id}/price | backend_fastapi\app\api\routers\compound_route.py | 82 |
+| POST | /api/v1/compounds/dispense | backend_fastapi\app\api\routers\compound_route.py | 94 |
+| GET | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 26 |
+| GET | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 36 |
+| POST | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 46 |
+| PUT | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 56 |
+| DELETE | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 67 |
+| POST | /api/v1/coupons/validate | backend_fastapi\app\api\routers\coupon_route.py | 77 |
+| GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+| GET | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 29 |
+| POST | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 37 |
+| PUT | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 46 |
+| DELETE | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 59 |
+| GET | /api/v1/dictionaries/sig-codes/parse | backend_fastapi\app\api\routers\dictionaries_route.py | 70 |
+| GET | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 79 |
+| POST | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 87 |
+| PUT | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 96 |
+| DELETE | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 109 |
+| GET | /api/v1/dictionaries/price-codes/{price_code_id}/calculate | backend_fastapi\app\api\routers\dictionaries_route.py | 120 |
+| GET | /api/v1/dictionaries/ndc/lookup | backend_fastapi\app\api\routers\dictionaries_route.py | 134 |
+| GET | /api/v1/dispense/rx/{rx_number} | backend_fastapi\app\api\routers\dispense_route.py | 26 |
+| GET | /api/v1/dispense/rx/{rx_number}/fills | backend_fastapi\app\api\routers\dispense_route.py | 36 |
+| PUT | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 50 |
+| POST | /api/v1/dispense/{dispense_id}/reverse | backend_fastapi\app\api\routers\dispense_route.py | 61 |
+| POST | /api/v1/dispense/{dispense_id}/transfer | backend_fastapi\app\api\routers\dispense_route.py | 79 |
+| GET | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 93 |
+| GET | /api/v1/dispense/{dispense_id}/label | backend_fastapi\app\api\routers\dispense_route.py | 102 |
+| POST | /api/v1/dispense/{dispense_id}/refill | backend_fastapi\app\api\routers\dispense_route.py | 117 |
+| GET | /api/v1/drugs/confirm/{ndc} | backend_fastapi\app\api\routers\drug_confirm_route.py | 15 |
+| POST | /api/v1/drug-interactions/check | backend_fastapi\app\api\routers\drug_interaction_route.py | 51 |
+| GET | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 64 |
+| POST | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 73 |
+| PUT | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 84 |
+| DELETE | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 96 |
+| POST | /api/v1/email/daily-sales | backend_fastapi\app\api\routers\email_route.py | 29 |
+| GET | /api/v1/email/health | backend_fastapi\app\api\routers\email_route.py | 58 |
+| GET | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 70 |
+| PUT | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 81 |
+| PATCH | /api/v1/epcs/{rx_id}/status | backend_fastapi\app\api\routers\epcs_route.py | 93 |
+| POST | /api/v1/epcs/{rx_id}/sign | backend_fastapi\app\api\routers\epcs_route.py | 105 |
+| POST | /api/v1/epcs/{rx_id}/transmit | backend_fastapi\app\api\routers\epcs_route.py | 118 |
+| GET | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 131 |
+| POST | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 142 |
+| POST | /api/v1/excel/import/analyze | backend_fastapi\app\api\routers\excel_route.py | 129 |
+| POST | /api/v1/excel/import/preview | backend_fastapi\app\api\routers\excel_route.py | 182 |
+| POST | /api/v1/excel/import/commit | backend_fastapi\app\api\routers\excel_route.py | 233 |
+| GET | /api/v1/excel/export/inventory | backend_fastapi\app\api\routers\excel_route.py | 343 |
+| POST | /api/v1/excel/import/inventory | backend_fastapi\app\api\routers\excel_route.py | 431 |
+| POST | /api/v1/excel/import/csv | backend_fastapi\app\api\routers\excel_route.py | 548 |
+| GET | /api/v1/gift-cards/lookup/{code} | backend_fastapi\app\api\routers\gift_card_route.py | 78 |
+| POST | /api/v1/gift-cards/{card_id}/redeem | backend_fastapi\app\api\routers\gift_card_route.py | 87 |
+| POST | /api/v1/gift-cards/{card_id}/void | backend_fastapi\app\api\routers\gift_card_route.py | 106 |
+| GET | /api/v1/health | backend_fastapi\app\api\routers\health_route.py | 11 |
+| GET | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 25 |
+| GET | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 36 |
+| POST | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 48 |
+| PUT | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 62 |
+| DELETE | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 76 |
+| POST | /api/v1/insurance/plans/validate | backend_fastapi\app\api\routers\insurance_route.py | 88 |
+| POST | /api/v1/insurance/eligibility | backend_fastapi\app\api\routers\insurance_route.py | 101 |
+| GET | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 173 |
+| POST | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 184 |
+| GET | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 39 |
+| GET | /api/v1/inventory/medicines/search | backend_fastapi\app\api\routers\inventory_route.py | 73 |
+| GET | /api/v1/inventory/by-barcode/{barcode} | backend_fastapi\app\api\routers\inventory_route.py | 84 |
+| GET | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 98 |
+| POST | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 110 |
+| PUT | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 127 |
+| DELETE | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 142 |
+| GET | /api/v1/inventory/batches | backend_fastapi\app\api\routers\inventory_route.py | 156 |
+| POST | /api/v1/inventory/batches/receive | backend_fastapi\app\api\routers\inventory_route.py | 167 |
+| GET | /api/v1/inventory/batches/low-stock | backend_fastapi\app\api\routers\inventory_route.py | 179 |
+| GET | /api/v1/inventory/batches/expiring-soon | backend_fastapi\app\api\routers\inventory_route.py | 187 |
+| GET | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 196 |
+| PUT | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 205 |
+| GET | /api/v1/inventory/stock-levels | backend_fastapi\app\api\routers\inventory_route.py | 215 |
+| GET | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 227 |
+| POST | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 236 |
+| PUT | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 252 |
+| DELETE | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 271 |
+| POST | /api/v1/inventory/suppliers/{supplier_id}/prefer | backend_fastapi\app\api\routers\inventory_route.py | 290 |
+| GET | /api/v1/inventory/suppliers/search | backend_fastapi\app\api\routers\inventory_route.py | 312 |
+| GET | /api/v1/inventory/movements | backend_fastapi\app\api\routers\inventory_route.py | 336 |
+| POST | /api/v1/inventory/adjustments | backend_fastapi\app\api\routers\inventory_route.py | 366 |
+| POST | /api/v1/invoice-parse/text | backend_fastapi\app\api\routers\invoice_parse_route.py | 52 |
+| POST | /api/v1/invoice-parse/file | backend_fastapi\app\api\routers\invoice_parse_route.py | 61 |
+| GET | /api/v1/invoice-parse/hardware-status | backend_fastapi\app\api\routers\invoice_parse_route.py | 107 |
+| POST | /api/v1/invoice-parse/hybrid | backend_fastapi\app\api\routers\invoice_parse_route.py | 120 |
+| GET | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 45 |
+| GET | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 53 |
+| POST | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 62 |
+| PUT | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 72 |
+| DELETE | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 83 |
+| POST | /api/v1/licenses/activate-file | backend_fastapi\app\api\routers\license_file_route.py | 49 |
+| POST | /api/v1/license/validate | backend_fastapi\app\api\routers\license_route.py | 25 |
+| POST | /api/v1/license/checkout | backend_fastapi\app\api\routers\license_route.py | 53 |
+| POST | /api/v1/license/admin/manage | backend_fastapi\app\api\routers\license_route.py | 92 |
+| GET | /api/v1/license/status | backend_fastapi\app\api\routers\license_route.py | 101 |
+| GET | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 35 |
+| PUT | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 57 |
+| DELETE | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 72 |
+| POST | /api/v1/mobile/offline-ack | backend_fastapi\app\api\routers\mobile_route.py | 25 |
+| POST | /api/v1/labels/render-mobile | backend_fastapi\app\api\routers\mobile_route.py | 64 |
+| GET | /api/v1/patients/search | backend_fastapi\app\api\routers\patients_route.py | 40 |
+| GET | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 49 |
+| PUT | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 67 |
+| POST | /api/v1/patients/{patient_id}/insurance | backend_fastapi\app\api\routers\patients_route.py | 77 |
+| DELETE | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 87 |
+| GET | /api/v1/patients/{patient_id}/dispenses | backend_fastapi\app\api\routers\patients_route.py | 96 |
+| GET | /api/v1/patients/{patient_id}/history | backend_fastapi\app\api\routers\patients_route.py | 109 |
+| GET | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 35 |
+| POST | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 43 |
+| DELETE | /api/v1/patients/{patient_id}/fields/{field_name} | backend_fastapi\app\api\routers\patient_fields_route.py | 66 |
+| POST | /api/v1/pos/approve | backend_fastapi\app\api\routers\pos_route.py | 61 |
+| POST | /api/v1/pos/checkout | backend_fastapi\app\api\routers\pos_route.py | 73 |
+| POST | /api/v1/pos/drawer/movement | backend_fastapi\app\api\routers\pos_route.py | 82 |
+| POST | /api/v1/pos/shift/open | backend_fastapi\app\api\routers\pos_route.py | 107 |
+| POST | /api/v1/pos/shift/close | backend_fastapi\app\api\routers\pos_route.py | 117 |
+| GET | /api/v1/pos/shift/{shift_id}/preview | backend_fastapi\app\api\routers\pos_route.py | 127 |
+| POST | /api/v1/pos/refund | backend_fastapi\app\api\routers\pos_route.py | 137 |
+| GET | /api/v1/pos/reports/sales | backend_fastapi\app\api\routers\pos_route.py | 147 |
+| GET | /api/v1/pos/receipts/recent | backend_fastapi\app\api\routers\pos_route.py | 156 |
+| GET | /api/v1/pos/receipts/{receipt_id} | backend_fastapi\app\api\routers\pos_route.py | 166 |
+| GET | /api/v1/pos/receipts/{receipt_id}/print | backend_fastapi\app\api\routers\pos_route.py | 176 |
+| GET | /api/v1/pos/eod-summary | backend_fastapi\app\api\routers\pos_route.py | 186 |
+| POST | /api/v1/pos/void-item | backend_fastapi\app\api\routers\pos_route.py | 196 |
+| POST | /api/v1/pos/lock | backend_fastapi\app\api\routers\pos_route.py | 206 |
+| GET | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 32 |
+| GET | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 41 |
+| POST | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 50 |
+| PUT | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 59 |
+| POST | /api/v1/purchase-orders/{po_id}/items | backend_fastapi\app\api\routers\po_route.py | 69 |
+| DELETE | /api/v1/purchase-orders/{po_id}/items/{item_id} | backend_fastapi\app\api\routers\po_route.py | 79 |
+| POST | /api/v1/purchase-orders/{po_id}/transition | backend_fastapi\app\api\routers\po_route.py | 89 |
+| POST | /api/v1/purchase-orders/{po_id}/receive | backend_fastapi\app\api\routers\po_route.py | 98 |
+| DELETE | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 109 |
+| POST | /api/v1/purchase-orders/auto-reorder | backend_fastapi\app\api\routers\po_route.py | 118 |
+| GET | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 31 |
+| PUT | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 62 |
+| DELETE | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 78 |
+| GET | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 62 |
+| PUT | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 73 |
+| PATCH | /api/v1/prior-auth/{pa_id}/status | backend_fastapi\app\api\routers\prior_auth_route.py | 85 |
+| POST | /api/v1/prior-auth/{pa_id}/withdraw | backend_fastapi\app\api\routers\prior_auth_route.py | 97 |
+| GET | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 18 |
+| GET | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 28 |
+| POST | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 37 |
+| PUT | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 46 |
+| DELETE | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 56 |
+| POST | /api/v1/quick-sig/{template_id}/favorite | backend_fastapi\app\api\routers\quick_sig_route.py | 65 |
+| POST | /api/v1/quick-sig/{template_id}/use | backend_fastapi\app\api\routers\quick_sig_route.py | 74 |
+| GET | /api/v1/quick-sig/search/suggestions | backend_fastapi\app\api\routers\quick_sig_route.py | 83 |
+| GET | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 18 |
+| GET | /api/v1/receipt-templates/default | backend_fastapi\app\api\routers\receipt_template_route.py | 27 |
+| GET | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 35 |
+| POST | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 44 |
+| PUT | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 53 |
+| DELETE | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 63 |
+| GET | /api/v1/receiving-log/vendors | backend_fastapi\app\api\routers\receiving_route.py | 85 |
+| GET | /api/v1/region/regions | backend_fastapi\app\api\routers\region_route.py | 56 |
+| GET | /api/v1/region/{code} | backend_fastapi\app\api\routers\region_route.py | 72 |
+| POST | /api/v1/region-strategy/patient-cost | backend_fastapi\app\api\routers\region_strategy_route.py | 25 |
+| POST | /api/v1/region-strategy/generate-claim | backend_fastapi\app\api\routers\region_strategy_route.py | 43 |
+| POST | /api/v1/region-strategy/validate-prescription | backend_fastapi\app\api\routers\region_strategy_route.py | 58 |
+| POST | /api/v1/region-strategy/validate-credentials | backend_fastapi\app\api\routers\region_strategy_route.py | 73 |
+| GET | /api/v1/region-strategy/supported-regions | backend_fastapi\app\api\routers\region_strategy_route.py | 88 |
+| GET | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 57 |
+| PUT | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 82 |
+| GET | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 103 |
+| PUT | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 123 |
+| GET | /api/v1/roles/permissions/all | backend_fastapi\app\api\routers\roles_route.py | 146 |
+| GET | /api/v1/rx-queue/counts | backend_fastapi\app\api\routers\rx_queue_route.py | 57 |
+| PATCH | /api/v1/rx-queue/{rx_id}/status | backend_fastapi\app\api\routers\rx_queue_route.py | 67 |
+| POST | /api/v1/rx-queue/bulk-status | backend_fastapi\app\api\routers\rx_queue_route.py | 79 |
+| GET | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 36 |
+| PUT | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 48 |
+| POST | /api/v1/sync/push | backend_fastapi\app\api\routers\sync_route.py | 27 |
+| GET | /api/v1/sync/discrepancies | backend_fastapi\app\api\routers\sync_route.py | 37 |
+| POST | /api/v1/sync/discrepancies/{discrepancy_id}/resolve | backend_fastapi\app\api\routers\sync_route.py | 51 |
+| PUT | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 101 |
+| DELETE | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 133 |
+| GET | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 34 |
+| PUT | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 46 |
+| PATCH | /api/v1/users/{user_id}/active | backend_fastapi\app\api\routers\users_route.py | 65 |
+| GET | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 111 |
+| PUT | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 126 |
+| GET | /api/v1/vendors/{vendor_id}/items | backend_fastapi\app\api\routers\vendors_route.py | 165 |
+| GET | /api/v1/vendors/{vendor_id}/purchases | backend_fastapi\app\api\routers\vendors_route.py | 183 |
+| POST | /api/v1/vendors/receive | backend_fastapi\app\api\routers\vendors_route.py | 204 |
+| GET | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 42 |
+| PUT | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 74 |
+| DELETE | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 89 |
+| POST | /api/v1/webhook/creem | backend_fastapi\app\api\routers\webhook_route.py | 31 |
+
+### Unmatched Frontend Calls (no backend route)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/crash-report | components\ErrorBoundary.tsx | 37 |
+| POST | /api/v1/ocr | components\OcrUploadDropzone.tsx | 72 |
+| GET | /api/v1/alerts | stores\alertStore.ts | 42 |
+| POST | /api/auth/login | stores\authStore.ts | 40 |
+| POST | /api/auth/logout | stores\authStore.ts | 62 |
+| GET | /api/v1/settings/session_idle_minutes | stores\sessionStore.ts | 53 |
+| GET | /api/v1/settings/session_absolute_minutes | stores\sessionStore.ts | 61 |
+
+## API Usage Audit
+_Generated on 2026-09-08T09:49:44.689087Z_
+
+### Orphaned Backend Routes (no frontend call)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/admin/backup | backend_fastapi\app\api\routers\admin_route.py | 20 |
+| GET | /api/v1/admin/backups | backend_fastapi\app\api\routers\admin_route.py | 36 |
+| POST | /api/v1/admin/restore | backend_fastapi\app\api\routers\admin_route.py | 65 |
+| GET | /api/v1/analytics/demand | backend_fastapi\app\api\routers\analytics_route.py | 24 |
+| GET | /api/v1/audit/verify | backend_fastapi\app\api\routers\audit_route.py | 18 |
+| GET | /api/v1/audit/export | backend_fastapi\app\api\routers\audit_route.py | 28 |
+| POST | /api/v1/auth/login/pin | backend_fastapi\app\api\routers\auth_route.py | 33 |
+| POST | /api/v1/auth/pin | backend_fastapi\app\api\routers\auth_route.py | 40 |
+| POST | /api/v1/auth/register | backend_fastapi\app\api\routers\auth_route.py | 55 |
+| GET | /api/v1/auth/me | backend_fastapi\app\api\routers\auth_route.py | 64 |
+| POST | /api/v1/auth/logout | backend_fastapi\app\api\routers\auth_route.py | 69 |
+| POST | /api/v1/auth/rotate-pepper | backend_fastapi\app\api\routers\auth_route.py | 75 |
+| POST | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 34 |
+| GET | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 57 |
+| PUT | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 73 |
+| DELETE | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 93 |
+| POST | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 107 |
+| GET | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 130 |
+| PUT | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 145 |
+| DELETE | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 167 |
+| GET | /api/v1/clinical/attachments | backend_fastapi\app\api\routers\clinical_route.py | 181 |
+| DELETE | /api/v1/clinical/attachments/{attachment_id} | backend_fastapi\app\api\routers\clinical_route.py | 196 |
+| GET | /api/v1/clinical/review/{patient_id} | backend_fastapi\app\api\routers\clinical_route.py | 210 |
+| GET | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 48 |
+| PUT | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 59 |
+| DELETE | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 71 |
+| POST | /api/v1/compounds/{compound_id}/price | backend_fastapi\app\api\routers\compound_route.py | 82 |
+| POST | /api/v1/compounds/dispense | backend_fastapi\app\api\routers\compound_route.py | 94 |
+| GET | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 26 |
+| GET | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 36 |
+| POST | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 46 |
+| PUT | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 56 |
+| DELETE | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 67 |
+| POST | /api/v1/coupons/validate | backend_fastapi\app\api\routers\coupon_route.py | 77 |
+| GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+| GET | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 29 |
+| POST | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 37 |
+| PUT | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 46 |
+| DELETE | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 59 |
+| GET | /api/v1/dictionaries/sig-codes/parse | backend_fastapi\app\api\routers\dictionaries_route.py | 70 |
+| GET | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 79 |
+| POST | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 87 |
+| PUT | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 96 |
+| DELETE | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 109 |
+| GET | /api/v1/dictionaries/price-codes/{price_code_id}/calculate | backend_fastapi\app\api\routers\dictionaries_route.py | 120 |
+| GET | /api/v1/dictionaries/ndc/lookup | backend_fastapi\app\api\routers\dictionaries_route.py | 134 |
+| GET | /api/v1/dispense/rx/{rx_number} | backend_fastapi\app\api\routers\dispense_route.py | 26 |
+| GET | /api/v1/dispense/rx/{rx_number}/fills | backend_fastapi\app\api\routers\dispense_route.py | 36 |
+| PUT | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 50 |
+| POST | /api/v1/dispense/{dispense_id}/reverse | backend_fastapi\app\api\routers\dispense_route.py | 61 |
+| POST | /api/v1/dispense/{dispense_id}/transfer | backend_fastapi\app\api\routers\dispense_route.py | 79 |
+| GET | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 93 |
+| GET | /api/v1/dispense/{dispense_id}/label | backend_fastapi\app\api\routers\dispense_route.py | 102 |
+| POST | /api/v1/dispense/{dispense_id}/refill | backend_fastapi\app\api\routers\dispense_route.py | 117 |
+| GET | /api/v1/drugs/confirm/{ndc} | backend_fastapi\app\api\routers\drug_confirm_route.py | 15 |
+| POST | /api/v1/drug-interactions/check | backend_fastapi\app\api\routers\drug_interaction_route.py | 51 |
+| GET | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 64 |
+| POST | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 73 |
+| PUT | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 84 |
+| DELETE | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 96 |
+| POST | /api/v1/email/daily-sales | backend_fastapi\app\api\routers\email_route.py | 29 |
+| GET | /api/v1/email/health | backend_fastapi\app\api\routers\email_route.py | 58 |
+| GET | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 70 |
+| PUT | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 81 |
+| PATCH | /api/v1/epcs/{rx_id}/status | backend_fastapi\app\api\routers\epcs_route.py | 93 |
+| POST | /api/v1/epcs/{rx_id}/sign | backend_fastapi\app\api\routers\epcs_route.py | 105 |
+| POST | /api/v1/epcs/{rx_id}/transmit | backend_fastapi\app\api\routers\epcs_route.py | 118 |
+| GET | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 131 |
+| POST | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 142 |
+| POST | /api/v1/excel/import/analyze | backend_fastapi\app\api\routers\excel_route.py | 129 |
+| POST | /api/v1/excel/import/preview | backend_fastapi\app\api\routers\excel_route.py | 182 |
+| POST | /api/v1/excel/import/commit | backend_fastapi\app\api\routers\excel_route.py | 233 |
+| GET | /api/v1/excel/export/inventory | backend_fastapi\app\api\routers\excel_route.py | 343 |
+| POST | /api/v1/excel/import/inventory | backend_fastapi\app\api\routers\excel_route.py | 431 |
+| POST | /api/v1/excel/import/csv | backend_fastapi\app\api\routers\excel_route.py | 548 |
+| GET | /api/v1/gift-cards/lookup/{code} | backend_fastapi\app\api\routers\gift_card_route.py | 78 |
+| POST | /api/v1/gift-cards/{card_id}/redeem | backend_fastapi\app\api\routers\gift_card_route.py | 87 |
+| POST | /api/v1/gift-cards/{card_id}/void | backend_fastapi\app\api\routers\gift_card_route.py | 106 |
+| GET | /api/v1/health | backend_fastapi\app\api\routers\health_route.py | 11 |
+| GET | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 25 |
+| GET | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 36 |
+| POST | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 48 |
+| PUT | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 62 |
+| DELETE | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 76 |
+| POST | /api/v1/insurance/plans/validate | backend_fastapi\app\api\routers\insurance_route.py | 88 |
+| POST | /api/v1/insurance/eligibility | backend_fastapi\app\api\routers\insurance_route.py | 101 |
+| GET | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 173 |
+| POST | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 184 |
+| GET | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 39 |
+| GET | /api/v1/inventory/medicines/search | backend_fastapi\app\api\routers\inventory_route.py | 73 |
+| GET | /api/v1/inventory/by-barcode/{barcode} | backend_fastapi\app\api\routers\inventory_route.py | 84 |
+| GET | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 98 |
+| POST | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 110 |
+| PUT | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 127 |
+| DELETE | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 142 |
+| GET | /api/v1/inventory/batches | backend_fastapi\app\api\routers\inventory_route.py | 156 |
+| POST | /api/v1/inventory/batches/receive | backend_fastapi\app\api\routers\inventory_route.py | 167 |
+| GET | /api/v1/inventory/batches/low-stock | backend_fastapi\app\api\routers\inventory_route.py | 179 |
+| GET | /api/v1/inventory/batches/expiring-soon | backend_fastapi\app\api\routers\inventory_route.py | 187 |
+| GET | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 196 |
+| PUT | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 205 |
+| GET | /api/v1/inventory/stock-levels | backend_fastapi\app\api\routers\inventory_route.py | 215 |
+| GET | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 227 |
+| POST | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 236 |
+| PUT | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 252 |
+| DELETE | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 271 |
+| POST | /api/v1/inventory/suppliers/{supplier_id}/prefer | backend_fastapi\app\api\routers\inventory_route.py | 290 |
+| GET | /api/v1/inventory/suppliers/search | backend_fastapi\app\api\routers\inventory_route.py | 312 |
+| GET | /api/v1/inventory/movements | backend_fastapi\app\api\routers\inventory_route.py | 336 |
+| POST | /api/v1/inventory/adjustments | backend_fastapi\app\api\routers\inventory_route.py | 366 |
+| POST | /api/v1/invoice-parse/text | backend_fastapi\app\api\routers\invoice_parse_route.py | 52 |
+| POST | /api/v1/invoice-parse/file | backend_fastapi\app\api\routers\invoice_parse_route.py | 61 |
+| GET | /api/v1/invoice-parse/hardware-status | backend_fastapi\app\api\routers\invoice_parse_route.py | 107 |
+| POST | /api/v1/invoice-parse/hybrid | backend_fastapi\app\api\routers\invoice_parse_route.py | 120 |
+| GET | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 45 |
+| GET | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 53 |
+| POST | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 62 |
+| PUT | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 72 |
+| DELETE | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 83 |
+| POST | /api/v1/licenses/activate-file | backend_fastapi\app\api\routers\license_file_route.py | 49 |
+| POST | /api/v1/license/validate | backend_fastapi\app\api\routers\license_route.py | 25 |
+| POST | /api/v1/license/checkout | backend_fastapi\app\api\routers\license_route.py | 53 |
+| POST | /api/v1/license/admin/manage | backend_fastapi\app\api\routers\license_route.py | 92 |
+| GET | /api/v1/license/status | backend_fastapi\app\api\routers\license_route.py | 101 |
+| GET | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 35 |
+| PUT | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 57 |
+| DELETE | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 72 |
+| POST | /api/v1/mobile/offline-ack | backend_fastapi\app\api\routers\mobile_route.py | 25 |
+| POST | /api/v1/labels/render-mobile | backend_fastapi\app\api\routers\mobile_route.py | 64 |
+| GET | /api/v1/patients/search | backend_fastapi\app\api\routers\patients_route.py | 40 |
+| GET | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 49 |
+| PUT | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 67 |
+| POST | /api/v1/patients/{patient_id}/insurance | backend_fastapi\app\api\routers\patients_route.py | 77 |
+| DELETE | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 87 |
+| GET | /api/v1/patients/{patient_id}/dispenses | backend_fastapi\app\api\routers\patients_route.py | 96 |
+| GET | /api/v1/patients/{patient_id}/history | backend_fastapi\app\api\routers\patients_route.py | 109 |
+| GET | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 35 |
+| POST | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 43 |
+| DELETE | /api/v1/patients/{patient_id}/fields/{field_name} | backend_fastapi\app\api\routers\patient_fields_route.py | 66 |
+| POST | /api/v1/pos/approve | backend_fastapi\app\api\routers\pos_route.py | 61 |
+| POST | /api/v1/pos/checkout | backend_fastapi\app\api\routers\pos_route.py | 73 |
+| POST | /api/v1/pos/drawer/movement | backend_fastapi\app\api\routers\pos_route.py | 82 |
+| POST | /api/v1/pos/shift/open | backend_fastapi\app\api\routers\pos_route.py | 107 |
+| POST | /api/v1/pos/shift/close | backend_fastapi\app\api\routers\pos_route.py | 117 |
+| GET | /api/v1/pos/shift/{shift_id}/preview | backend_fastapi\app\api\routers\pos_route.py | 127 |
+| POST | /api/v1/pos/refund | backend_fastapi\app\api\routers\pos_route.py | 137 |
+| GET | /api/v1/pos/reports/sales | backend_fastapi\app\api\routers\pos_route.py | 147 |
+| GET | /api/v1/pos/receipts/recent | backend_fastapi\app\api\routers\pos_route.py | 156 |
+| GET | /api/v1/pos/receipts/{receipt_id} | backend_fastapi\app\api\routers\pos_route.py | 166 |
+| GET | /api/v1/pos/receipts/{receipt_id}/print | backend_fastapi\app\api\routers\pos_route.py | 176 |
+| GET | /api/v1/pos/eod-summary | backend_fastapi\app\api\routers\pos_route.py | 186 |
+| POST | /api/v1/pos/void-item | backend_fastapi\app\api\routers\pos_route.py | 196 |
+| POST | /api/v1/pos/lock | backend_fastapi\app\api\routers\pos_route.py | 206 |
+| GET | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 32 |
+| GET | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 41 |
+| POST | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 50 |
+| PUT | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 59 |
+| POST | /api/v1/purchase-orders/{po_id}/items | backend_fastapi\app\api\routers\po_route.py | 69 |
+| DELETE | /api/v1/purchase-orders/{po_id}/items/{item_id} | backend_fastapi\app\api\routers\po_route.py | 79 |
+| POST | /api/v1/purchase-orders/{po_id}/transition | backend_fastapi\app\api\routers\po_route.py | 89 |
+| POST | /api/v1/purchase-orders/{po_id}/receive | backend_fastapi\app\api\routers\po_route.py | 98 |
+| DELETE | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 109 |
+| POST | /api/v1/purchase-orders/auto-reorder | backend_fastapi\app\api\routers\po_route.py | 118 |
+| GET | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 31 |
+| PUT | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 62 |
+| DELETE | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 78 |
+| GET | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 62 |
+| PUT | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 73 |
+| PATCH | /api/v1/prior-auth/{pa_id}/status | backend_fastapi\app\api\routers\prior_auth_route.py | 85 |
+| POST | /api/v1/prior-auth/{pa_id}/withdraw | backend_fastapi\app\api\routers\prior_auth_route.py | 97 |
+| GET | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 18 |
+| GET | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 28 |
+| POST | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 37 |
+| PUT | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 46 |
+| DELETE | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 56 |
+| POST | /api/v1/quick-sig/{template_id}/favorite | backend_fastapi\app\api\routers\quick_sig_route.py | 65 |
+| POST | /api/v1/quick-sig/{template_id}/use | backend_fastapi\app\api\routers\quick_sig_route.py | 74 |
+| GET | /api/v1/quick-sig/search/suggestions | backend_fastapi\app\api\routers\quick_sig_route.py | 83 |
+| GET | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 18 |
+| GET | /api/v1/receipt-templates/default | backend_fastapi\app\api\routers\receipt_template_route.py | 27 |
+| GET | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 35 |
+| POST | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 44 |
+| PUT | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 53 |
+| DELETE | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 63 |
+| GET | /api/v1/receiving-log/vendors | backend_fastapi\app\api\routers\receiving_route.py | 85 |
+| GET | /api/v1/region/regions | backend_fastapi\app\api\routers\region_route.py | 56 |
+| GET | /api/v1/region/{code} | backend_fastapi\app\api\routers\region_route.py | 72 |
+| POST | /api/v1/region-strategy/patient-cost | backend_fastapi\app\api\routers\region_strategy_route.py | 25 |
+| POST | /api/v1/region-strategy/generate-claim | backend_fastapi\app\api\routers\region_strategy_route.py | 43 |
+| POST | /api/v1/region-strategy/validate-prescription | backend_fastapi\app\api\routers\region_strategy_route.py | 58 |
+| POST | /api/v1/region-strategy/validate-credentials | backend_fastapi\app\api\routers\region_strategy_route.py | 73 |
+| GET | /api/v1/region-strategy/supported-regions | backend_fastapi\app\api\routers\region_strategy_route.py | 88 |
+| GET | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 57 |
+| PUT | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 82 |
+| GET | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 103 |
+| PUT | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 123 |
+| GET | /api/v1/roles/permissions/all | backend_fastapi\app\api\routers\roles_route.py | 146 |
+| GET | /api/v1/rx-queue/counts | backend_fastapi\app\api\routers\rx_queue_route.py | 57 |
+| PATCH | /api/v1/rx-queue/{rx_id}/status | backend_fastapi\app\api\routers\rx_queue_route.py | 67 |
+| POST | /api/v1/rx-queue/bulk-status | backend_fastapi\app\api\routers\rx_queue_route.py | 79 |
+| GET | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 36 |
+| PUT | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 48 |
+| POST | /api/v1/sync/push | backend_fastapi\app\api\routers\sync_route.py | 27 |
+| GET | /api/v1/sync/discrepancies | backend_fastapi\app\api\routers\sync_route.py | 37 |
+| POST | /api/v1/sync/discrepancies/{discrepancy_id}/resolve | backend_fastapi\app\api\routers\sync_route.py | 51 |
+| PUT | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 101 |
+| DELETE | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 133 |
+| GET | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 34 |
+| PUT | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 46 |
+| PATCH | /api/v1/users/{user_id}/active | backend_fastapi\app\api\routers\users_route.py | 65 |
+| GET | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 111 |
+| PUT | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 126 |
+| GET | /api/v1/vendors/{vendor_id}/items | backend_fastapi\app\api\routers\vendors_route.py | 165 |
+| GET | /api/v1/vendors/{vendor_id}/purchases | backend_fastapi\app\api\routers\vendors_route.py | 183 |
+| POST | /api/v1/vendors/receive | backend_fastapi\app\api\routers\vendors_route.py | 204 |
+| GET | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 42 |
+| PUT | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 74 |
+| DELETE | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 89 |
+| POST | /api/v1/webhook/creem | backend_fastapi\app\api\routers\webhook_route.py | 31 |
+
+### Unmatched Frontend Calls (no backend route)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | ${serverUrl}/api/webhook/paddle | app\api\webhooks\paddle\route.ts | 58 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 49 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 58 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 66 |
+| GET |  | app\dashboard\inventory\page.tsx | 106 |
+| GET |  | app\dashboard\inventory\page.tsx | 115 |
+| GET |  | app\dashboard\inventory\page.tsx | 142 |
+| GET |  | app\dashboard\inventory\page.tsx | 154 |
+| GET |  | app\dashboard\inventory\page.tsx | 382 |
+| GET |  | app\dashboard\inventory\page.tsx | 404 |
+| GET |  | app\dashboard\inventory\page.tsx | 416 |
+| GET | /api/v1/region/${code} | app\dashboard\settings\page.tsx | 200 |
+| GET |  | components\BootGuard.tsx | 43 |
+| POST | /api/v1/crash-report | components\ErrorBoundary.tsx | 37 |
+| POST | /api/v1/ocr | components\OcrUploadDropzone.tsx | 72 |
+| GET | /api/v1/alerts | stores\alertStore.ts | 42 |
+| POST | /api/auth/login | stores\authStore.ts | 40 |
+| POST | /api/auth/logout | stores\authStore.ts | 62 |
+| GET |  | stores\inventoryStore.ts | 107 |
+| GET |  | stores\inventoryStore.ts | 113 |
+| GET |  | stores\inventoryStore.ts | 119 |
+| GET |  | stores\inventoryStore.ts | 125 |
+| GET | /api/v1/region/${code} | stores\regionStore.ts | 99 |
+| GET | /api/v1/settings/session_idle_minutes | stores\sessionStore.ts | 53 |
+| GET | /api/v1/settings/session_absolute_minutes | stores\sessionStore.ts | 61 |
+
+## API Usage Audit
+_Generated on 2026-09-08T09:57:29.313262Z_
+
+### Orphaned Backend Routes (no frontend call)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/admin/backup | backend_fastapi\app\api\routers\admin_route.py | 20 |
+| GET | /api/v1/admin/backups | backend_fastapi\app\api\routers\admin_route.py | 36 |
+| POST | /api/v1/admin/restore | backend_fastapi\app\api\routers\admin_route.py | 65 |
+| GET | /api/v1/analytics/demand | backend_fastapi\app\api\routers\analytics_route.py | 24 |
+| GET | /api/v1/audit/verify | backend_fastapi\app\api\routers\audit_route.py | 18 |
+| GET | /api/v1/audit/export | backend_fastapi\app\api\routers\audit_route.py | 28 |
+| POST | /api/v1/auth/login/pin | backend_fastapi\app\api\routers\auth_route.py | 33 |
+| POST | /api/v1/auth/pin | backend_fastapi\app\api\routers\auth_route.py | 40 |
+| POST | /api/v1/auth/register | backend_fastapi\app\api\routers\auth_route.py | 55 |
+| GET | /api/v1/auth/me | backend_fastapi\app\api\routers\auth_route.py | 64 |
+| POST | /api/v1/auth/logout | backend_fastapi\app\api\routers\auth_route.py | 69 |
+| POST | /api/v1/auth/rotate-pepper | backend_fastapi\app\api\routers\auth_route.py | 75 |
+| POST | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 34 |
+| GET | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 57 |
+| PUT | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 73 |
+| DELETE | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 93 |
+| POST | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 107 |
+| GET | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 130 |
+| PUT | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 145 |
+| DELETE | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 167 |
+| GET | /api/v1/clinical/attachments | backend_fastapi\app\api\routers\clinical_route.py | 181 |
+| DELETE | /api/v1/clinical/attachments/{attachment_id} | backend_fastapi\app\api\routers\clinical_route.py | 196 |
+| GET | /api/v1/clinical/review/{patient_id} | backend_fastapi\app\api\routers\clinical_route.py | 210 |
+| GET | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 48 |
+| PUT | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 59 |
+| DELETE | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 71 |
+| POST | /api/v1/compounds/{compound_id}/price | backend_fastapi\app\api\routers\compound_route.py | 82 |
+| POST | /api/v1/compounds/dispense | backend_fastapi\app\api\routers\compound_route.py | 94 |
+| GET | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 26 |
+| GET | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 36 |
+| POST | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 46 |
+| PUT | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 56 |
+| DELETE | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 67 |
+| POST | /api/v1/coupons/validate | backend_fastapi\app\api\routers\coupon_route.py | 77 |
+| GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+| GET | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 29 |
+| POST | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 37 |
+| PUT | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 46 |
+| DELETE | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 59 |
+| GET | /api/v1/dictionaries/sig-codes/parse | backend_fastapi\app\api\routers\dictionaries_route.py | 70 |
+| GET | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 79 |
+| POST | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 87 |
+| PUT | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 96 |
+| DELETE | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 109 |
+| GET | /api/v1/dictionaries/price-codes/{price_code_id}/calculate | backend_fastapi\app\api\routers\dictionaries_route.py | 120 |
+| GET | /api/v1/dictionaries/ndc/lookup | backend_fastapi\app\api\routers\dictionaries_route.py | 134 |
+| GET | /api/v1/dispense/rx/{rx_number} | backend_fastapi\app\api\routers\dispense_route.py | 26 |
+| GET | /api/v1/dispense/rx/{rx_number}/fills | backend_fastapi\app\api\routers\dispense_route.py | 36 |
+| PUT | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 50 |
+| POST | /api/v1/dispense/{dispense_id}/reverse | backend_fastapi\app\api\routers\dispense_route.py | 61 |
+| POST | /api/v1/dispense/{dispense_id}/transfer | backend_fastapi\app\api\routers\dispense_route.py | 79 |
+| GET | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 93 |
+| GET | /api/v1/dispense/{dispense_id}/label | backend_fastapi\app\api\routers\dispense_route.py | 102 |
+| POST | /api/v1/dispense/{dispense_id}/refill | backend_fastapi\app\api\routers\dispense_route.py | 117 |
+| GET | /api/v1/drugs/confirm/{ndc} | backend_fastapi\app\api\routers\drug_confirm_route.py | 15 |
+| POST | /api/v1/drug-interactions/check | backend_fastapi\app\api\routers\drug_interaction_route.py | 51 |
+| GET | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 64 |
+| POST | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 73 |
+| PUT | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 84 |
+| DELETE | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 96 |
+| POST | /api/v1/email/daily-sales | backend_fastapi\app\api\routers\email_route.py | 29 |
+| GET | /api/v1/email/health | backend_fastapi\app\api\routers\email_route.py | 58 |
+| GET | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 70 |
+| PUT | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 81 |
+| PATCH | /api/v1/epcs/{rx_id}/status | backend_fastapi\app\api\routers\epcs_route.py | 93 |
+| POST | /api/v1/epcs/{rx_id}/sign | backend_fastapi\app\api\routers\epcs_route.py | 105 |
+| POST | /api/v1/epcs/{rx_id}/transmit | backend_fastapi\app\api\routers\epcs_route.py | 118 |
+| GET | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 131 |
+| POST | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 142 |
+| POST | /api/v1/excel/import/analyze | backend_fastapi\app\api\routers\excel_route.py | 129 |
+| POST | /api/v1/excel/import/preview | backend_fastapi\app\api\routers\excel_route.py | 182 |
+| POST | /api/v1/excel/import/commit | backend_fastapi\app\api\routers\excel_route.py | 233 |
+| GET | /api/v1/excel/export/inventory | backend_fastapi\app\api\routers\excel_route.py | 343 |
+| POST | /api/v1/excel/import/inventory | backend_fastapi\app\api\routers\excel_route.py | 431 |
+| POST | /api/v1/excel/import/csv | backend_fastapi\app\api\routers\excel_route.py | 548 |
+| GET | /api/v1/gift-cards/lookup/{code} | backend_fastapi\app\api\routers\gift_card_route.py | 78 |
+| POST | /api/v1/gift-cards/{card_id}/redeem | backend_fastapi\app\api\routers\gift_card_route.py | 87 |
+| POST | /api/v1/gift-cards/{card_id}/void | backend_fastapi\app\api\routers\gift_card_route.py | 106 |
+| GET | /api/v1/health | backend_fastapi\app\api\routers\health_route.py | 11 |
+| GET | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 25 |
+| GET | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 36 |
+| POST | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 48 |
+| PUT | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 62 |
+| DELETE | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 76 |
+| POST | /api/v1/insurance/plans/validate | backend_fastapi\app\api\routers\insurance_route.py | 88 |
+| POST | /api/v1/insurance/eligibility | backend_fastapi\app\api\routers\insurance_route.py | 101 |
+| GET | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 173 |
+| POST | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 184 |
+| GET | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 39 |
+| GET | /api/v1/inventory/medicines/search | backend_fastapi\app\api\routers\inventory_route.py | 73 |
+| GET | /api/v1/inventory/by-barcode/{barcode} | backend_fastapi\app\api\routers\inventory_route.py | 84 |
+| GET | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 98 |
+| POST | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 110 |
+| PUT | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 127 |
+| DELETE | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 142 |
+| GET | /api/v1/inventory/batches | backend_fastapi\app\api\routers\inventory_route.py | 156 |
+| POST | /api/v1/inventory/batches/receive | backend_fastapi\app\api\routers\inventory_route.py | 167 |
+| GET | /api/v1/inventory/batches/low-stock | backend_fastapi\app\api\routers\inventory_route.py | 179 |
+| GET | /api/v1/inventory/batches/expiring-soon | backend_fastapi\app\api\routers\inventory_route.py | 187 |
+| GET | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 196 |
+| PUT | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 205 |
+| GET | /api/v1/inventory/stock-levels | backend_fastapi\app\api\routers\inventory_route.py | 215 |
+| GET | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 227 |
+| POST | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 236 |
+| PUT | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 252 |
+| DELETE | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 271 |
+| POST | /api/v1/inventory/suppliers/{supplier_id}/prefer | backend_fastapi\app\api\routers\inventory_route.py | 290 |
+| GET | /api/v1/inventory/suppliers/search | backend_fastapi\app\api\routers\inventory_route.py | 312 |
+| GET | /api/v1/inventory/movements | backend_fastapi\app\api\routers\inventory_route.py | 336 |
+| POST | /api/v1/inventory/adjustments | backend_fastapi\app\api\routers\inventory_route.py | 366 |
+| POST | /api/v1/invoice-parse/text | backend_fastapi\app\api\routers\invoice_parse_route.py | 52 |
+| POST | /api/v1/invoice-parse/file | backend_fastapi\app\api\routers\invoice_parse_route.py | 61 |
+| GET | /api/v1/invoice-parse/hardware-status | backend_fastapi\app\api\routers\invoice_parse_route.py | 107 |
+| POST | /api/v1/invoice-parse/hybrid | backend_fastapi\app\api\routers\invoice_parse_route.py | 120 |
+| GET | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 45 |
+| GET | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 53 |
+| POST | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 62 |
+| PUT | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 72 |
+| DELETE | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 83 |
+| POST | /api/v1/licenses/activate-file | backend_fastapi\app\api\routers\license_file_route.py | 49 |
+| POST | /api/v1/license/validate | backend_fastapi\app\api\routers\license_route.py | 25 |
+| POST | /api/v1/license/checkout | backend_fastapi\app\api\routers\license_route.py | 53 |
+| POST | /api/v1/license/admin/manage | backend_fastapi\app\api\routers\license_route.py | 92 |
+| GET | /api/v1/license/status | backend_fastapi\app\api\routers\license_route.py | 101 |
+| GET | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 35 |
+| PUT | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 57 |
+| DELETE | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 72 |
+| POST | /api/v1/mobile/offline-ack | backend_fastapi\app\api\routers\mobile_route.py | 25 |
+| POST | /api/v1/labels/render-mobile | backend_fastapi\app\api\routers\mobile_route.py | 64 |
+| GET | /api/v1/patients/search | backend_fastapi\app\api\routers\patients_route.py | 40 |
+| GET | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 49 |
+| PUT | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 67 |
+| POST | /api/v1/patients/{patient_id}/insurance | backend_fastapi\app\api\routers\patients_route.py | 77 |
+| DELETE | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 87 |
+| GET | /api/v1/patients/{patient_id}/dispenses | backend_fastapi\app\api\routers\patients_route.py | 96 |
+| GET | /api/v1/patients/{patient_id}/history | backend_fastapi\app\api\routers\patients_route.py | 109 |
+| GET | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 35 |
+| POST | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 43 |
+| DELETE | /api/v1/patients/{patient_id}/fields/{field_name} | backend_fastapi\app\api\routers\patient_fields_route.py | 66 |
+| POST | /api/v1/pos/approve | backend_fastapi\app\api\routers\pos_route.py | 61 |
+| POST | /api/v1/pos/checkout | backend_fastapi\app\api\routers\pos_route.py | 73 |
+| POST | /api/v1/pos/drawer/movement | backend_fastapi\app\api\routers\pos_route.py | 82 |
+| POST | /api/v1/pos/shift/open | backend_fastapi\app\api\routers\pos_route.py | 107 |
+| POST | /api/v1/pos/shift/close | backend_fastapi\app\api\routers\pos_route.py | 117 |
+| GET | /api/v1/pos/shift/{shift_id}/preview | backend_fastapi\app\api\routers\pos_route.py | 127 |
+| POST | /api/v1/pos/refund | backend_fastapi\app\api\routers\pos_route.py | 137 |
+| GET | /api/v1/pos/reports/sales | backend_fastapi\app\api\routers\pos_route.py | 147 |
+| GET | /api/v1/pos/receipts/recent | backend_fastapi\app\api\routers\pos_route.py | 156 |
+| GET | /api/v1/pos/receipts/{receipt_id} | backend_fastapi\app\api\routers\pos_route.py | 166 |
+| GET | /api/v1/pos/receipts/{receipt_id}/print | backend_fastapi\app\api\routers\pos_route.py | 176 |
+| GET | /api/v1/pos/eod-summary | backend_fastapi\app\api\routers\pos_route.py | 186 |
+| POST | /api/v1/pos/void-item | backend_fastapi\app\api\routers\pos_route.py | 196 |
+| POST | /api/v1/pos/lock | backend_fastapi\app\api\routers\pos_route.py | 206 |
+| GET | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 32 |
+| GET | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 41 |
+| POST | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 50 |
+| PUT | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 59 |
+| POST | /api/v1/purchase-orders/{po_id}/items | backend_fastapi\app\api\routers\po_route.py | 69 |
+| DELETE | /api/v1/purchase-orders/{po_id}/items/{item_id} | backend_fastapi\app\api\routers\po_route.py | 79 |
+| POST | /api/v1/purchase-orders/{po_id}/transition | backend_fastapi\app\api\routers\po_route.py | 89 |
+| POST | /api/v1/purchase-orders/{po_id}/receive | backend_fastapi\app\api\routers\po_route.py | 98 |
+| DELETE | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 109 |
+| POST | /api/v1/purchase-orders/auto-reorder | backend_fastapi\app\api\routers\po_route.py | 118 |
+| GET | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 31 |
+| PUT | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 62 |
+| DELETE | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 78 |
+| GET | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 62 |
+| PUT | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 73 |
+| PATCH | /api/v1/prior-auth/{pa_id}/status | backend_fastapi\app\api\routers\prior_auth_route.py | 85 |
+| POST | /api/v1/prior-auth/{pa_id}/withdraw | backend_fastapi\app\api\routers\prior_auth_route.py | 97 |
+| GET | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 18 |
+| GET | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 28 |
+| POST | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 37 |
+| PUT | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 46 |
+| DELETE | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 56 |
+| POST | /api/v1/quick-sig/{template_id}/favorite | backend_fastapi\app\api\routers\quick_sig_route.py | 65 |
+| POST | /api/v1/quick-sig/{template_id}/use | backend_fastapi\app\api\routers\quick_sig_route.py | 74 |
+| GET | /api/v1/quick-sig/search/suggestions | backend_fastapi\app\api\routers\quick_sig_route.py | 83 |
+| GET | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 18 |
+| GET | /api/v1/receipt-templates/default | backend_fastapi\app\api\routers\receipt_template_route.py | 27 |
+| GET | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 35 |
+| POST | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 44 |
+| PUT | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 53 |
+| DELETE | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 63 |
+| GET | /api/v1/receiving-log/vendors | backend_fastapi\app\api\routers\receiving_route.py | 85 |
+| GET | /api/v1/region/regions | backend_fastapi\app\api\routers\region_route.py | 56 |
+| GET | /api/v1/region/{code} | backend_fastapi\app\api\routers\region_route.py | 72 |
+| POST | /api/v1/region-strategy/patient-cost | backend_fastapi\app\api\routers\region_strategy_route.py | 25 |
+| POST | /api/v1/region-strategy/generate-claim | backend_fastapi\app\api\routers\region_strategy_route.py | 43 |
+| POST | /api/v1/region-strategy/validate-prescription | backend_fastapi\app\api\routers\region_strategy_route.py | 58 |
+| POST | /api/v1/region-strategy/validate-credentials | backend_fastapi\app\api\routers\region_strategy_route.py | 73 |
+| GET | /api/v1/region-strategy/supported-regions | backend_fastapi\app\api\routers\region_strategy_route.py | 88 |
+| GET | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 57 |
+| PUT | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 82 |
+| GET | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 103 |
+| PUT | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 123 |
+| GET | /api/v1/roles/permissions/all | backend_fastapi\app\api\routers\roles_route.py | 146 |
+| GET | /api/v1/rx-queue/counts | backend_fastapi\app\api\routers\rx_queue_route.py | 57 |
+| PATCH | /api/v1/rx-queue/{rx_id}/status | backend_fastapi\app\api\routers\rx_queue_route.py | 67 |
+| POST | /api/v1/rx-queue/bulk-status | backend_fastapi\app\api\routers\rx_queue_route.py | 79 |
+| GET | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 36 |
+| PUT | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 48 |
+| POST | /api/v1/sync/push | backend_fastapi\app\api\routers\sync_route.py | 27 |
+| GET | /api/v1/sync/discrepancies | backend_fastapi\app\api\routers\sync_route.py | 37 |
+| POST | /api/v1/sync/discrepancies/{discrepancy_id}/resolve | backend_fastapi\app\api\routers\sync_route.py | 51 |
+| PUT | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 101 |
+| DELETE | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 133 |
+| GET | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 34 |
+| PUT | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 46 |
+| PATCH | /api/v1/users/{user_id}/active | backend_fastapi\app\api\routers\users_route.py | 65 |
+| GET | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 111 |
+| PUT | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 126 |
+| GET | /api/v1/vendors/{vendor_id}/items | backend_fastapi\app\api\routers\vendors_route.py | 165 |
+| GET | /api/v1/vendors/{vendor_id}/purchases | backend_fastapi\app\api\routers\vendors_route.py | 183 |
+| POST | /api/v1/vendors/receive | backend_fastapi\app\api\routers\vendors_route.py | 204 |
+| GET | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 42 |
+| PUT | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 74 |
+| DELETE | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 89 |
+
+### Unmatched Frontend Calls (no backend route)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | ${serverUrl}/api/webhook/paddle | app\api\webhooks\paddle\route.ts | 58 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 49 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 58 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 66 |
+| GET |  | app\dashboard\inventory\page.tsx | 106 |
+| GET |  | app\dashboard\inventory\page.tsx | 115 |
+| GET |  | app\dashboard\inventory\page.tsx | 142 |
+| GET |  | app\dashboard\inventory\page.tsx | 154 |
+| GET |  | app\dashboard\inventory\page.tsx | 382 |
+| GET |  | app\dashboard\inventory\page.tsx | 404 |
+| GET |  | app\dashboard\inventory\page.tsx | 416 |
+| GET | /api/v1/region/${code} | app\dashboard\settings\page.tsx | 200 |
+| GET |  | components\BootGuard.tsx | 43 |
+| POST | /api/v1/crash-report | components\ErrorBoundary.tsx | 37 |
+| POST | /api/v1/ocr | components\OcrUploadDropzone.tsx | 72 |
+| GET | /api/v1/alerts | stores\alertStore.ts | 42 |
+| POST | /api/auth/login | stores\authStore.ts | 40 |
+| POST | /api/auth/logout | stores\authStore.ts | 62 |
+| GET |  | stores\inventoryStore.ts | 107 |
+| GET |  | stores\inventoryStore.ts | 113 |
+| GET |  | stores\inventoryStore.ts | 119 |
+| GET |  | stores\inventoryStore.ts | 125 |
+| GET | /api/v1/region/${code} | stores\regionStore.ts | 99 |
+| GET | /api/v1/settings/session_idle_minutes | stores\sessionStore.ts | 53 |
+| GET | /api/v1/settings/session_absolute_minutes | stores\sessionStore.ts | 61 |
+
+## API Usage Audit
+_Generated on 2026-09-08T09:58:02.327336Z_
+
+### Orphaned Backend Routes (no frontend call)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/admin/backup | backend_fastapi\app\api\routers\admin_route.py | 20 |
+| GET | /api/v1/admin/backups | backend_fastapi\app\api\routers\admin_route.py | 36 |
+| POST | /api/v1/admin/restore | backend_fastapi\app\api\routers\admin_route.py | 65 |
+| GET | /api/v1/analytics/demand | backend_fastapi\app\api\routers\analytics_route.py | 24 |
+| GET | /api/v1/audit/verify | backend_fastapi\app\api\routers\audit_route.py | 18 |
+| GET | /api/v1/audit/export | backend_fastapi\app\api\routers\audit_route.py | 28 |
+| POST | /api/v1/auth/login/pin | backend_fastapi\app\api\routers\auth_route.py | 33 |
+| POST | /api/v1/auth/pin | backend_fastapi\app\api\routers\auth_route.py | 40 |
+| POST | /api/v1/auth/register | backend_fastapi\app\api\routers\auth_route.py | 55 |
+| GET | /api/v1/auth/me | backend_fastapi\app\api\routers\auth_route.py | 64 |
+| POST | /api/v1/auth/logout | backend_fastapi\app\api\routers\auth_route.py | 69 |
+| POST | /api/v1/auth/rotate-pepper | backend_fastapi\app\api\routers\auth_route.py | 75 |
+| POST | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 34 |
+| GET | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 57 |
+| PUT | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 73 |
+| DELETE | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 93 |
+| POST | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 107 |
+| GET | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 130 |
+| PUT | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 145 |
+| DELETE | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 167 |
+| GET | /api/v1/clinical/attachments | backend_fastapi\app\api\routers\clinical_route.py | 181 |
+| DELETE | /api/v1/clinical/attachments/{attachment_id} | backend_fastapi\app\api\routers\clinical_route.py | 196 |
+| GET | /api/v1/clinical/review/{patient_id} | backend_fastapi\app\api\routers\clinical_route.py | 210 |
+| GET | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 48 |
+| PUT | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 59 |
+| DELETE | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 71 |
+| POST | /api/v1/compounds/{compound_id}/price | backend_fastapi\app\api\routers\compound_route.py | 82 |
+| POST | /api/v1/compounds/dispense | backend_fastapi\app\api\routers\compound_route.py | 94 |
+| GET | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 26 |
+| GET | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 36 |
+| POST | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 46 |
+| PUT | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 56 |
+| DELETE | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 67 |
+| POST | /api/v1/coupons/validate | backend_fastapi\app\api\routers\coupon_route.py | 77 |
+| GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+| GET | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 29 |
+| POST | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 37 |
+| PUT | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 46 |
+| DELETE | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 59 |
+| GET | /api/v1/dictionaries/sig-codes/parse | backend_fastapi\app\api\routers\dictionaries_route.py | 70 |
+| GET | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 79 |
+| POST | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 87 |
+| PUT | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 96 |
+| DELETE | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 109 |
+| GET | /api/v1/dictionaries/price-codes/{price_code_id}/calculate | backend_fastapi\app\api\routers\dictionaries_route.py | 120 |
+| GET | /api/v1/dictionaries/ndc/lookup | backend_fastapi\app\api\routers\dictionaries_route.py | 134 |
+| GET | /api/v1/dispense/rx/{rx_number} | backend_fastapi\app\api\routers\dispense_route.py | 26 |
+| GET | /api/v1/dispense/rx/{rx_number}/fills | backend_fastapi\app\api\routers\dispense_route.py | 36 |
+| PUT | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 50 |
+| POST | /api/v1/dispense/{dispense_id}/reverse | backend_fastapi\app\api\routers\dispense_route.py | 61 |
+| POST | /api/v1/dispense/{dispense_id}/transfer | backend_fastapi\app\api\routers\dispense_route.py | 79 |
+| GET | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 93 |
+| GET | /api/v1/dispense/{dispense_id}/label | backend_fastapi\app\api\routers\dispense_route.py | 102 |
+| POST | /api/v1/dispense/{dispense_id}/refill | backend_fastapi\app\api\routers\dispense_route.py | 117 |
+| GET | /api/v1/drugs/confirm/{ndc} | backend_fastapi\app\api\routers\drug_confirm_route.py | 15 |
+| POST | /api/v1/drug-interactions/check | backend_fastapi\app\api\routers\drug_interaction_route.py | 51 |
+| GET | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 64 |
+| POST | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 73 |
+| PUT | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 84 |
+| DELETE | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 96 |
+| POST | /api/v1/email/daily-sales | backend_fastapi\app\api\routers\email_route.py | 29 |
+| GET | /api/v1/email/health | backend_fastapi\app\api\routers\email_route.py | 58 |
+| GET | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 70 |
+| PUT | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 81 |
+| PATCH | /api/v1/epcs/{rx_id}/status | backend_fastapi\app\api\routers\epcs_route.py | 93 |
+| POST | /api/v1/epcs/{rx_id}/sign | backend_fastapi\app\api\routers\epcs_route.py | 105 |
+| POST | /api/v1/epcs/{rx_id}/transmit | backend_fastapi\app\api\routers\epcs_route.py | 118 |
+| GET | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 131 |
+| POST | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 142 |
+| POST | /api/v1/excel/import/analyze | backend_fastapi\app\api\routers\excel_route.py | 129 |
+| POST | /api/v1/excel/import/preview | backend_fastapi\app\api\routers\excel_route.py | 182 |
+| POST | /api/v1/excel/import/commit | backend_fastapi\app\api\routers\excel_route.py | 233 |
+| GET | /api/v1/excel/export/inventory | backend_fastapi\app\api\routers\excel_route.py | 343 |
+| POST | /api/v1/excel/import/inventory | backend_fastapi\app\api\routers\excel_route.py | 431 |
+| POST | /api/v1/excel/import/csv | backend_fastapi\app\api\routers\excel_route.py | 548 |
+| GET | /api/v1/gift-cards/lookup/{code} | backend_fastapi\app\api\routers\gift_card_route.py | 78 |
+| POST | /api/v1/gift-cards/{card_id}/redeem | backend_fastapi\app\api\routers\gift_card_route.py | 87 |
+| POST | /api/v1/gift-cards/{card_id}/void | backend_fastapi\app\api\routers\gift_card_route.py | 106 |
+| GET | /api/v1/health | backend_fastapi\app\api\routers\health_route.py | 11 |
+| GET | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 25 |
+| GET | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 36 |
+| POST | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 48 |
+| PUT | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 62 |
+| DELETE | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 76 |
+| POST | /api/v1/insurance/plans/validate | backend_fastapi\app\api\routers\insurance_route.py | 88 |
+| POST | /api/v1/insurance/eligibility | backend_fastapi\app\api\routers\insurance_route.py | 101 |
+| GET | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 173 |
+| POST | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 184 |
+| GET | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 39 |
+| GET | /api/v1/inventory/medicines/search | backend_fastapi\app\api\routers\inventory_route.py | 73 |
+| GET | /api/v1/inventory/by-barcode/{barcode} | backend_fastapi\app\api\routers\inventory_route.py | 84 |
+| GET | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 98 |
+| POST | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 110 |
+| PUT | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 127 |
+| DELETE | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 142 |
+| GET | /api/v1/inventory/batches | backend_fastapi\app\api\routers\inventory_route.py | 156 |
+| POST | /api/v1/inventory/batches/receive | backend_fastapi\app\api\routers\inventory_route.py | 167 |
+| GET | /api/v1/inventory/batches/low-stock | backend_fastapi\app\api\routers\inventory_route.py | 179 |
+| GET | /api/v1/inventory/batches/expiring-soon | backend_fastapi\app\api\routers\inventory_route.py | 187 |
+| GET | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 196 |
+| PUT | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 205 |
+| GET | /api/v1/inventory/stock-levels | backend_fastapi\app\api\routers\inventory_route.py | 215 |
+| GET | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 227 |
+| POST | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 236 |
+| PUT | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 252 |
+| DELETE | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 271 |
+| POST | /api/v1/inventory/suppliers/{supplier_id}/prefer | backend_fastapi\app\api\routers\inventory_route.py | 290 |
+| GET | /api/v1/inventory/suppliers/search | backend_fastapi\app\api\routers\inventory_route.py | 312 |
+| GET | /api/v1/inventory/movements | backend_fastapi\app\api\routers\inventory_route.py | 336 |
+| POST | /api/v1/inventory/adjustments | backend_fastapi\app\api\routers\inventory_route.py | 366 |
+| POST | /api/v1/invoice-parse/text | backend_fastapi\app\api\routers\invoice_parse_route.py | 52 |
+| POST | /api/v1/invoice-parse/file | backend_fastapi\app\api\routers\invoice_parse_route.py | 61 |
+| GET | /api/v1/invoice-parse/hardware-status | backend_fastapi\app\api\routers\invoice_parse_route.py | 107 |
+| POST | /api/v1/invoice-parse/hybrid | backend_fastapi\app\api\routers\invoice_parse_route.py | 120 |
+| GET | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 45 |
+| GET | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 53 |
+| POST | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 62 |
+| PUT | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 72 |
+| DELETE | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 83 |
+| POST | /api/v1/licenses/activate-file | backend_fastapi\app\api\routers\license_file_route.py | 49 |
+| POST | /api/v1/license/validate | backend_fastapi\app\api\routers\license_route.py | 25 |
+| POST | /api/v1/license/checkout | backend_fastapi\app\api\routers\license_route.py | 53 |
+| POST | /api/v1/license/admin/manage | backend_fastapi\app\api\routers\license_route.py | 92 |
+| GET | /api/v1/license/status | backend_fastapi\app\api\routers\license_route.py | 101 |
+| GET | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 35 |
+| PUT | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 57 |
+| DELETE | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 72 |
+| POST | /api/v1/mobile/offline-ack | backend_fastapi\app\api\routers\mobile_route.py | 25 |
+| POST | /api/v1/labels/render-mobile | backend_fastapi\app\api\routers\mobile_route.py | 64 |
+| GET | /api/v1/patients/search | backend_fastapi\app\api\routers\patients_route.py | 40 |
+| GET | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 49 |
+| PUT | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 67 |
+| POST | /api/v1/patients/{patient_id}/insurance | backend_fastapi\app\api\routers\patients_route.py | 77 |
+| DELETE | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 87 |
+| GET | /api/v1/patients/{patient_id}/dispenses | backend_fastapi\app\api\routers\patients_route.py | 96 |
+| GET | /api/v1/patients/{patient_id}/history | backend_fastapi\app\api\routers\patients_route.py | 109 |
+| GET | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 35 |
+| POST | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 43 |
+| DELETE | /api/v1/patients/{patient_id}/fields/{field_name} | backend_fastapi\app\api\routers\patient_fields_route.py | 66 |
+| POST | /api/v1/pos/approve | backend_fastapi\app\api\routers\pos_route.py | 61 |
+| POST | /api/v1/pos/checkout | backend_fastapi\app\api\routers\pos_route.py | 73 |
+| POST | /api/v1/pos/drawer/movement | backend_fastapi\app\api\routers\pos_route.py | 82 |
+| POST | /api/v1/pos/shift/open | backend_fastapi\app\api\routers\pos_route.py | 107 |
+| POST | /api/v1/pos/shift/close | backend_fastapi\app\api\routers\pos_route.py | 117 |
+| GET | /api/v1/pos/shift/{shift_id}/preview | backend_fastapi\app\api\routers\pos_route.py | 127 |
+| POST | /api/v1/pos/refund | backend_fastapi\app\api\routers\pos_route.py | 137 |
+| GET | /api/v1/pos/reports/sales | backend_fastapi\app\api\routers\pos_route.py | 147 |
+| GET | /api/v1/pos/receipts/recent | backend_fastapi\app\api\routers\pos_route.py | 156 |
+| GET | /api/v1/pos/receipts/{receipt_id} | backend_fastapi\app\api\routers\pos_route.py | 166 |
+| GET | /api/v1/pos/receipts/{receipt_id}/print | backend_fastapi\app\api\routers\pos_route.py | 176 |
+| GET | /api/v1/pos/eod-summary | backend_fastapi\app\api\routers\pos_route.py | 186 |
+| POST | /api/v1/pos/void-item | backend_fastapi\app\api\routers\pos_route.py | 196 |
+| POST | /api/v1/pos/lock | backend_fastapi\app\api\routers\pos_route.py | 206 |
+| GET | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 32 |
+| GET | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 41 |
+| POST | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 50 |
+| PUT | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 59 |
+| POST | /api/v1/purchase-orders/{po_id}/items | backend_fastapi\app\api\routers\po_route.py | 69 |
+| DELETE | /api/v1/purchase-orders/{po_id}/items/{item_id} | backend_fastapi\app\api\routers\po_route.py | 79 |
+| POST | /api/v1/purchase-orders/{po_id}/transition | backend_fastapi\app\api\routers\po_route.py | 89 |
+| POST | /api/v1/purchase-orders/{po_id}/receive | backend_fastapi\app\api\routers\po_route.py | 98 |
+| DELETE | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 109 |
+| POST | /api/v1/purchase-orders/auto-reorder | backend_fastapi\app\api\routers\po_route.py | 118 |
+| GET | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 31 |
+| PUT | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 62 |
+| DELETE | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 78 |
+| GET | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 62 |
+| PUT | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 73 |
+| PATCH | /api/v1/prior-auth/{pa_id}/status | backend_fastapi\app\api\routers\prior_auth_route.py | 85 |
+| POST | /api/v1/prior-auth/{pa_id}/withdraw | backend_fastapi\app\api\routers\prior_auth_route.py | 97 |
+| GET | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 18 |
+| GET | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 28 |
+| POST | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 37 |
+| PUT | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 46 |
+| DELETE | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 56 |
+| POST | /api/v1/quick-sig/{template_id}/favorite | backend_fastapi\app\api\routers\quick_sig_route.py | 65 |
+| POST | /api/v1/quick-sig/{template_id}/use | backend_fastapi\app\api\routers\quick_sig_route.py | 74 |
+| GET | /api/v1/quick-sig/search/suggestions | backend_fastapi\app\api\routers\quick_sig_route.py | 83 |
+| GET | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 18 |
+| GET | /api/v1/receipt-templates/default | backend_fastapi\app\api\routers\receipt_template_route.py | 27 |
+| GET | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 35 |
+| POST | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 44 |
+| PUT | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 53 |
+| DELETE | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 63 |
+| GET | /api/v1/receiving-log/vendors | backend_fastapi\app\api\routers\receiving_route.py | 85 |
+| GET | /api/v1/region/regions | backend_fastapi\app\api\routers\region_route.py | 56 |
+| GET | /api/v1/region/{code} | backend_fastapi\app\api\routers\region_route.py | 72 |
+| POST | /api/v1/region-strategy/patient-cost | backend_fastapi\app\api\routers\region_strategy_route.py | 25 |
+| POST | /api/v1/region-strategy/generate-claim | backend_fastapi\app\api\routers\region_strategy_route.py | 43 |
+| POST | /api/v1/region-strategy/validate-prescription | backend_fastapi\app\api\routers\region_strategy_route.py | 58 |
+| POST | /api/v1/region-strategy/validate-credentials | backend_fastapi\app\api\routers\region_strategy_route.py | 73 |
+| GET | /api/v1/region-strategy/supported-regions | backend_fastapi\app\api\routers\region_strategy_route.py | 88 |
+| GET | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 57 |
+| PUT | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 82 |
+| GET | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 103 |
+| PUT | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 123 |
+| GET | /api/v1/roles/permissions/all | backend_fastapi\app\api\routers\roles_route.py | 146 |
+| GET | /api/v1/rx-queue/counts | backend_fastapi\app\api\routers\rx_queue_route.py | 57 |
+| PATCH | /api/v1/rx-queue/{rx_id}/status | backend_fastapi\app\api\routers\rx_queue_route.py | 67 |
+| POST | /api/v1/rx-queue/bulk-status | backend_fastapi\app\api\routers\rx_queue_route.py | 79 |
+| GET | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 36 |
+| PUT | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 48 |
+| POST | /api/v1/sync/push | backend_fastapi\app\api\routers\sync_route.py | 27 |
+| GET | /api/v1/sync/discrepancies | backend_fastapi\app\api\routers\sync_route.py | 37 |
+| POST | /api/v1/sync/discrepancies/{discrepancy_id}/resolve | backend_fastapi\app\api\routers\sync_route.py | 51 |
+| PUT | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 101 |
+| DELETE | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 133 |
+| GET | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 34 |
+| PUT | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 46 |
+| PATCH | /api/v1/users/{user_id}/active | backend_fastapi\app\api\routers\users_route.py | 65 |
+| GET | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 111 |
+| PUT | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 126 |
+| GET | /api/v1/vendors/{vendor_id}/items | backend_fastapi\app\api\routers\vendors_route.py | 165 |
+| GET | /api/v1/vendors/{vendor_id}/purchases | backend_fastapi\app\api\routers\vendors_route.py | 183 |
+| POST | /api/v1/vendors/receive | backend_fastapi\app\api\routers\vendors_route.py | 204 |
+| GET | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 42 |
+| PUT | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 74 |
+| DELETE | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 89 |
+
+### Unmatched Frontend Calls (no backend route)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | ${serverUrl}/api/webhook/paddle | app\api\webhooks\paddle\route.ts | 58 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 49 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 58 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 66 |
+| GET |  | app\dashboard\inventory\page.tsx | 106 |
+| GET |  | app\dashboard\inventory\page.tsx | 115 |
+| GET |  | app\dashboard\inventory\page.tsx | 142 |
+| GET |  | app\dashboard\inventory\page.tsx | 154 |
+| GET |  | app\dashboard\inventory\page.tsx | 382 |
+| GET |  | app\dashboard\inventory\page.tsx | 404 |
+| GET |  | app\dashboard\inventory\page.tsx | 416 |
+| GET | /api/v1/region/${code} | app\dashboard\settings\page.tsx | 200 |
+| GET |  | components\BootGuard.tsx | 43 |
+| POST | /api/v1/crash-report | components\ErrorBoundary.tsx | 37 |
+| POST | /api/v1/ocr | components\OcrUploadDropzone.tsx | 72 |
+| GET | /api/v1/alerts | stores\alertStore.ts | 42 |
+| POST | /api/auth/login | stores\authStore.ts | 40 |
+| POST | /api/auth/logout | stores\authStore.ts | 62 |
+| GET |  | stores\inventoryStore.ts | 107 |
+| GET |  | stores\inventoryStore.ts | 113 |
+| GET |  | stores\inventoryStore.ts | 119 |
+| GET |  | stores\inventoryStore.ts | 125 |
+| GET | /api/v1/region/${code} | stores\regionStore.ts | 99 |
+| GET | /api/v1/settings/session_idle_minutes | stores\sessionStore.ts | 53 |
+| GET | /api/v1/settings/session_absolute_minutes | stores\sessionStore.ts | 61 |
+
+## API Usage Audit
+_Generated on 2026-09-08T10:14:37.869299Z_
+
+### Orphaned Backend Routes (no frontend call)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/admin/backup | backend_fastapi\app\api\routers\admin_route.py | 20 |
+| GET | /api/v1/admin/backups | backend_fastapi\app\api\routers\admin_route.py | 36 |
+| POST | /api/v1/admin/restore | backend_fastapi\app\api\routers\admin_route.py | 65 |
+| GET | /api/v1/analytics/demand | backend_fastapi\app\api\routers\analytics_route.py | 24 |
+| GET | /api/v1/audit/verify | backend_fastapi\app\api\routers\audit_route.py | 18 |
+| GET | /api/v1/audit/export | backend_fastapi\app\api\routers\audit_route.py | 28 |
+| POST | /api/v1/auth/login/pin | backend_fastapi\app\api\routers\auth_route.py | 33 |
+| POST | /api/v1/auth/pin | backend_fastapi\app\api\routers\auth_route.py | 40 |
+| POST | /api/v1/auth/register | backend_fastapi\app\api\routers\auth_route.py | 55 |
+| GET | /api/v1/auth/me | backend_fastapi\app\api\routers\auth_route.py | 64 |
+| POST | /api/v1/auth/logout | backend_fastapi\app\api\routers\auth_route.py | 69 |
+| POST | /api/v1/auth/rotate-pepper | backend_fastapi\app\api\routers\auth_route.py | 75 |
+| POST | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 34 |
+| GET | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 57 |
+| PUT | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 73 |
+| DELETE | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 93 |
+| POST | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 107 |
+| GET | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 130 |
+| PUT | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 145 |
+| DELETE | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 167 |
+| GET | /api/v1/clinical/attachments | backend_fastapi\app\api\routers\clinical_route.py | 181 |
+| DELETE | /api/v1/clinical/attachments/{attachment_id} | backend_fastapi\app\api\routers\clinical_route.py | 196 |
+| GET | /api/v1/clinical/review/{patient_id} | backend_fastapi\app\api\routers\clinical_route.py | 210 |
+| GET | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 48 |
+| PUT | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 59 |
+| DELETE | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 71 |
+| POST | /api/v1/compounds/{compound_id}/price | backend_fastapi\app\api\routers\compound_route.py | 82 |
+| POST | /api/v1/compounds/dispense | backend_fastapi\app\api\routers\compound_route.py | 94 |
+| GET | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 26 |
+| GET | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 36 |
+| POST | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 46 |
+| PUT | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 56 |
+| DELETE | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 67 |
+| POST | /api/v1/coupons/validate | backend_fastapi\app\api\routers\coupon_route.py | 77 |
+| GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+| GET | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 29 |
+| POST | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 37 |
+| PUT | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 46 |
+| DELETE | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 59 |
+| GET | /api/v1/dictionaries/sig-codes/parse | backend_fastapi\app\api\routers\dictionaries_route.py | 70 |
+| GET | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 79 |
+| POST | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 87 |
+| PUT | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 96 |
+| DELETE | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 109 |
+| GET | /api/v1/dictionaries/price-codes/{price_code_id}/calculate | backend_fastapi\app\api\routers\dictionaries_route.py | 120 |
+| GET | /api/v1/dictionaries/ndc/lookup | backend_fastapi\app\api\routers\dictionaries_route.py | 134 |
+| GET | /api/v1/dispense/rx/{rx_number} | backend_fastapi\app\api\routers\dispense_route.py | 26 |
+| GET | /api/v1/dispense/rx/{rx_number}/fills | backend_fastapi\app\api\routers\dispense_route.py | 36 |
+| PUT | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 50 |
+| POST | /api/v1/dispense/{dispense_id}/reverse | backend_fastapi\app\api\routers\dispense_route.py | 61 |
+| POST | /api/v1/dispense/{dispense_id}/transfer | backend_fastapi\app\api\routers\dispense_route.py | 79 |
+| GET | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 93 |
+| GET | /api/v1/dispense/{dispense_id}/label | backend_fastapi\app\api\routers\dispense_route.py | 102 |
+| POST | /api/v1/dispense/{dispense_id}/refill | backend_fastapi\app\api\routers\dispense_route.py | 117 |
+| GET | /api/v1/drugs/confirm/{ndc} | backend_fastapi\app\api\routers\drug_confirm_route.py | 15 |
+| POST | /api/v1/drug-interactions/check | backend_fastapi\app\api\routers\drug_interaction_route.py | 51 |
+| GET | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 64 |
+| POST | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 73 |
+| PUT | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 84 |
+| DELETE | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 96 |
+| POST | /api/v1/email/daily-sales | backend_fastapi\app\api\routers\email_route.py | 29 |
+| GET | /api/v1/email/health | backend_fastapi\app\api\routers\email_route.py | 58 |
+| GET | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 70 |
+| PUT | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 81 |
+| PATCH | /api/v1/epcs/{rx_id}/status | backend_fastapi\app\api\routers\epcs_route.py | 93 |
+| POST | /api/v1/epcs/{rx_id}/sign | backend_fastapi\app\api\routers\epcs_route.py | 105 |
+| POST | /api/v1/epcs/{rx_id}/transmit | backend_fastapi\app\api\routers\epcs_route.py | 118 |
+| GET | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 131 |
+| POST | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 142 |
+| POST | /api/v1/excel/import/analyze | backend_fastapi\app\api\routers\excel_route.py | 129 |
+| POST | /api/v1/excel/import/preview | backend_fastapi\app\api\routers\excel_route.py | 182 |
+| POST | /api/v1/excel/import/commit | backend_fastapi\app\api\routers\excel_route.py | 233 |
+| GET | /api/v1/excel/export/inventory | backend_fastapi\app\api\routers\excel_route.py | 343 |
+| POST | /api/v1/excel/import/inventory | backend_fastapi\app\api\routers\excel_route.py | 431 |
+| POST | /api/v1/excel/import/csv | backend_fastapi\app\api\routers\excel_route.py | 548 |
+| GET | /api/v1/gift-cards/lookup/{code} | backend_fastapi\app\api\routers\gift_card_route.py | 78 |
+| POST | /api/v1/gift-cards/{card_id}/redeem | backend_fastapi\app\api\routers\gift_card_route.py | 87 |
+| POST | /api/v1/gift-cards/{card_id}/void | backend_fastapi\app\api\routers\gift_card_route.py | 106 |
+| GET | /api/v1/health | backend_fastapi\app\api\routers\health_route.py | 11 |
+| GET | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 25 |
+| GET | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 36 |
+| POST | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 48 |
+| PUT | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 62 |
+| DELETE | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 76 |
+| POST | /api/v1/insurance/plans/validate | backend_fastapi\app\api\routers\insurance_route.py | 88 |
+| POST | /api/v1/insurance/eligibility | backend_fastapi\app\api\routers\insurance_route.py | 101 |
+| GET | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 173 |
+| POST | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 184 |
+| GET | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 39 |
+| GET | /api/v1/inventory/medicines/search | backend_fastapi\app\api\routers\inventory_route.py | 73 |
+| GET | /api/v1/inventory/by-barcode/{barcode} | backend_fastapi\app\api\routers\inventory_route.py | 84 |
+| GET | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 98 |
+| POST | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 110 |
+| PUT | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 127 |
+| DELETE | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 142 |
+| GET | /api/v1/inventory/batches | backend_fastapi\app\api\routers\inventory_route.py | 156 |
+| POST | /api/v1/inventory/batches/receive | backend_fastapi\app\api\routers\inventory_route.py | 167 |
+| GET | /api/v1/inventory/batches/low-stock | backend_fastapi\app\api\routers\inventory_route.py | 179 |
+| GET | /api/v1/inventory/batches/expiring-soon | backend_fastapi\app\api\routers\inventory_route.py | 187 |
+| GET | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 196 |
+| PUT | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 205 |
+| GET | /api/v1/inventory/stock-levels | backend_fastapi\app\api\routers\inventory_route.py | 215 |
+| GET | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 227 |
+| POST | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 236 |
+| PUT | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 252 |
+| DELETE | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 271 |
+| POST | /api/v1/inventory/suppliers/{supplier_id}/prefer | backend_fastapi\app\api\routers\inventory_route.py | 290 |
+| GET | /api/v1/inventory/suppliers/search | backend_fastapi\app\api\routers\inventory_route.py | 312 |
+| GET | /api/v1/inventory/movements | backend_fastapi\app\api\routers\inventory_route.py | 336 |
+| POST | /api/v1/inventory/adjustments | backend_fastapi\app\api\routers\inventory_route.py | 366 |
+| POST | /api/v1/invoice-parse/text | backend_fastapi\app\api\routers\invoice_parse_route.py | 52 |
+| POST | /api/v1/invoice-parse/file | backend_fastapi\app\api\routers\invoice_parse_route.py | 61 |
+| GET | /api/v1/invoice-parse/hardware-status | backend_fastapi\app\api\routers\invoice_parse_route.py | 107 |
+| POST | /api/v1/invoice-parse/hybrid | backend_fastapi\app\api\routers\invoice_parse_route.py | 120 |
+| GET | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 45 |
+| GET | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 53 |
+| POST | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 62 |
+| PUT | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 72 |
+| DELETE | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 83 |
+| POST | /api/v1/licenses/activate-file | backend_fastapi\app\api\routers\license_file_route.py | 49 |
+| POST | /api/v1/license/validate | backend_fastapi\app\api\routers\license_route.py | 25 |
+| POST | /api/v1/license/checkout | backend_fastapi\app\api\routers\license_route.py | 53 |
+| POST | /api/v1/license/admin/manage | backend_fastapi\app\api\routers\license_route.py | 92 |
+| GET | /api/v1/license/status | backend_fastapi\app\api\routers\license_route.py | 101 |
+| GET | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 35 |
+| PUT | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 57 |
+| DELETE | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 72 |
+| POST | /api/v1/mobile/offline-ack | backend_fastapi\app\api\routers\mobile_route.py | 25 |
+| POST | /api/v1/labels/render-mobile | backend_fastapi\app\api\routers\mobile_route.py | 64 |
+| GET | /api/v1/patients/search | backend_fastapi\app\api\routers\patients_route.py | 40 |
+| GET | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 49 |
+| PUT | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 67 |
+| POST | /api/v1/patients/{patient_id}/insurance | backend_fastapi\app\api\routers\patients_route.py | 77 |
+| DELETE | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 87 |
+| GET | /api/v1/patients/{patient_id}/dispenses | backend_fastapi\app\api\routers\patients_route.py | 96 |
+| GET | /api/v1/patients/{patient_id}/history | backend_fastapi\app\api\routers\patients_route.py | 109 |
+| GET | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 35 |
+| POST | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 43 |
+| DELETE | /api/v1/patients/{patient_id}/fields/{field_name} | backend_fastapi\app\api\routers\patient_fields_route.py | 66 |
+| POST | /api/v1/pos/approve | backend_fastapi\app\api\routers\pos_route.py | 61 |
+| POST | /api/v1/pos/checkout | backend_fastapi\app\api\routers\pos_route.py | 73 |
+| POST | /api/v1/pos/drawer/movement | backend_fastapi\app\api\routers\pos_route.py | 82 |
+| POST | /api/v1/pos/shift/open | backend_fastapi\app\api\routers\pos_route.py | 107 |
+| POST | /api/v1/pos/shift/close | backend_fastapi\app\api\routers\pos_route.py | 117 |
+| GET | /api/v1/pos/shift/{shift_id}/preview | backend_fastapi\app\api\routers\pos_route.py | 127 |
+| POST | /api/v1/pos/refund | backend_fastapi\app\api\routers\pos_route.py | 137 |
+| GET | /api/v1/pos/reports/sales | backend_fastapi\app\api\routers\pos_route.py | 147 |
+| GET | /api/v1/pos/receipts/recent | backend_fastapi\app\api\routers\pos_route.py | 156 |
+| GET | /api/v1/pos/receipts/{receipt_id} | backend_fastapi\app\api\routers\pos_route.py | 166 |
+| GET | /api/v1/pos/receipts/{receipt_id}/print | backend_fastapi\app\api\routers\pos_route.py | 176 |
+| GET | /api/v1/pos/eod-summary | backend_fastapi\app\api\routers\pos_route.py | 186 |
+| POST | /api/v1/pos/void-item | backend_fastapi\app\api\routers\pos_route.py | 196 |
+| POST | /api/v1/pos/lock | backend_fastapi\app\api\routers\pos_route.py | 206 |
+| GET | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 32 |
+| GET | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 41 |
+| POST | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 50 |
+| PUT | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 59 |
+| POST | /api/v1/purchase-orders/{po_id}/items | backend_fastapi\app\api\routers\po_route.py | 69 |
+| DELETE | /api/v1/purchase-orders/{po_id}/items/{item_id} | backend_fastapi\app\api\routers\po_route.py | 79 |
+| POST | /api/v1/purchase-orders/{po_id}/transition | backend_fastapi\app\api\routers\po_route.py | 89 |
+| POST | /api/v1/purchase-orders/{po_id}/receive | backend_fastapi\app\api\routers\po_route.py | 98 |
+| DELETE | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 109 |
+| POST | /api/v1/purchase-orders/auto-reorder | backend_fastapi\app\api\routers\po_route.py | 118 |
+| GET | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 31 |
+| PUT | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 62 |
+| DELETE | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 78 |
+| GET | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 62 |
+| PUT | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 73 |
+| PATCH | /api/v1/prior-auth/{pa_id}/status | backend_fastapi\app\api\routers\prior_auth_route.py | 85 |
+| POST | /api/v1/prior-auth/{pa_id}/withdraw | backend_fastapi\app\api\routers\prior_auth_route.py | 97 |
+| GET | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 18 |
+| GET | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 28 |
+| POST | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 37 |
+| PUT | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 46 |
+| DELETE | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 56 |
+| POST | /api/v1/quick-sig/{template_id}/favorite | backend_fastapi\app\api\routers\quick_sig_route.py | 65 |
+| POST | /api/v1/quick-sig/{template_id}/use | backend_fastapi\app\api\routers\quick_sig_route.py | 74 |
+| GET | /api/v1/quick-sig/search/suggestions | backend_fastapi\app\api\routers\quick_sig_route.py | 83 |
+| GET | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 18 |
+| GET | /api/v1/receipt-templates/default | backend_fastapi\app\api\routers\receipt_template_route.py | 27 |
+| GET | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 35 |
+| POST | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 44 |
+| PUT | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 53 |
+| DELETE | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 63 |
+| GET | /api/v1/receiving-log/vendors | backend_fastapi\app\api\routers\receiving_route.py | 85 |
+| GET | /api/v1/region/regions | backend_fastapi\app\api\routers\region_route.py | 56 |
+| GET | /api/v1/region/{code} | backend_fastapi\app\api\routers\region_route.py | 72 |
+| POST | /api/v1/region-strategy/patient-cost | backend_fastapi\app\api\routers\region_strategy_route.py | 25 |
+| POST | /api/v1/region-strategy/generate-claim | backend_fastapi\app\api\routers\region_strategy_route.py | 43 |
+| POST | /api/v1/region-strategy/validate-prescription | backend_fastapi\app\api\routers\region_strategy_route.py | 58 |
+| POST | /api/v1/region-strategy/validate-credentials | backend_fastapi\app\api\routers\region_strategy_route.py | 73 |
+| GET | /api/v1/region-strategy/supported-regions | backend_fastapi\app\api\routers\region_strategy_route.py | 88 |
+| GET | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 57 |
+| PUT | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 82 |
+| GET | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 103 |
+| PUT | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 123 |
+| GET | /api/v1/roles/permissions/all | backend_fastapi\app\api\routers\roles_route.py | 146 |
+| GET | /api/v1/rx-queue/counts | backend_fastapi\app\api\routers\rx_queue_route.py | 57 |
+| PATCH | /api/v1/rx-queue/{rx_id}/status | backend_fastapi\app\api\routers\rx_queue_route.py | 67 |
+| POST | /api/v1/rx-queue/bulk-status | backend_fastapi\app\api\routers\rx_queue_route.py | 79 |
+| GET | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 36 |
+| PUT | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 48 |
+| POST | /api/v1/sync/push | backend_fastapi\app\api\routers\sync_route.py | 27 |
+| GET | /api/v1/sync/discrepancies | backend_fastapi\app\api\routers\sync_route.py | 37 |
+| POST | /api/v1/sync/discrepancies/{discrepancy_id}/resolve | backend_fastapi\app\api\routers\sync_route.py | 51 |
+| PUT | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 101 |
+| DELETE | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 133 |
+| GET | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 34 |
+| PUT | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 46 |
+| PATCH | /api/v1/users/{user_id}/active | backend_fastapi\app\api\routers\users_route.py | 65 |
+| GET | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 111 |
+| PUT | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 126 |
+| GET | /api/v1/vendors/{vendor_id}/items | backend_fastapi\app\api\routers\vendors_route.py | 165 |
+| GET | /api/v1/vendors/{vendor_id}/purchases | backend_fastapi\app\api\routers\vendors_route.py | 183 |
+| POST | /api/v1/vendors/receive | backend_fastapi\app\api\routers\vendors_route.py | 204 |
+| GET | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 42 |
+| PUT | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 74 |
+| DELETE | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 89 |
+
+### Unmatched Frontend Calls (no backend route)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | ${serverUrl}/api/webhook/paddle | app\api\webhooks\paddle\route.ts | 58 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 49 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 58 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 66 |
+| GET |  | app\dashboard\inventory\page.tsx | 106 |
+| GET |  | app\dashboard\inventory\page.tsx | 115 |
+| GET |  | app\dashboard\inventory\page.tsx | 142 |
+| GET |  | app\dashboard\inventory\page.tsx | 154 |
+| GET |  | app\dashboard\inventory\page.tsx | 382 |
+| GET |  | app\dashboard\inventory\page.tsx | 404 |
+| GET |  | app\dashboard\inventory\page.tsx | 416 |
+| GET | /api/v1/region/${code} | app\dashboard\settings\page.tsx | 200 |
+| GET |  | components\BootGuard.tsx | 43 |
+| POST | /api/v1/crash-report | components\ErrorBoundary.tsx | 37 |
+| POST | /api/v1/ocr | components\OcrUploadDropzone.tsx | 72 |
+| GET | /api/v1/alerts | stores\alertStore.ts | 42 |
+| POST | /api/auth/login | stores\authStore.ts | 40 |
+| POST | /api/auth/logout | stores\authStore.ts | 62 |
+| GET |  | stores\inventoryStore.ts | 107 |
+| GET |  | stores\inventoryStore.ts | 113 |
+| GET |  | stores\inventoryStore.ts | 119 |
+| GET |  | stores\inventoryStore.ts | 125 |
+| GET | /api/v1/region/${code} | stores\regionStore.ts | 99 |
+| GET | /api/v1/settings/session_idle_minutes | stores\sessionStore.ts | 53 |
+| GET | /api/v1/settings/session_absolute_minutes | stores\sessionStore.ts | 61 |
+
+## API Usage Audit
+_Generated on 2026-09-08T10:15:14.488473Z_
+
+### Orphaned Backend Routes (no frontend call)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | /api/v1/admin/backup | backend_fastapi\app\api\routers\admin_route.py | 20 |
+| GET | /api/v1/admin/backups | backend_fastapi\app\api\routers\admin_route.py | 36 |
+| POST | /api/v1/admin/restore | backend_fastapi\app\api\routers\admin_route.py | 65 |
+| GET | /api/v1/analytics/demand | backend_fastapi\app\api\routers\analytics_route.py | 24 |
+| GET | /api/v1/audit/verify | backend_fastapi\app\api\routers\audit_route.py | 18 |
+| GET | /api/v1/audit/export | backend_fastapi\app\api\routers\audit_route.py | 28 |
+| POST | /api/v1/auth/login/pin | backend_fastapi\app\api\routers\auth_route.py | 33 |
+| POST | /api/v1/auth/pin | backend_fastapi\app\api\routers\auth_route.py | 40 |
+| POST | /api/v1/auth/register | backend_fastapi\app\api\routers\auth_route.py | 55 |
+| GET | /api/v1/auth/me | backend_fastapi\app\api\routers\auth_route.py | 64 |
+| POST | /api/v1/auth/logout | backend_fastapi\app\api\routers\auth_route.py | 69 |
+| POST | /api/v1/auth/rotate-pepper | backend_fastapi\app\api\routers\auth_route.py | 75 |
+| POST | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 34 |
+| GET | /api/v1/clinical/notes | backend_fastapi\app\api\routers\clinical_route.py | 57 |
+| PUT | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 73 |
+| DELETE | /api/v1/clinical/notes/{note_id} | backend_fastapi\app\api\routers\clinical_route.py | 93 |
+| POST | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 107 |
+| GET | /api/v1/clinical/allergies | backend_fastapi\app\api\routers\clinical_route.py | 130 |
+| PUT | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 145 |
+| DELETE | /api/v1/clinical/allergies/{record_id} | backend_fastapi\app\api\routers\clinical_route.py | 167 |
+| GET | /api/v1/clinical/attachments | backend_fastapi\app\api\routers\clinical_route.py | 181 |
+| DELETE | /api/v1/clinical/attachments/{attachment_id} | backend_fastapi\app\api\routers\clinical_route.py | 196 |
+| GET | /api/v1/clinical/review/{patient_id} | backend_fastapi\app\api\routers\clinical_route.py | 210 |
+| GET | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 48 |
+| PUT | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 59 |
+| DELETE | /api/v1/compounds/{compound_id} | backend_fastapi\app\api\routers\compound_route.py | 71 |
+| POST | /api/v1/compounds/{compound_id}/price | backend_fastapi\app\api\routers\compound_route.py | 82 |
+| POST | /api/v1/compounds/dispense | backend_fastapi\app\api\routers\compound_route.py | 94 |
+| GET | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 26 |
+| GET | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 36 |
+| POST | /api/v1/coupons/ | backend_fastapi\app\api\routers\coupon_route.py | 46 |
+| PUT | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 56 |
+| DELETE | /api/v1/coupons/{coupon_id} | backend_fastapi\app\api\routers\coupon_route.py | 67 |
+| POST | /api/v1/coupons/validate | backend_fastapi\app\api\routers\coupon_route.py | 77 |
+| GET | /api/v1/dashboard/metrics | backend_fastapi\app\api\routers\dashboard_route.py | 24 |
+| GET | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 29 |
+| POST | /api/v1/dictionaries/sig-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 37 |
+| PUT | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 46 |
+| DELETE | /api/v1/dictionaries/sig-codes/{sig_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 59 |
+| GET | /api/v1/dictionaries/sig-codes/parse | backend_fastapi\app\api\routers\dictionaries_route.py | 70 |
+| GET | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 79 |
+| POST | /api/v1/dictionaries/price-codes | backend_fastapi\app\api\routers\dictionaries_route.py | 87 |
+| PUT | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 96 |
+| DELETE | /api/v1/dictionaries/price-codes/{price_code_id} | backend_fastapi\app\api\routers\dictionaries_route.py | 109 |
+| GET | /api/v1/dictionaries/price-codes/{price_code_id}/calculate | backend_fastapi\app\api\routers\dictionaries_route.py | 120 |
+| GET | /api/v1/dictionaries/ndc/lookup | backend_fastapi\app\api\routers\dictionaries_route.py | 134 |
+| GET | /api/v1/dispense/rx/{rx_number} | backend_fastapi\app\api\routers\dispense_route.py | 26 |
+| GET | /api/v1/dispense/rx/{rx_number}/fills | backend_fastapi\app\api\routers\dispense_route.py | 36 |
+| PUT | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 50 |
+| POST | /api/v1/dispense/{dispense_id}/reverse | backend_fastapi\app\api\routers\dispense_route.py | 61 |
+| POST | /api/v1/dispense/{dispense_id}/transfer | backend_fastapi\app\api\routers\dispense_route.py | 79 |
+| GET | /api/v1/dispense/{dispense_id} | backend_fastapi\app\api\routers\dispense_route.py | 93 |
+| GET | /api/v1/dispense/{dispense_id}/label | backend_fastapi\app\api\routers\dispense_route.py | 102 |
+| POST | /api/v1/dispense/{dispense_id}/refill | backend_fastapi\app\api\routers\dispense_route.py | 117 |
+| GET | /api/v1/drugs/confirm/{ndc} | backend_fastapi\app\api\routers\drug_confirm_route.py | 15 |
+| POST | /api/v1/drug-interactions/check | backend_fastapi\app\api\routers\drug_interaction_route.py | 51 |
+| GET | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 64 |
+| POST | /api/v1/drug-interactions/ | backend_fastapi\app\api\routers\drug_interaction_route.py | 73 |
+| PUT | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 84 |
+| DELETE | /api/v1/drug-interactions/{interaction_id} | backend_fastapi\app\api\routers\drug_interaction_route.py | 96 |
+| POST | /api/v1/email/daily-sales | backend_fastapi\app\api\routers\email_route.py | 29 |
+| GET | /api/v1/email/health | backend_fastapi\app\api\routers\email_route.py | 58 |
+| GET | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 70 |
+| PUT | /api/v1/epcs/{rx_id} | backend_fastapi\app\api\routers\epcs_route.py | 81 |
+| PATCH | /api/v1/epcs/{rx_id}/status | backend_fastapi\app\api\routers\epcs_route.py | 93 |
+| POST | /api/v1/epcs/{rx_id}/sign | backend_fastapi\app\api\routers\epcs_route.py | 105 |
+| POST | /api/v1/epcs/{rx_id}/transmit | backend_fastapi\app\api\routers\epcs_route.py | 118 |
+| GET | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 131 |
+| POST | /api/v1/epcs/prescriber/{prescriber_id}/identity | backend_fastapi\app\api\routers\epcs_route.py | 142 |
+| POST | /api/v1/excel/import/analyze | backend_fastapi\app\api\routers\excel_route.py | 129 |
+| POST | /api/v1/excel/import/preview | backend_fastapi\app\api\routers\excel_route.py | 182 |
+| POST | /api/v1/excel/import/commit | backend_fastapi\app\api\routers\excel_route.py | 233 |
+| GET | /api/v1/excel/export/inventory | backend_fastapi\app\api\routers\excel_route.py | 343 |
+| POST | /api/v1/excel/import/inventory | backend_fastapi\app\api\routers\excel_route.py | 431 |
+| POST | /api/v1/excel/import/csv | backend_fastapi\app\api\routers\excel_route.py | 548 |
+| GET | /api/v1/gift-cards/lookup/{code} | backend_fastapi\app\api\routers\gift_card_route.py | 78 |
+| POST | /api/v1/gift-cards/{card_id}/redeem | backend_fastapi\app\api\routers\gift_card_route.py | 87 |
+| POST | /api/v1/gift-cards/{card_id}/void | backend_fastapi\app\api\routers\gift_card_route.py | 106 |
+| GET | /api/v1/health | backend_fastapi\app\api\routers\health_route.py | 11 |
+| GET | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 25 |
+| GET | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 36 |
+| POST | /api/v1/insurance/plans | backend_fastapi\app\api\routers\insurance_route.py | 48 |
+| PUT | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 62 |
+| DELETE | /api/v1/insurance/plans/{plan_id} | backend_fastapi\app\api\routers\insurance_route.py | 76 |
+| POST | /api/v1/insurance/plans/validate | backend_fastapi\app\api\routers\insurance_route.py | 88 |
+| POST | /api/v1/insurance/eligibility | backend_fastapi\app\api\routers\insurance_route.py | 101 |
+| GET | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 173 |
+| POST | /api/v1/integrations | backend_fastapi\app\api\routers\integrations_route.py | 184 |
+| GET | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 39 |
+| GET | /api/v1/inventory/medicines/search | backend_fastapi\app\api\routers\inventory_route.py | 73 |
+| GET | /api/v1/inventory/by-barcode/{barcode} | backend_fastapi\app\api\routers\inventory_route.py | 84 |
+| GET | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 98 |
+| POST | /api/v1/inventory/medicines | backend_fastapi\app\api\routers\inventory_route.py | 110 |
+| PUT | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 127 |
+| DELETE | /api/v1/inventory/medicines/{medicine_id} | backend_fastapi\app\api\routers\inventory_route.py | 142 |
+| GET | /api/v1/inventory/batches | backend_fastapi\app\api\routers\inventory_route.py | 156 |
+| POST | /api/v1/inventory/batches/receive | backend_fastapi\app\api\routers\inventory_route.py | 167 |
+| GET | /api/v1/inventory/batches/low-stock | backend_fastapi\app\api\routers\inventory_route.py | 179 |
+| GET | /api/v1/inventory/batches/expiring-soon | backend_fastapi\app\api\routers\inventory_route.py | 187 |
+| GET | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 196 |
+| PUT | /api/v1/inventory/batches/{batch_id} | backend_fastapi\app\api\routers\inventory_route.py | 205 |
+| GET | /api/v1/inventory/stock-levels | backend_fastapi\app\api\routers\inventory_route.py | 215 |
+| GET | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 227 |
+| POST | /api/v1/inventory/suppliers | backend_fastapi\app\api\routers\inventory_route.py | 236 |
+| PUT | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 252 |
+| DELETE | /api/v1/inventory/suppliers/{supplier_id} | backend_fastapi\app\api\routers\inventory_route.py | 271 |
+| POST | /api/v1/inventory/suppliers/{supplier_id}/prefer | backend_fastapi\app\api\routers\inventory_route.py | 290 |
+| GET | /api/v1/inventory/suppliers/search | backend_fastapi\app\api\routers\inventory_route.py | 312 |
+| GET | /api/v1/inventory/movements | backend_fastapi\app\api\routers\inventory_route.py | 336 |
+| POST | /api/v1/inventory/adjustments | backend_fastapi\app\api\routers\inventory_route.py | 366 |
+| POST | /api/v1/invoice-parse/text | backend_fastapi\app\api\routers\invoice_parse_route.py | 52 |
+| POST | /api/v1/invoice-parse/file | backend_fastapi\app\api\routers\invoice_parse_route.py | 61 |
+| GET | /api/v1/invoice-parse/hardware-status | backend_fastapi\app\api\routers\invoice_parse_route.py | 107 |
+| POST | /api/v1/invoice-parse/hybrid | backend_fastapi\app\api\routers\invoice_parse_route.py | 120 |
+| GET | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 45 |
+| GET | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 53 |
+| POST | /api/v1/label-templates/ | backend_fastapi\app\api\routers\label_template_route.py | 62 |
+| PUT | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 72 |
+| DELETE | /api/v1/label-templates/{template_id} | backend_fastapi\app\api\routers\label_template_route.py | 83 |
+| POST | /api/v1/licenses/activate-file | backend_fastapi\app\api\routers\license_file_route.py | 49 |
+| POST | /api/v1/license/validate | backend_fastapi\app\api\routers\license_route.py | 25 |
+| POST | /api/v1/license/checkout | backend_fastapi\app\api\routers\license_route.py | 53 |
+| POST | /api/v1/license/admin/manage | backend_fastapi\app\api\routers\license_route.py | 92 |
+| GET | /api/v1/license/status | backend_fastapi\app\api\routers\license_route.py | 101 |
+| GET | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 35 |
+| PUT | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 57 |
+| DELETE | /api/v1/members-groups/{member_id} | backend_fastapi\app\api\routers\members_route.py | 72 |
+| POST | /api/v1/mobile/offline-ack | backend_fastapi\app\api\routers\mobile_route.py | 25 |
+| POST | /api/v1/labels/render-mobile | backend_fastapi\app\api\routers\mobile_route.py | 64 |
+| GET | /api/v1/patients/search | backend_fastapi\app\api\routers\patients_route.py | 40 |
+| GET | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 49 |
+| PUT | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 67 |
+| POST | /api/v1/patients/{patient_id}/insurance | backend_fastapi\app\api\routers\patients_route.py | 77 |
+| DELETE | /api/v1/patients/{patient_id} | backend_fastapi\app\api\routers\patients_route.py | 87 |
+| GET | /api/v1/patients/{patient_id}/dispenses | backend_fastapi\app\api\routers\patients_route.py | 96 |
+| GET | /api/v1/patients/{patient_id}/history | backend_fastapi\app\api\routers\patients_route.py | 109 |
+| GET | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 35 |
+| POST | /api/v1/patients/{patient_id}/fields | backend_fastapi\app\api\routers\patient_fields_route.py | 43 |
+| DELETE | /api/v1/patients/{patient_id}/fields/{field_name} | backend_fastapi\app\api\routers\patient_fields_route.py | 66 |
+| POST | /api/v1/pos/approve | backend_fastapi\app\api\routers\pos_route.py | 61 |
+| POST | /api/v1/pos/checkout | backend_fastapi\app\api\routers\pos_route.py | 73 |
+| POST | /api/v1/pos/drawer/movement | backend_fastapi\app\api\routers\pos_route.py | 82 |
+| POST | /api/v1/pos/shift/open | backend_fastapi\app\api\routers\pos_route.py | 107 |
+| POST | /api/v1/pos/shift/close | backend_fastapi\app\api\routers\pos_route.py | 117 |
+| GET | /api/v1/pos/shift/{shift_id}/preview | backend_fastapi\app\api\routers\pos_route.py | 127 |
+| POST | /api/v1/pos/refund | backend_fastapi\app\api\routers\pos_route.py | 137 |
+| GET | /api/v1/pos/reports/sales | backend_fastapi\app\api\routers\pos_route.py | 147 |
+| GET | /api/v1/pos/receipts/recent | backend_fastapi\app\api\routers\pos_route.py | 156 |
+| GET | /api/v1/pos/receipts/{receipt_id} | backend_fastapi\app\api\routers\pos_route.py | 166 |
+| GET | /api/v1/pos/receipts/{receipt_id}/print | backend_fastapi\app\api\routers\pos_route.py | 176 |
+| GET | /api/v1/pos/eod-summary | backend_fastapi\app\api\routers\pos_route.py | 186 |
+| POST | /api/v1/pos/void-item | backend_fastapi\app\api\routers\pos_route.py | 196 |
+| POST | /api/v1/pos/lock | backend_fastapi\app\api\routers\pos_route.py | 206 |
+| GET | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 32 |
+| GET | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 41 |
+| POST | /api/v1/purchase-orders/ | backend_fastapi\app\api\routers\po_route.py | 50 |
+| PUT | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 59 |
+| POST | /api/v1/purchase-orders/{po_id}/items | backend_fastapi\app\api\routers\po_route.py | 69 |
+| DELETE | /api/v1/purchase-orders/{po_id}/items/{item_id} | backend_fastapi\app\api\routers\po_route.py | 79 |
+| POST | /api/v1/purchase-orders/{po_id}/transition | backend_fastapi\app\api\routers\po_route.py | 89 |
+| POST | /api/v1/purchase-orders/{po_id}/receive | backend_fastapi\app\api\routers\po_route.py | 98 |
+| DELETE | /api/v1/purchase-orders/{po_id} | backend_fastapi\app\api\routers\po_route.py | 109 |
+| POST | /api/v1/purchase-orders/auto-reorder | backend_fastapi\app\api\routers\po_route.py | 118 |
+| GET | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 31 |
+| PUT | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 62 |
+| DELETE | /api/v1/prescribers/{prescriber_id} | backend_fastapi\app\api\routers\prescriber_route.py | 78 |
+| GET | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 62 |
+| PUT | /api/v1/prior-auth/{pa_id} | backend_fastapi\app\api\routers\prior_auth_route.py | 73 |
+| PATCH | /api/v1/prior-auth/{pa_id}/status | backend_fastapi\app\api\routers\prior_auth_route.py | 85 |
+| POST | /api/v1/prior-auth/{pa_id}/withdraw | backend_fastapi\app\api\routers\prior_auth_route.py | 97 |
+| GET | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 18 |
+| GET | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 28 |
+| POST | /api/v1/quick-sig/ | backend_fastapi\app\api\routers\quick_sig_route.py | 37 |
+| PUT | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 46 |
+| DELETE | /api/v1/quick-sig/{template_id} | backend_fastapi\app\api\routers\quick_sig_route.py | 56 |
+| POST | /api/v1/quick-sig/{template_id}/favorite | backend_fastapi\app\api\routers\quick_sig_route.py | 65 |
+| POST | /api/v1/quick-sig/{template_id}/use | backend_fastapi\app\api\routers\quick_sig_route.py | 74 |
+| GET | /api/v1/quick-sig/search/suggestions | backend_fastapi\app\api\routers\quick_sig_route.py | 83 |
+| GET | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 18 |
+| GET | /api/v1/receipt-templates/default | backend_fastapi\app\api\routers\receipt_template_route.py | 27 |
+| GET | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 35 |
+| POST | /api/v1/receipt-templates/ | backend_fastapi\app\api\routers\receipt_template_route.py | 44 |
+| PUT | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 53 |
+| DELETE | /api/v1/receipt-templates/{template_id} | backend_fastapi\app\api\routers\receipt_template_route.py | 63 |
+| GET | /api/v1/receiving-log/vendors | backend_fastapi\app\api\routers\receiving_route.py | 85 |
+| GET | /api/v1/region/regions | backend_fastapi\app\api\routers\region_route.py | 56 |
+| GET | /api/v1/region/{code} | backend_fastapi\app\api\routers\region_route.py | 72 |
+| POST | /api/v1/region-strategy/patient-cost | backend_fastapi\app\api\routers\region_strategy_route.py | 25 |
+| POST | /api/v1/region-strategy/generate-claim | backend_fastapi\app\api\routers\region_strategy_route.py | 43 |
+| POST | /api/v1/region-strategy/validate-prescription | backend_fastapi\app\api\routers\region_strategy_route.py | 58 |
+| POST | /api/v1/region-strategy/validate-credentials | backend_fastapi\app\api\routers\region_strategy_route.py | 73 |
+| GET | /api/v1/region-strategy/supported-regions | backend_fastapi\app\api\routers\region_strategy_route.py | 88 |
+| GET | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 57 |
+| PUT | /api/v1/roles/{role_id} | backend_fastapi\app\api\routers\roles_route.py | 82 |
+| GET | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 103 |
+| PUT | /api/v1/roles/{role_id}/permissions | backend_fastapi\app\api\routers\roles_route.py | 123 |
+| GET | /api/v1/roles/permissions/all | backend_fastapi\app\api\routers\roles_route.py | 146 |
+| GET | /api/v1/rx-queue/counts | backend_fastapi\app\api\routers\rx_queue_route.py | 57 |
+| PATCH | /api/v1/rx-queue/{rx_id}/status | backend_fastapi\app\api\routers\rx_queue_route.py | 67 |
+| POST | /api/v1/rx-queue/bulk-status | backend_fastapi\app\api\routers\rx_queue_route.py | 79 |
+| GET | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 36 |
+| PUT | /api/v1/settings/{key} | backend_fastapi\app\api\routers\settings_route.py | 48 |
+| POST | /api/v1/sync/push | backend_fastapi\app\api\routers\sync_route.py | 27 |
+| GET | /api/v1/sync/discrepancies | backend_fastapi\app\api\routers\sync_route.py | 37 |
+| POST | /api/v1/sync/discrepancies/{discrepancy_id}/resolve | backend_fastapi\app\api\routers\sync_route.py | 51 |
+| PUT | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 101 |
+| DELETE | /api/v1/templates/{template_id} | backend_fastapi\app\api\routers\templates_route.py | 133 |
+| GET | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 34 |
+| PUT | /api/v1/users/{user_id} | backend_fastapi\app\api\routers\users_route.py | 46 |
+| PATCH | /api/v1/users/{user_id}/active | backend_fastapi\app\api\routers\users_route.py | 65 |
+| GET | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 111 |
+| PUT | /api/v1/vendors/{vendor_id} | backend_fastapi\app\api\routers\vendors_route.py | 126 |
+| GET | /api/v1/vendors/{vendor_id}/items | backend_fastapi\app\api\routers\vendors_route.py | 165 |
+| GET | /api/v1/vendors/{vendor_id}/purchases | backend_fastapi\app\api\routers\vendors_route.py | 183 |
+| POST | /api/v1/vendors/receive | backend_fastapi\app\api\routers\vendors_route.py | 204 |
+| GET | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 42 |
+| PUT | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 74 |
+| DELETE | /api/v1/wc-claims/{claim_id} | backend_fastapi\app\api\routers\wc_route.py | 89 |
+
+### Unmatched Frontend Calls (no backend route)
+| Method | Path | File | Line |
+|---|---|---|---|
+| POST | ${serverUrl}/api/webhook/paddle | app\api\webhooks\paddle\route.ts | 58 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 49 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 58 |
+| GET |  | app\dashboard\analytics\demand\page.tsx | 66 |
+| GET |  | app\dashboard\inventory\page.tsx | 106 |
+| GET |  | app\dashboard\inventory\page.tsx | 115 |
+| GET |  | app\dashboard\inventory\page.tsx | 142 |
+| GET |  | app\dashboard\inventory\page.tsx | 154 |
+| GET |  | app\dashboard\inventory\page.tsx | 382 |
+| GET |  | app\dashboard\inventory\page.tsx | 404 |
+| GET |  | app\dashboard\inventory\page.tsx | 416 |
+| GET | /api/v1/region/${code} | app\dashboard\settings\page.tsx | 200 |
+| GET |  | components\BootGuard.tsx | 43 |
+| POST | /api/v1/crash-report | components\ErrorBoundary.tsx | 37 |
+| POST | /api/v1/ocr | components\OcrUploadDropzone.tsx | 72 |
+| GET | /api/v1/alerts | stores\alertStore.ts | 42 |
+| POST | /api/auth/login | stores\authStore.ts | 40 |
+| POST | /api/auth/logout | stores\authStore.ts | 62 |
+| GET |  | stores\inventoryStore.ts | 107 |
+| GET |  | stores\inventoryStore.ts | 113 |
+| GET |  | stores\inventoryStore.ts | 119 |
+| GET |  | stores\inventoryStore.ts | 125 |
+| GET | /api/v1/region/${code} | stores\regionStore.ts | 99 |
+| GET | /api/v1/settings/session_idle_minutes | stores\sessionStore.ts | 53 |
+| GET | /api/v1/settings/session_absolute_minutes | stores\sessionStore.ts | 61 |

@@ -82,3 +82,46 @@ a new backend schema still fails the gate until mirrored.
 **CI:** already wired — `.github/workflows/ci.yml` has a dedicated
 `contract-check` job running `npm run check:contracts` (previously red on every
 push), so new drift blocks the build automatically.
+
+## 8. Contract check is name-level only
+
+`scripts/check-contracts.mjs` verifies that a TypeScript name exists for every
+backend schema — not that its fields match. A backend field rename or type
+change passes the gate while drifting the actual wire contract (the exact
+422-bomb scenario the check exists to prevent).
+
+**Plan:** extend the script to parse Pydantic fields (name, required/optional,
+type) and compare them against the TS interface body. Money fields must map to
+`Money` (string), SQLite int-bools to `number`, `Optional` to `| null`.
+
+## 9. Oversized files: types/contracts.ts and FLOW_LOGIC.md
+
+Both exceed the editor tool's save limit (~20k tokens / 56 KB). Contracts are
+already split (`types/contracts-parity.ts`); FLOW_LOGIC.md keeps growing and
+will hit the same wall.
+
+**Plan:** for FLOW_LOGIC.md, archive completed spec sections into
+`docs/archive/` (or split per-spec flow docs) and keep the main file to
+currently-active flows only. For contracts, evaluate splitting
+`contracts-parity.ts` by feature area when it grows.
+
+## 10. check-contracts not in the local pre-build gate
+
+The parity gate runs in CI (`contract-check` job) but a developer building
+locally gets no warning before pushing.
+
+**Plan:** add `node scripts/check-contracts.mjs` to the `prebuild` npm hook
+(or the build script itself) so drift surfaces at build time, not at push time.
+
+## 11. FIX_CODE_SECRET rotation runbook undocumented
+
+Rotating the fix-code signing secret currently lives only in tribal memory.
+Wrong-order rotation silently bricks the Technician Fix feature for users
+mid-update (they'd paste codes that 403 with no visible reason).
+
+**Plan:** document in docs/SUPPORT_EMAIL_SECURITY.md: (1) generate the new
+secret, (2) deploy backend with the new secret FIRST (all old codes 403 —
+acceptable, fail-closed by design), (3) invalidate any outstanding codes sent
+to users, (4) update the operator CLI's env. Note the versioned-secret
+alternative (`kid` field in the envelope) if zero-downtime rotation is ever
+needed.

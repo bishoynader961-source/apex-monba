@@ -64,3 +64,16 @@ git commit -m "chore: untrack tauri-build-target build artifacts"
 ```
 
 **Plan:** land the untracking commit before the 1.1 branch point.
+
+## 7. Frontend/backend contract drift (check-contracts failing)
+
+`node scripts/check-contracts.mjs` reports 18 backend Pydantic schemas with no
+mirror in `types/contracts.ts`: Vendor*, SyncLock*, Mobile*, License*,
+IntegrationRead, PaymentSplitIn, PurchaseHistoryRead, PurchaseOrderReceiveItem,
+ReceiveShipmentPayload, VerifyPasswordRequest. Drift predates SPEC-09 (introduced
+by vendor/sync/mobile feature work on the backend); the desktop app does not call
+these endpoints yet, so nothing breaks at runtime today.
+
+**Plan:** before the 1.1 branch point, add the 18 missing interfaces to
+`types/contracts.ts` and wire `check-contracts.mjs` into CI so new drift fails
+the build. Re-run after every backend schema addition.

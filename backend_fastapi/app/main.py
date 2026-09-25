@@ -46,6 +46,7 @@ from app.api.routers.rx_queue_route import router as rx_queue_router
 from app.api.routers.settings_route import router as settings_router
 from app.api.routers.setup_route import router as setup_router
 from app.api.routers.support_route import router as support_router
+from app.api.routers.support_fix_route import router as support_fix_router
 from app.api.routers.sync_route import router as sync_router
 from app.api.routers.users_route import router as users_router
 from app.api.routers.ocr_route import router as ocr_router
@@ -301,6 +302,7 @@ app.include_router(roles_router)
 app.include_router(rx_queue_router)
 app.include_router(settings_router)
 app.include_router(support_router)
+app.include_router(support_fix_router)
 app.include_router(sync_router)
 app.include_router(setup_router)
 app.include_router(users_router)

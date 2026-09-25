@@ -300,7 +300,7 @@ Tauri IPC: invoke("command", { snake_case_params }) -> src-tauri/src/lib.rs
 - app/dashboard/label-engine/page.tsx: inline "← Dashboard" button in toolbar (Issue 1B)
 - app/dashboard/purchase-orders/page.tsx: Suppliers modal X already bound to setSupplierModalMode("list") (Issue 1C — no change needed)
 - app/dashboard/support/page.tsx: Technician Fix section (Stage 2.3) + openSupportEmail() pre-filled mail (Stage 2.4), both gated on user?.role_id === 1
-- backend_fastapi/app/api/routers/support_fix_route.py: NEW — POST /api/v1/support/fix-code/verify, HMAC-SHA256 over sort_keys payload, 403 on tamper, settings.write permission
+- backend_fastapi/app/api/routers/support_fix_route.py: NEW — POST /api/v1/support/fix-code/verify, HMAC-SHA256 over sort_keys payload, 403 on tamper, settings.write permission — REWRITTEN: sig field added to FixCodeIn (previously every code 403d), fail-closed empty secret, require_permission(settings.manage), sign_payload() shared helper
 - backend_fastapi/app/shared/config.py: fix_code_secret field (FIX_CODE_SECRET env, distinct from SECRET_KEY)
 - backend_fastapi/app/main.py: include_router(support_fix_router) — was MISSING, endpoint 404'd; fixed + verified via TestClient (401 unauth / route live)
 ### Git hygiene
@@ -318,5 +318,5 @@ Tauri IPC: invoke("command", { snake_case_params }) -> src-tauri/src/lib.rs
 ### New scripts
 - scripts/kill-servers.ps1 (-Check flag): kills project-owned node.exe/backend.exe/fresh.exe only (command-line scoped, safe for unrelated node tooling)
 ### Orphans & pending
-- Support-page TechnFix section calls the (now registered) endpoint; end-to-end HMAC round-trip with a real signed code is untested manually
+- Support-page fix-code feature: PROVEN end-to-end (10-test suite, tamper/fail-closed/registration-guard coverage); three bugs fixed post-audit (dropped sig, phantom settings.write permission, frontend envelope mishandling)
 - tsconfig.tsbuildinfo remains a tracked build artifact (pre-existing)

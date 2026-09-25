@@ -206,24 +206,40 @@ export default function SupportPage() {
     }
   };
 
+  // Fix codes are signed JSON envelopes: {"action", "payload", "sig"}.
+  // The signature is HMAC-SHA256 over the canonical JSON of `payload`,
+  // computed by PharmacySuite support tooling — never by the app.
   const handleApplyFix = async () => {
     if (!fixCode.trim()) return;
     setFixApplying(true);
     setFixError(null);
     try {
-      const res = await api.post("/api/v1/support/fix-code/verify", {
-        action: "update_setting",
-        payload: JSON.parse(fixCode),
-        sig: "",
-      });
-      if (!res.status) {
-        const data = await res.data ?? {};
-        throw new Error(data.detail ?? "Invalid fix code.");
+      const envelope = JSON.parse(fixCode) as {
+        action?: unknown;
+        payload?: unknown;
+        sig?: unknown;
+      };
+      if (
+        typeof envelope.action !== "string" ||
+        typeof envelope.sig !== "string" ||
+        envelope.payload === null ||
+        typeof envelope.payload !== "object"
+      ) {
+        throw new Error("Fix code must be {\"action\", \"payload\", \"sig\"} JSON.");
       }
+      await api.post("/api/v1/support/fix-code/verify", {
+        action: envelope.action,
+        payload: envelope.payload,
+        sig: envelope.sig,
+      });
       useToastStore.getState().toast({ title: "Success", message: "Fix applied successfully. Restart may be required.", variant: "success" });
       setFixCode("");
     } catch (err) {
-      setFixError(err instanceof Error ? err.message : "Could not apply fix.");
+      if (err instanceof SyntaxError) {
+        setFixError("Fix code is not valid JSON.");
+      } else {
+        setFixError(err instanceof Error ? err.message : "Could not apply fix.");
+      }
     } finally {
       setFixApplying(false);
     }

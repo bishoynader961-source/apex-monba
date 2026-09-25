@@ -680,14 +680,17 @@ Success. Committed config change: `pyproject.toml` `fail_under` 0 ? 90.
 3. Frontend POSTs `{action, payload, sig}` → `POST /api/v1/support/fix-code/verify` (registered in `main.py` via `include_router(support_fix_router)` — do not remove, the endpoint silently 404s otherwise).
 4. Backend re-computes the HMAC with `hmac.compare_digest` and matches `sig`.
    - mismatch → **403** "Invalid fix code signature" (forgery-proof; no code is ever applied)
-   - valid + `update_setting` → updates the `SystemSetting` row (404 if key unknown), returns the applied payload
+   - valid + `update_setting` → requires `key` + `value` (else **400**), updates the `SystemSetting` row (**404** if key unknown), returns the applied payload
    - valid + `reload_permissions` → no DB change (client refreshes)
    - unknown action → **400**
+   - The frontend **parses the envelope itself** from the textarea — it must never hardcode `action`/`sig` or discard the pasted signature (that bug shipped once; `tests/test_support_fix_code.py::test_valid_code_updates_setting` guards the round-trip).
 5. Frontend toasts success/failure. Restart may be required for some settings.
 
 **Trust boundaries:**
 - `FIX_CODE_SECRET` lives only in the backend `.env` (gitignored); distinct from the JWT `SECRET_KEY` — different owners, rotated separately.
-- Route is gated by `require_permission("settings.write")` on top of the admin-only UI gate (`user?.role_id === 1`).
+- Route is gated by `require_permission("settings.manage")` (the seeded permission key — `settings.write` does not exist) on top of the admin-only UI gate (`user?.role_id === 1`).
 - Empty/missing `FIX_CODE_SECRET` → `_verify_fix_signature` returns False → every code 403s (fail-closed; the feature simply does not work until configured).
 
 **Known limitation:** the backend currently supports `update_setting` and `reload_permissions` actions only. New actions require a backend deploy — by design, since arbitrary code execution via fix codes would defeat the signature model.
+
+**Tests:** `backend_fastapi/tests/test_support_fix_code.py` (10 tests) — includes a registration guard (unauthenticated POST must 401, not 404) so the router can never silently drop out of `main.py` again, plus tamper/fail-closed/unknown-setting/validation coverage.

@@ -167,7 +167,7 @@ async def test_update_system_role_rejected(client: AsyncClient, auth: dict[str, 
         pytest.skip("No system roles")
     rid = system_roles[0]["id"]
     r = await client.put(f"/api/v1/roles/{rid}", json={"name": "hacked"}, headers=auth)
-    assert r.status_code == 400
+    assert r.status_code == 403
 
 
 @pytest.mark.anyio
@@ -178,7 +178,7 @@ async def test_set_permissions_system_role_rejected(client: AsyncClient, auth: d
         pytest.skip("No system roles")
     rid = system_roles[0]["id"]
     r = await client.put(f"/api/v1/roles/{rid}/permissions", json={"permission_ids": []}, headers=auth)
-    assert r.status_code == 400
+    assert r.status_code == 403
 
 
 @pytest.mark.anyio

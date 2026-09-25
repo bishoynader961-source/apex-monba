@@ -1,11 +1,11 @@
 import sqlite3
 import os
 from datetime import datetime
-import database
+import db
 
 
 def init_audit_db():
-    conn = sqlite3.connect(database.get_db_path())
+    conn = sqlite3.connect(db.get_db_path())
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS audit_logs (
@@ -26,7 +26,7 @@ def init_audit_db():
 
 def log_action(action: str, details: str = "", user_pin: str = ""):
     init_audit_db()
-    conn = sqlite3.connect(database.get_db_path())
+    conn = sqlite3.connect(db.get_db_path())
     cursor = conn.cursor()
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cursor.execute("""
@@ -39,7 +39,7 @@ def log_action(action: str, details: str = "", user_pin: str = ""):
 
 def get_logs(limit=100, search_query=""):
     init_audit_db()
-    conn = sqlite3.connect(database.get_db_path())
+    conn = sqlite3.connect(db.get_db_path())
     cursor = conn.cursor()
     if search_query:
         like_pattern = f"%{search_query}%"

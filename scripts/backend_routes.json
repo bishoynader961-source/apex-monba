@@ -1,0 +1,1346 @@
+[
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\admin_route.py",
+    "line": 20,
+    "method": "POST",
+    "path": "/api/v1/admin/backup"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\admin_route.py",
+    "line": 36,
+    "method": "GET",
+    "path": "/api/v1/admin/backups"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\admin_route.py",
+    "line": 65,
+    "method": "POST",
+    "path": "/api/v1/admin/restore"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\analytics_route.py",
+    "line": 24,
+    "method": "GET",
+    "path": "/api/v1/analytics/demand"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\analytics_route.py",
+    "line": 51,
+    "method": "GET",
+    "path": "/api/v1/analytics/top-selling"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\audit_route.py",
+    "line": 18,
+    "method": "GET",
+    "path": "/api/v1/audit/verify"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\audit_route.py",
+    "line": 28,
+    "method": "GET",
+    "path": "/api/v1/audit/export"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\auth_route.py",
+    "line": 27,
+    "method": "POST",
+    "path": "/api/v1/auth/login"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\auth_route.py",
+    "line": 33,
+    "method": "POST",
+    "path": "/api/v1/auth/login/pin"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\auth_route.py",
+    "line": 40,
+    "method": "POST",
+    "path": "/api/v1/auth/pin"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\auth_route.py",
+    "line": 50,
+    "method": "POST",
+    "path": "/api/v1/auth/refresh"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\auth_route.py",
+    "line": 55,
+    "method": "POST",
+    "path": "/api/v1/auth/register"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\auth_route.py",
+    "line": 64,
+    "method": "GET",
+    "path": "/api/v1/auth/me"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\auth_route.py",
+    "line": 69,
+    "method": "POST",
+    "path": "/api/v1/auth/logout"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\auth_route.py",
+    "line": 75,
+    "method": "POST",
+    "path": "/api/v1/auth/rotate-pepper"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\clinical_route.py",
+    "line": 34,
+    "method": "POST",
+    "path": "/api/v1/clinical/notes"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\clinical_route.py",
+    "line": 57,
+    "method": "GET",
+    "path": "/api/v1/clinical/notes"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\clinical_route.py",
+    "line": 73,
+    "method": "PUT",
+    "path": "/api/v1/clinical/notes/{note_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\clinical_route.py",
+    "line": 93,
+    "method": "DELETE",
+    "path": "/api/v1/clinical/notes/{note_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\clinical_route.py",
+    "line": 107,
+    "method": "POST",
+    "path": "/api/v1/clinical/allergies"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\clinical_route.py",
+    "line": 130,
+    "method": "GET",
+    "path": "/api/v1/clinical/allergies"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\clinical_route.py",
+    "line": 145,
+    "method": "PUT",
+    "path": "/api/v1/clinical/allergies/{record_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\clinical_route.py",
+    "line": 167,
+    "method": "DELETE",
+    "path": "/api/v1/clinical/allergies/{record_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\clinical_route.py",
+    "line": 181,
+    "method": "GET",
+    "path": "/api/v1/clinical/attachments"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\clinical_route.py",
+    "line": 196,
+    "method": "DELETE",
+    "path": "/api/v1/clinical/attachments/{attachment_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\clinical_route.py",
+    "line": 210,
+    "method": "GET",
+    "path": "/api/v1/clinical/review/{patient_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\compound_route.py",
+    "line": 48,
+    "method": "GET",
+    "path": "/api/v1/compounds/{compound_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\compound_route.py",
+    "line": 59,
+    "method": "PUT",
+    "path": "/api/v1/compounds/{compound_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\compound_route.py",
+    "line": 71,
+    "method": "DELETE",
+    "path": "/api/v1/compounds/{compound_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\compound_route.py",
+    "line": 82,
+    "method": "POST",
+    "path": "/api/v1/compounds/{compound_id}/price"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\compound_route.py",
+    "line": 94,
+    "method": "POST",
+    "path": "/api/v1/compounds/dispense"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\coupon_route.py",
+    "line": 26,
+    "method": "GET",
+    "path": "/api/v1/coupons/"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\coupon_route.py",
+    "line": 36,
+    "method": "GET",
+    "path": "/api/v1/coupons/{coupon_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\coupon_route.py",
+    "line": 46,
+    "method": "POST",
+    "path": "/api/v1/coupons/"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\coupon_route.py",
+    "line": 56,
+    "method": "PUT",
+    "path": "/api/v1/coupons/{coupon_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\coupon_route.py",
+    "line": 67,
+    "method": "DELETE",
+    "path": "/api/v1/coupons/{coupon_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\coupon_route.py",
+    "line": 77,
+    "method": "POST",
+    "path": "/api/v1/coupons/validate"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dashboard_route.py",
+    "line": 24,
+    "method": "GET",
+    "path": "/api/v1/dashboard/metrics"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dictionaries_route.py",
+    "line": 29,
+    "method": "GET",
+    "path": "/api/v1/dictionaries/sig-codes"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dictionaries_route.py",
+    "line": 37,
+    "method": "POST",
+    "path": "/api/v1/dictionaries/sig-codes"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dictionaries_route.py",
+    "line": 46,
+    "method": "PUT",
+    "path": "/api/v1/dictionaries/sig-codes/{sig_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dictionaries_route.py",
+    "line": 59,
+    "method": "DELETE",
+    "path": "/api/v1/dictionaries/sig-codes/{sig_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dictionaries_route.py",
+    "line": 70,
+    "method": "GET",
+    "path": "/api/v1/dictionaries/sig-codes/parse"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dictionaries_route.py",
+    "line": 79,
+    "method": "GET",
+    "path": "/api/v1/dictionaries/price-codes"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dictionaries_route.py",
+    "line": 87,
+    "method": "POST",
+    "path": "/api/v1/dictionaries/price-codes"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dictionaries_route.py",
+    "line": 96,
+    "method": "PUT",
+    "path": "/api/v1/dictionaries/price-codes/{price_code_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dictionaries_route.py",
+    "line": 109,
+    "method": "DELETE",
+    "path": "/api/v1/dictionaries/price-codes/{price_code_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dictionaries_route.py",
+    "line": 120,
+    "method": "GET",
+    "path": "/api/v1/dictionaries/price-codes/{price_code_id}/calculate"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dictionaries_route.py",
+    "line": 134,
+    "method": "GET",
+    "path": "/api/v1/dictionaries/ndc/lookup"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dispense_route.py",
+    "line": 26,
+    "method": "GET",
+    "path": "/api/v1/dispense/rx/{rx_number}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dispense_route.py",
+    "line": 36,
+    "method": "GET",
+    "path": "/api/v1/dispense/rx/{rx_number}/fills"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dispense_route.py",
+    "line": 50,
+    "method": "PUT",
+    "path": "/api/v1/dispense/{dispense_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dispense_route.py",
+    "line": 61,
+    "method": "POST",
+    "path": "/api/v1/dispense/{dispense_id}/reverse"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dispense_route.py",
+    "line": 79,
+    "method": "POST",
+    "path": "/api/v1/dispense/{dispense_id}/transfer"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dispense_route.py",
+    "line": 93,
+    "method": "GET",
+    "path": "/api/v1/dispense/{dispense_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dispense_route.py",
+    "line": 102,
+    "method": "GET",
+    "path": "/api/v1/dispense/{dispense_id}/label"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\dispense_route.py",
+    "line": 117,
+    "method": "POST",
+    "path": "/api/v1/dispense/{dispense_id}/refill"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\drug_confirm_route.py",
+    "line": 15,
+    "method": "GET",
+    "path": "/api/v1/drugs/confirm/{ndc}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\drug_interaction_route.py",
+    "line": 51,
+    "method": "POST",
+    "path": "/api/v1/drug-interactions/check"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\drug_interaction_route.py",
+    "line": 64,
+    "method": "GET",
+    "path": "/api/v1/drug-interactions/"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\drug_interaction_route.py",
+    "line": 73,
+    "method": "POST",
+    "path": "/api/v1/drug-interactions/"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\drug_interaction_route.py",
+    "line": 84,
+    "method": "PUT",
+    "path": "/api/v1/drug-interactions/{interaction_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\drug_interaction_route.py",
+    "line": 96,
+    "method": "DELETE",
+    "path": "/api/v1/drug-interactions/{interaction_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\email_route.py",
+    "line": 29,
+    "method": "POST",
+    "path": "/api/v1/email/daily-sales"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\email_route.py",
+    "line": 58,
+    "method": "GET",
+    "path": "/api/v1/email/health"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\epcs_route.py",
+    "line": 70,
+    "method": "GET",
+    "path": "/api/v1/epcs/{rx_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\epcs_route.py",
+    "line": 81,
+    "method": "PUT",
+    "path": "/api/v1/epcs/{rx_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\epcs_route.py",
+    "line": 93,
+    "method": "PATCH",
+    "path": "/api/v1/epcs/{rx_id}/status"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\epcs_route.py",
+    "line": 105,
+    "method": "POST",
+    "path": "/api/v1/epcs/{rx_id}/sign"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\epcs_route.py",
+    "line": 118,
+    "method": "POST",
+    "path": "/api/v1/epcs/{rx_id}/transmit"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\epcs_route.py",
+    "line": 131,
+    "method": "GET",
+    "path": "/api/v1/epcs/prescriber/{prescriber_id}/identity"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\epcs_route.py",
+    "line": 142,
+    "method": "POST",
+    "path": "/api/v1/epcs/prescriber/{prescriber_id}/identity"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\excel_route.py",
+    "line": 129,
+    "method": "POST",
+    "path": "/api/v1/excel/import/analyze"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\excel_route.py",
+    "line": 182,
+    "method": "POST",
+    "path": "/api/v1/excel/import/preview"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\excel_route.py",
+    "line": 233,
+    "method": "POST",
+    "path": "/api/v1/excel/import/commit"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\excel_route.py",
+    "line": 343,
+    "method": "GET",
+    "path": "/api/v1/excel/export/inventory"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\excel_route.py",
+    "line": 431,
+    "method": "POST",
+    "path": "/api/v1/excel/import/inventory"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\excel_route.py",
+    "line": 548,
+    "method": "POST",
+    "path": "/api/v1/excel/import/csv"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\gift_card_route.py",
+    "line": 78,
+    "method": "GET",
+    "path": "/api/v1/gift-cards/lookup/{code}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\gift_card_route.py",
+    "line": 87,
+    "method": "POST",
+    "path": "/api/v1/gift-cards/{card_id}/redeem"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\gift_card_route.py",
+    "line": 106,
+    "method": "POST",
+    "path": "/api/v1/gift-cards/{card_id}/void"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\health_route.py",
+    "line": 11,
+    "method": "GET",
+    "path": "/api/v1/health"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\insurance_route.py",
+    "line": 25,
+    "method": "GET",
+    "path": "/api/v1/insurance/plans"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\insurance_route.py",
+    "line": 36,
+    "method": "GET",
+    "path": "/api/v1/insurance/plans/{plan_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\insurance_route.py",
+    "line": 48,
+    "method": "POST",
+    "path": "/api/v1/insurance/plans"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\insurance_route.py",
+    "line": 62,
+    "method": "PUT",
+    "path": "/api/v1/insurance/plans/{plan_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\insurance_route.py",
+    "line": 76,
+    "method": "DELETE",
+    "path": "/api/v1/insurance/plans/{plan_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\insurance_route.py",
+    "line": 88,
+    "method": "POST",
+    "path": "/api/v1/insurance/plans/validate"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\insurance_route.py",
+    "line": 101,
+    "method": "POST",
+    "path": "/api/v1/insurance/eligibility"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\integrations_route.py",
+    "line": 107,
+    "method": "POST",
+    "path": "/api/v1/drugs/evaluate"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\integrations_route.py",
+    "line": 173,
+    "method": "GET",
+    "path": "/api/v1/integrations"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\integrations_route.py",
+    "line": 184,
+    "method": "POST",
+    "path": "/api/v1/integrations"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 39,
+    "method": "GET",
+    "path": "/api/v1/inventory/medicines"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 73,
+    "method": "GET",
+    "path": "/api/v1/inventory/medicines/search"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 84,
+    "method": "GET",
+    "path": "/api/v1/inventory/by-barcode/{barcode}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 98,
+    "method": "GET",
+    "path": "/api/v1/inventory/medicines/{medicine_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 110,
+    "method": "POST",
+    "path": "/api/v1/inventory/medicines"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 127,
+    "method": "PUT",
+    "path": "/api/v1/inventory/medicines/{medicine_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 142,
+    "method": "DELETE",
+    "path": "/api/v1/inventory/medicines/{medicine_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 156,
+    "method": "GET",
+    "path": "/api/v1/inventory/batches"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 167,
+    "method": "POST",
+    "path": "/api/v1/inventory/batches/receive"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 179,
+    "method": "GET",
+    "path": "/api/v1/inventory/batches/low-stock"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 187,
+    "method": "GET",
+    "path": "/api/v1/inventory/batches/expiring-soon"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 196,
+    "method": "GET",
+    "path": "/api/v1/inventory/batches/{batch_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 205,
+    "method": "PUT",
+    "path": "/api/v1/inventory/batches/{batch_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 215,
+    "method": "GET",
+    "path": "/api/v1/inventory/stock-levels"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 227,
+    "method": "GET",
+    "path": "/api/v1/inventory/suppliers"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 236,
+    "method": "POST",
+    "path": "/api/v1/inventory/suppliers"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 252,
+    "method": "PUT",
+    "path": "/api/v1/inventory/suppliers/{supplier_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 271,
+    "method": "DELETE",
+    "path": "/api/v1/inventory/suppliers/{supplier_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 290,
+    "method": "POST",
+    "path": "/api/v1/inventory/suppliers/{supplier_id}/prefer"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 312,
+    "method": "GET",
+    "path": "/api/v1/inventory/suppliers/search"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 336,
+    "method": "GET",
+    "path": "/api/v1/inventory/movements"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\inventory_route.py",
+    "line": 366,
+    "method": "POST",
+    "path": "/api/v1/inventory/adjustments"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\invoice_parse_route.py",
+    "line": 52,
+    "method": "POST",
+    "path": "/api/v1/invoice-parse/text"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\invoice_parse_route.py",
+    "line": 61,
+    "method": "POST",
+    "path": "/api/v1/invoice-parse/file"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\invoice_parse_route.py",
+    "line": 107,
+    "method": "GET",
+    "path": "/api/v1/invoice-parse/hardware-status"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\invoice_parse_route.py",
+    "line": 120,
+    "method": "POST",
+    "path": "/api/v1/invoice-parse/hybrid"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\label_template_route.py",
+    "line": 45,
+    "method": "GET",
+    "path": "/api/v1/label-templates/"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\label_template_route.py",
+    "line": 53,
+    "method": "GET",
+    "path": "/api/v1/label-templates/{template_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\label_template_route.py",
+    "line": 62,
+    "method": "POST",
+    "path": "/api/v1/label-templates/"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\label_template_route.py",
+    "line": 72,
+    "method": "PUT",
+    "path": "/api/v1/label-templates/{template_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\label_template_route.py",
+    "line": 83,
+    "method": "DELETE",
+    "path": "/api/v1/label-templates/{template_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\license_file_route.py",
+    "line": 49,
+    "method": "POST",
+    "path": "/api/v1/licenses/activate-file"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\license_route.py",
+    "line": 25,
+    "method": "POST",
+    "path": "/api/v1/license/validate"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\license_route.py",
+    "line": 53,
+    "method": "POST",
+    "path": "/api/v1/license/checkout"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\license_route.py",
+    "line": 92,
+    "method": "POST",
+    "path": "/api/v1/license/admin/manage"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\license_route.py",
+    "line": 101,
+    "method": "GET",
+    "path": "/api/v1/license/status"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\members_route.py",
+    "line": 35,
+    "method": "GET",
+    "path": "/api/v1/members-groups/{member_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\members_route.py",
+    "line": 57,
+    "method": "PUT",
+    "path": "/api/v1/members-groups/{member_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\members_route.py",
+    "line": 72,
+    "method": "DELETE",
+    "path": "/api/v1/members-groups/{member_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\mobile_route.py",
+    "line": 25,
+    "method": "POST",
+    "path": "/api/v1/mobile/offline-ack"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\mobile_route.py",
+    "line": 64,
+    "method": "POST",
+    "path": "/api/v1/labels/render-mobile"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\patients_route.py",
+    "line": 40,
+    "method": "GET",
+    "path": "/api/v1/patients/search"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\patients_route.py",
+    "line": 49,
+    "method": "GET",
+    "path": "/api/v1/patients/{patient_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\patients_route.py",
+    "line": 67,
+    "method": "PUT",
+    "path": "/api/v1/patients/{patient_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\patients_route.py",
+    "line": 77,
+    "method": "POST",
+    "path": "/api/v1/patients/{patient_id}/insurance"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\patients_route.py",
+    "line": 87,
+    "method": "DELETE",
+    "path": "/api/v1/patients/{patient_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\patients_route.py",
+    "line": 96,
+    "method": "GET",
+    "path": "/api/v1/patients/{patient_id}/dispenses"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\patients_route.py",
+    "line": 109,
+    "method": "GET",
+    "path": "/api/v1/patients/{patient_id}/history"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\patient_fields_route.py",
+    "line": 35,
+    "method": "GET",
+    "path": "/api/v1/patients/{patient_id}/fields"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\patient_fields_route.py",
+    "line": 43,
+    "method": "POST",
+    "path": "/api/v1/patients/{patient_id}/fields"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\patient_fields_route.py",
+    "line": 66,
+    "method": "DELETE",
+    "path": "/api/v1/patients/{patient_id}/fields/{field_name}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\pos_route.py",
+    "line": 61,
+    "method": "POST",
+    "path": "/api/v1/pos/approve"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\pos_route.py",
+    "line": 73,
+    "method": "POST",
+    "path": "/api/v1/pos/checkout"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\pos_route.py",
+    "line": 82,
+    "method": "POST",
+    "path": "/api/v1/pos/drawer/movement"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\pos_route.py",
+    "line": 107,
+    "method": "POST",
+    "path": "/api/v1/pos/shift/open"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\pos_route.py",
+    "line": 117,
+    "method": "POST",
+    "path": "/api/v1/pos/shift/close"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\pos_route.py",
+    "line": 127,
+    "method": "GET",
+    "path": "/api/v1/pos/shift/{shift_id}/preview"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\pos_route.py",
+    "line": 137,
+    "method": "POST",
+    "path": "/api/v1/pos/refund"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\pos_route.py",
+    "line": 147,
+    "method": "GET",
+    "path": "/api/v1/pos/reports/sales"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\pos_route.py",
+    "line": 156,
+    "method": "GET",
+    "path": "/api/v1/pos/receipts/recent"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\pos_route.py",
+    "line": 166,
+    "method": "GET",
+    "path": "/api/v1/pos/receipts/{receipt_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\pos_route.py",
+    "line": 176,
+    "method": "GET",
+    "path": "/api/v1/pos/receipts/{receipt_id}/print"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\pos_route.py",
+    "line": 186,
+    "method": "GET",
+    "path": "/api/v1/pos/eod-summary"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\pos_route.py",
+    "line": 196,
+    "method": "POST",
+    "path": "/api/v1/pos/void-item"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\pos_route.py",
+    "line": 206,
+    "method": "POST",
+    "path": "/api/v1/pos/lock"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\po_route.py",
+    "line": 32,
+    "method": "GET",
+    "path": "/api/v1/purchase-orders/"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\po_route.py",
+    "line": 41,
+    "method": "GET",
+    "path": "/api/v1/purchase-orders/{po_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\po_route.py",
+    "line": 50,
+    "method": "POST",
+    "path": "/api/v1/purchase-orders/"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\po_route.py",
+    "line": 59,
+    "method": "PUT",
+    "path": "/api/v1/purchase-orders/{po_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\po_route.py",
+    "line": 69,
+    "method": "POST",
+    "path": "/api/v1/purchase-orders/{po_id}/items"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\po_route.py",
+    "line": 79,
+    "method": "DELETE",
+    "path": "/api/v1/purchase-orders/{po_id}/items/{item_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\po_route.py",
+    "line": 89,
+    "method": "POST",
+    "path": "/api/v1/purchase-orders/{po_id}/transition"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\po_route.py",
+    "line": 98,
+    "method": "POST",
+    "path": "/api/v1/purchase-orders/{po_id}/receive"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\po_route.py",
+    "line": 109,
+    "method": "DELETE",
+    "path": "/api/v1/purchase-orders/{po_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\po_route.py",
+    "line": 118,
+    "method": "POST",
+    "path": "/api/v1/purchase-orders/auto-reorder"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\prescriber_route.py",
+    "line": 31,
+    "method": "GET",
+    "path": "/api/v1/prescribers/{prescriber_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\prescriber_route.py",
+    "line": 62,
+    "method": "PUT",
+    "path": "/api/v1/prescribers/{prescriber_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\prescriber_route.py",
+    "line": 78,
+    "method": "DELETE",
+    "path": "/api/v1/prescribers/{prescriber_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\prior_auth_route.py",
+    "line": 62,
+    "method": "GET",
+    "path": "/api/v1/prior-auth/{pa_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\prior_auth_route.py",
+    "line": 73,
+    "method": "PUT",
+    "path": "/api/v1/prior-auth/{pa_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\prior_auth_route.py",
+    "line": 85,
+    "method": "PATCH",
+    "path": "/api/v1/prior-auth/{pa_id}/status"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\prior_auth_route.py",
+    "line": 97,
+    "method": "POST",
+    "path": "/api/v1/prior-auth/{pa_id}/withdraw"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\quick_sig_route.py",
+    "line": 18,
+    "method": "GET",
+    "path": "/api/v1/quick-sig/"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\quick_sig_route.py",
+    "line": 28,
+    "method": "GET",
+    "path": "/api/v1/quick-sig/{template_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\quick_sig_route.py",
+    "line": 37,
+    "method": "POST",
+    "path": "/api/v1/quick-sig/"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\quick_sig_route.py",
+    "line": 46,
+    "method": "PUT",
+    "path": "/api/v1/quick-sig/{template_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\quick_sig_route.py",
+    "line": 56,
+    "method": "DELETE",
+    "path": "/api/v1/quick-sig/{template_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\quick_sig_route.py",
+    "line": 65,
+    "method": "POST",
+    "path": "/api/v1/quick-sig/{template_id}/favorite"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\quick_sig_route.py",
+    "line": 74,
+    "method": "POST",
+    "path": "/api/v1/quick-sig/{template_id}/use"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\quick_sig_route.py",
+    "line": 83,
+    "method": "GET",
+    "path": "/api/v1/quick-sig/search/suggestions"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\receipt_template_route.py",
+    "line": 18,
+    "method": "GET",
+    "path": "/api/v1/receipt-templates/"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\receipt_template_route.py",
+    "line": 27,
+    "method": "GET",
+    "path": "/api/v1/receipt-templates/default"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\receipt_template_route.py",
+    "line": 35,
+    "method": "GET",
+    "path": "/api/v1/receipt-templates/{template_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\receipt_template_route.py",
+    "line": 44,
+    "method": "POST",
+    "path": "/api/v1/receipt-templates/"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\receipt_template_route.py",
+    "line": 53,
+    "method": "PUT",
+    "path": "/api/v1/receipt-templates/{template_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\receipt_template_route.py",
+    "line": 63,
+    "method": "DELETE",
+    "path": "/api/v1/receipt-templates/{template_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\receiving_route.py",
+    "line": 85,
+    "method": "GET",
+    "path": "/api/v1/receiving-log/vendors"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\region_route.py",
+    "line": 25,
+    "method": "GET",
+    "path": "/api/v1/region/detect"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\region_route.py",
+    "line": 56,
+    "method": "GET",
+    "path": "/api/v1/region/regions"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\region_route.py",
+    "line": 72,
+    "method": "GET",
+    "path": "/api/v1/region/{code}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\region_strategy_route.py",
+    "line": 25,
+    "method": "POST",
+    "path": "/api/v1/region-strategy/patient-cost"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\region_strategy_route.py",
+    "line": 43,
+    "method": "POST",
+    "path": "/api/v1/region-strategy/generate-claim"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\region_strategy_route.py",
+    "line": 58,
+    "method": "POST",
+    "path": "/api/v1/region-strategy/validate-prescription"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\region_strategy_route.py",
+    "line": 73,
+    "method": "POST",
+    "path": "/api/v1/region-strategy/validate-credentials"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\region_strategy_route.py",
+    "line": 88,
+    "method": "GET",
+    "path": "/api/v1/region-strategy/supported-regions"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\roles_route.py",
+    "line": 57,
+    "method": "GET",
+    "path": "/api/v1/roles/{role_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\roles_route.py",
+    "line": 82,
+    "method": "PUT",
+    "path": "/api/v1/roles/{role_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\roles_route.py",
+    "line": 103,
+    "method": "GET",
+    "path": "/api/v1/roles/{role_id}/permissions"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\roles_route.py",
+    "line": 123,
+    "method": "PUT",
+    "path": "/api/v1/roles/{role_id}/permissions"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\roles_route.py",
+    "line": 146,
+    "method": "GET",
+    "path": "/api/v1/roles/permissions/all"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\rx_queue_route.py",
+    "line": 57,
+    "method": "GET",
+    "path": "/api/v1/rx-queue/counts"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\rx_queue_route.py",
+    "line": 67,
+    "method": "PATCH",
+    "path": "/api/v1/rx-queue/{rx_id}/status"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\rx_queue_route.py",
+    "line": 79,
+    "method": "POST",
+    "path": "/api/v1/rx-queue/bulk-status"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\settings_route.py",
+    "line": 36,
+    "method": "GET",
+    "path": "/api/v1/settings/{key}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\settings_route.py",
+    "line": 48,
+    "method": "PUT",
+    "path": "/api/v1/settings/{key}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\sync_route.py",
+    "line": 27,
+    "method": "POST",
+    "path": "/api/v1/sync/push"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\sync_route.py",
+    "line": 37,
+    "method": "GET",
+    "path": "/api/v1/sync/discrepancies"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\sync_route.py",
+    "line": 51,
+    "method": "POST",
+    "path": "/api/v1/sync/discrepancies/{discrepancy_id}/resolve"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\templates_route.py",
+    "line": 101,
+    "method": "PUT",
+    "path": "/api/v1/templates/{template_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\templates_route.py",
+    "line": 133,
+    "method": "DELETE",
+    "path": "/api/v1/templates/{template_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\users_route.py",
+    "line": 34,
+    "method": "GET",
+    "path": "/api/v1/users/{user_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\users_route.py",
+    "line": 46,
+    "method": "PUT",
+    "path": "/api/v1/users/{user_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\users_route.py",
+    "line": 65,
+    "method": "PATCH",
+    "path": "/api/v1/users/{user_id}/active"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\vendors_route.py",
+    "line": 111,
+    "method": "GET",
+    "path": "/api/v1/vendors/{vendor_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\vendors_route.py",
+    "line": 126,
+    "method": "PUT",
+    "path": "/api/v1/vendors/{vendor_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\vendors_route.py",
+    "line": 165,
+    "method": "GET",
+    "path": "/api/v1/vendors/{vendor_id}/items"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\vendors_route.py",
+    "line": 183,
+    "method": "GET",
+    "path": "/api/v1/vendors/{vendor_id}/purchases"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\vendors_route.py",
+    "line": 204,
+    "method": "POST",
+    "path": "/api/v1/vendors/receive"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\wc_route.py",
+    "line": 42,
+    "method": "GET",
+    "path": "/api/v1/wc-claims/{claim_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\wc_route.py",
+    "line": 74,
+    "method": "PUT",
+    "path": "/api/v1/wc-claims/{claim_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\wc_route.py",
+    "line": 89,
+    "method": "DELETE",
+    "path": "/api/v1/wc-claims/{claim_id}"
+  },
+  {
+    "file": "backend_fastapi\\app\\api\\routers\\webhook_route.py",
+    "line": 31,
+    "method": "POST",
+    "path": "/api/v1/webhook/creem"
+  }
+]

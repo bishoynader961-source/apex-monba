@@ -441,4 +441,28 @@ Management & FIFO Basis` (`CHANGELOG.md` M3). Scope chosen by user: "Frontend fo
 - `npx vitest run` → **33/33**.
 - `npm audit` → **0 vulnerabilities**.
 
+## M105 — Receipt Print Preview & Thermal Receipt Generation (2026-09-05) ✅ VERIFIED
+
+Ports the legacy `GET /api/v1/pos/receipts/{id}/print` endpoint and adds a styled browser print preview.
+
+**Backend:**
+- `app/shared/schemas.py`: Added `ReceiptPrintResponse` Pydantic schema (receipt_id, receipt_number, receipt_text, printable_html, items, total_amount, payment_method, timestamp, cashier_attribution, patient_name, subtotal, tax_total, sale_type).
+- `app/services/pos_service.py`: Added `format_receipt_print()` method (calls existing `receipt_detail()`, loads pharmacy name/address/phone from `SystemSetting` with "Pharmacy" fallback, generates ESC/POS-compatible `receipt_text` and `printable_html`); added helper methods `_get_setting()`, `_render_thermal()`, `_render_printable_html()`, `_fmt_amount()`. Cleaned up orphaned duplicate `receipt_detail` method and stray lines left from prior editing session.
+- `app/api/routers/pos_route.py`: Added `GET /receipts/{receipt_id}/print` route (gated by `pos.checkout` permission).
+
+**Frontend:**
+- `types/contracts.ts`: Added `ReceiptPrintResponse` interface.
+- `lib/api/pos.ts`: Added `getReceiptPrint()` function.
+- `components/ReceiptPrintPreview.tsx`: Dual-tab component (Browser Preview / Thermal Text) with Print button (`window.print()`) and Download .txt actions.
+- `app/pos/page.tsx`: Replaced JSON `<pre>` dump with `ReceiptPrintPreview` invocation.
+- `app/globals.css`: Added `@media print` CSS rules for clean browser printing.
+
+**Pre-existing fixes:**
+- `app/api/routers/gift_card_route.py` + `patient_fields_route.py`: Fixed `get_db` → `get_session` import (blocked all backend tests).
+- `tests/test_pos_hardening.py::test_migration_idempotent`: Updated version assertion from 14 → 21 and added 11 new table names to assertion set.
+
+**Verification:**
+- Backend: 22/22 POS tests pass (4 existing + 5 new + 13 hardening); `mypy --strict` clean on all modified files.
+- Frontend: `tsc --noEmit` → 0 errors.
+
 

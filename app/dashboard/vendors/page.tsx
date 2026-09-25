@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { RouteGuard } from "@/components/RouteGuard";
 import { useCan } from "@/stores/authStore";
 import { useVendorsStore } from "@/stores/vendorsStore";
 import type { Vendor, VendorItem, PurchaseHistoryEntry } from "@/lib/api/vendors";
 import { getVendorItems } from "@/lib/api/vendors";
+import { DataTable } from "@/components/DataTable";
+import type { Column } from "@/components/DataTable";
 import {
   Building2, Plus, Search, Phone, Mail, Wallet,
   X, Check, Loader2, PackagePlus, AlertTriangle,
@@ -86,17 +89,39 @@ export default function VendorsPage() {
     setShowEdit(true);
   };
 
+  const columns = useMemo<Column<Vendor>[]>(() => [
+    { key: "company_name", header: "Company", render: (row) => (
+      <div>
+        <p className="font-semibold text-gray-800 dark:text-gray-100 text-sm">{row.company_name}</p>
+        {row.tax_id && <p className="text-xs text-gray-500">TIN: {row.tax_id}</p>}
+      </div>
+    )},
+    { key: "contact_phone", header: "Phone", render: (row) => row.contact_phone || "—" },
+    { key: "contact_email", header: "Email", render: (row) => row.contact_email || "—" },
+    { key: "balance_due", header: "Balance Due", render: (row) => (
+      <span className="text-orange-400 font-medium">
+        ${row.balance_due.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+      </span>
+    ), className: "text-right" },
+    { key: "is_active", header: "Status", render: (row) => (
+      <span className={`text-xs px-2 py-0.5 rounded-full ${row.is_active ? "bg-green-900/30 text-green-400" : "bg-gray-800 text-gray-500"}`}>
+        {row.is_active ? "Active" : "Inactive"}
+      </span>
+    )},
+  ], []);
+
   return (
     <DashboardLayout>
+      <RouteGuard permission="vendors.read">
       <div className="p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-100 flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-3">
               <Building2 className="w-7 h-7 text-blue-400" />
               Vendor Management
             </h1>
-            <p className="text-gray-400 text-sm mt-1">Manage supplier directory and receive shipments</p>
+            <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Manage supplier directory and receive shipments</p>
           </div>
           {canWrite && (
             <button
@@ -134,7 +159,7 @@ export default function VendorsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
           <input
             id="vendor-search"
-            className="w-full pl-9 pr-4 py-2.5 bg-[#0d0d20] border border-gray-700 rounded-md text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="w-full pl-9 pr-4 py-2.5 bg-[#0d0d20] border border-gray-700 rounded-md text-gray-800 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             placeholder="Search vendors..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -145,73 +170,50 @@ export default function VendorsPage() {
         <div className="flex gap-6">
           {/* Vendor Grid */}
           <div className={`${selected ? "w-1/2" : "w-full"} transition-all`}>
-            {isLoading ? (
-              <div className="flex items-center justify-center py-16 text-gray-400">
-                <Loader2 className="w-6 h-6 animate-spin mr-3" /> Loading vendors...
-              </div>
-            ) : vendors.length === 0 ? (
-              <div className="text-center py-16 text-gray-500">No vendors found.</div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {vendors.map((v) => (
-                  <div
-                    key={v.id}
-                    className={`bg-[#1a1a2e] border rounded-lg p-5 transition-all cursor-pointer group ${
-                      selected?.id === v.id ? "border-blue-500 ring-1 ring-blue-500/30" : "border-gray-800 hover:border-blue-600/50"
-                    }`}
-                    onClick={() => void loadDetail(v)}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-600/20 flex items-center justify-center">
-                          <Building2 className="w-5 h-5 text-blue-400" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-100 text-sm">{v.company_name}</p>
-                          {v.tax_id && <p className="text-xs text-gray-500">TIN: {v.tax_id}</p>}
-                        </div>
-                      </div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${v.is_active ? "bg-green-900/30 text-green-400" : "bg-gray-800 text-gray-500"}`}>
-                        {v.is_active ? "Active" : "Inactive"}
-                      </span>
-                    </div>
-                    <div className="space-y-1.5 text-xs text-gray-400">
-                      {v.contact_phone && <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5" />{v.contact_phone}</p>}
-                      {v.contact_email && <p className="flex items-center gap-2"><Mail className="w-3.5 h-3.5" />{v.contact_email}</p>}
-                      <p className="flex items-center gap-2 mt-2">
-                        <Wallet className="w-3.5 h-3.5 text-orange-400" />
-                        <span className="text-orange-400 font-medium">
-                          Balance Due: ${v.balance_due.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </span>
-                      </p>
-                    </div>
-                    {canWrite && (
-                      <div className="flex gap-2 mt-4">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setSelected(v); setShowReceive(true); }}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs border border-blue-600/40 text-blue-400 hover:bg-blue-600/10 rounded-md transition-colors"
-                        >
-                          <PackagePlus className="w-3.5 h-3.5" /> Receive
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); openEdit(v); }}
-                          className="flex items-center justify-center gap-1.5 py-1.5 px-2.5 text-xs border border-gray-700 text-gray-400 hover:bg-gray-800 rounded-md transition-colors"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
+            <DataTable
+              columns={columns}
+              data={vendors}
+              keyExtractor={(row) => row.id}
+              loading={isLoading}
+              emptyMessage="No vendors found."
+              onRowClick={loadDetail}
+              selection={{
+                selectedKeys: selected ? new Set([selected.id]) : new Set(),
+                onSelectionChange: (keys) => {
+                  if (keys.size > 0) {
+                    const v = vendors.find((vendor) => vendor.id === Array.from(keys)[0]);
+                    if (v) loadDetail(v);
+                  }
+                },
+              }}
+              actions={canWrite ? {
+                header: "Actions",
+                render: (row) => (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSelected(row); setShowReceive(true); }}
+                      className="text-xs text-blue-400 hover:text-blue-300"
+                    >
+                      Receive
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openEdit(row); }}
+                      className="text-xs text-gray-400 hover:text-gray-300"
+                    >
+                      Edit
+                    </button>
                   </div>
-                ))}
-              </div>
-            )}
+                )
+              } : undefined}
+              className="bg-[#1a1a2e] border border-gray-800"
+            />
           </div>
 
           {/* Detail Panel */}
           {selected && (
             <div className="w-1/2 bg-[#1a1a2e] border border-gray-800 rounded-lg p-5 sticky top-6 self-start max-h-[calc(100vh-8rem)] overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-100">{selected.company_name}</h2>
+                <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">{selected.company_name}</h2>
                 <button onClick={() => setSelected(null)} className="text-gray-500 hover:text-gray-300">
                   <X className="w-5 h-5" />
                 </button>
@@ -220,12 +222,12 @@ export default function VendorsPage() {
               {/* Vendor Info */}
               <div className="grid grid-cols-2 gap-3 text-sm mb-4">
                 {selected.contact_phone && (
-                  <div className="flex items-center gap-2 text-gray-400">
+                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                     <Phone className="w-4 h-4" /> {selected.contact_phone}
                   </div>
                 )}
                 {selected.contact_email && (
-                  <div className="flex items-center gap-2 text-gray-400">
+                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                     <Mail className="w-4 h-4" /> {selected.contact_email}
                   </div>
                 )}
@@ -233,7 +235,7 @@ export default function VendorsPage() {
                   <Wallet className="w-4 h-4" /> ${selected.balance_due.toFixed(2)} due
                 </div>
                 {selected.address && (
-                  <div className="text-gray-400 text-xs">Address: {selected.address}</div>
+                  <div className="text-gray-600 dark:text-gray-400 text-xs">Address: {selected.address}</div>
                 )}
                 {selected.notes && (
                   <div className="col-span-2 text-gray-500 text-xs italic">{selected.notes}</div>
@@ -299,7 +301,7 @@ export default function VendorsPage() {
                     {vendorItems.map((item) => (
                       <div key={item.id} className="flex items-center justify-between p-3 bg-[#0d0d20] border border-gray-800 rounded-md">
                         <div>
-                          <p className="text-sm text-gray-200 font-medium">{item.product_name}</p>
+                          <p className="text-sm text-gray-800 dark:text-gray-200 font-medium">{item.product_name}</p>
                           {item.sku && <p className="text-xs text-gray-500">SKU: {item.sku}</p>}
                         </div>
                         <div className="text-right">
@@ -322,7 +324,7 @@ export default function VendorsPage() {
                     {purchases.map((p) => (
                       <div key={p.id} className="p-3 bg-[#0d0d20] border border-gray-800 rounded-md">
                         <div className="flex items-center justify-between mb-1">
-                          <p className="text-sm text-gray-200 font-medium">{p.product_name}</p>
+                          <p className="text-sm text-gray-800 dark:text-gray-200 font-medium">{p.product_name}</p>
                           <p className="text-sm text-orange-400">${p.total_cost.toFixed(2)}</p>
                         </div>
                         <div className="flex items-center gap-4 text-xs text-gray-500">
@@ -378,12 +380,12 @@ export default function VendorsPage() {
                 { field: "notes", label: "Notes", type: "text" },
               ].map(({ field, label, type }) => (
                 <div key={field}>
-                  <label className="block text-xs text-gray-400 mb-1">{label}</label>
+                  <label htmlFor={`receive-${field}`} className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{label}</label>
                   <input
                     id={`receive-${field}`}
                     type={type}
                     step={field.includes("cost") ? "0.01" : undefined}
-                    className="w-full bg-[#0d0d20] border border-gray-700 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full bg-[#0d0d20] border border-gray-700 rounded-md px-3 py-2 text-gray-800 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     value={(receiveForm as any)[field]}
                     onChange={(e) => setReceiveForm((f) => ({ ...f, [field]: type === "number" ? Number(e.target.value) : e.target.value }))}
                   />
@@ -399,6 +401,7 @@ export default function VendorsPage() {
           </Modal>
         )}
       </div>
+      </RouteGuard>
     </DashboardLayout>
   );
 }
@@ -408,8 +411,8 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-[#1a1a2e] border border-gray-700 rounded-xl p-6 w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold text-gray-100">{title}</h2>
-          <button onClick={onClose}><X className="w-5 h-5 text-gray-400" /></button>
+          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">{title}</h2>
+          <button onClick={onClose}><X className="w-5 h-5 text-gray-600 dark:text-gray-400" /></button>
         </div>
         {children}
       </div>
@@ -422,9 +425,9 @@ function VendorForm({ form, onChange }: { form: Record<string, string>; onChange
     <div className="space-y-3">
       {(["company_name", "contact_phone", "contact_email", "tax_id", "address", "notes"] as const).map((field) => (
         <div key={field}>
-          <label className="block text-xs text-gray-400 mb-1 capitalize">{field.replace("_", " ")}</label>
-          <input
-            className="w-full bg-[#0d0d20] border border-gray-700 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1 capitalize" htmlFor="page-field-1">{field.replace("_", " ")}</label>
+          <input id="page-field-1"
+            className="w-full bg-[#0d0d20] border border-gray-700 rounded-md px-3 py-2 text-gray-800 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             value={form[field] ?? ""}
             onChange={(e) => onChange((f: any) => ({ ...f, [field]: e.target.value }))}
           />

@@ -26,6 +26,7 @@ import { useI18n } from "@/components/I18nProvider";
 import type { WCClaimRead, WCClaimUpdate } from "@/types/contracts";
 import { patientGeneralSchema, type PatientGeneralForm } from "@/lib/validations/patient";
 import { workersCompSchema, type WorkersCompForm } from "@/lib/validations/workersComp";
+import { DashboardLayout } from "@/components/DashboardLayout";
 
 const TABS = ["General", "Insurance Plan", "Members Group", "Rx / Refill", "Patient History", "Billing Info", "Comments", "Emergency Contact", "Employment", "Workers' Comp", "Demographics", "Communication"] as const;
 type TabName = (typeof TABS)[number];
@@ -76,10 +77,10 @@ function GeneralTab({ patient, onUpdate, canWrite }: {
     const error = form.formState.errors[name as keyof typeof form.formState.errors];
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: options?.fullWidth ? "1 / -1" : "auto" }}>
-        <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{label}</label>
+        <label htmlFor="pt-80" style={{ fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{label}</label>
         {canWrite ? (
           <>
-            <input
+            <input id="pt-80"
               {...form.register(name)}
               placeholder={options?.placeholder}
               style={{
@@ -286,10 +287,10 @@ function WorkersCompTab({ patient, onUpdate, canWrite }: {
     const error = form.formState.errors[name as keyof typeof form.formState.errors];
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: options?.fullWidth ? "1 / -1" : "auto" }}>
-        <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{label}</label>
+        <label htmlFor="pt-290" style={{ fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{label}</label>
         {canWrite ? (
           <>
-            <input
+            <input id="pt-290"
               {...form.register(name)}
               placeholder={options?.placeholder}
               style={{
@@ -394,9 +395,9 @@ function Field({ label, value, canWrite, onChange, placeholder, fullWidth }: {
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: fullWidth ? "1 / -1" : "auto" }}>
-      <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{label}</label>
+      <label htmlFor="pt-398" style={{ fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{label}</label>
       {canWrite ? (
-        <input
+        <input id="pt-398"
           defaultValue={value}
           placeholder={placeholder}
           onBlur={(e) => { if (e.target.value !== value) onChange(e.target.value); }}
@@ -557,8 +558,8 @@ function RefillTab({ patient }: { patient: PatientRead }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div>
-        <label style={{ fontSize: 12, fontWeight: 600 }}>{t("patients.rxNumber")}</label>
-        <input
+        <label htmlFor="pt-561" style={{ fontSize: 12, fontWeight: 600 }}>{t("patients.rxNumber")}</label>
+        <input id="pt-561"
           value={rxNumber}
           onChange={(e) => setRxNumber(e.target.value)}
           placeholder={t("patients.enterRxNumber")}
@@ -645,15 +646,15 @@ function BillingInfoTab({ patient }: { patient: PatientRead }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 13 }}>
       <div>
-        <label style={{ fontSize: 12, fontWeight: 600 }}>{t("patients.insuranceProvider")}</label>
+        <span style={{ fontSize: 12, fontWeight: 600 }}>{t("patients.insuranceProvider")}</span>
         <span style={{ fontSize: 13 }}>{patient.insurance_provider || t("patients.none")}</span>
       </div>
       <div>
-        <label style={{ fontSize: 12, fontWeight: 600 }}>{t("patients.policyNumber")}</label>
+        <span style={{ fontSize: 12, fontWeight: 600 }}>{t("patients.policyNumber")}</span>
         <span style={{ fontSize: 13 }}>{patient.policy_number || "—"}</span>
       </div>
       <div>
-        <label style={{ fontSize: 12, fontWeight: 600 }}>{t("patients.totalSpending")}</label>
+        <span style={{ fontSize: 12, fontWeight: 600 }}>{t("patients.totalSpending")}</span>
         <span style={{ fontSize: 13, fontWeight: 600 }}>${formatMoney(parseMoney(totalOutstanding.toFixed(2)))}</span>
       </div>
     </div>
@@ -746,7 +747,7 @@ function CommunicationTab({ patient, onUpdate, canWrite }: {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{t("patients.consentFlag")}</label>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{t("patients.consentFlag")}</span>
         <button
           type="button"
           onClick={() => canWrite && onUpdate({ consent_flag: patient.consent_flag ? 0 : 1 })}
@@ -766,7 +767,7 @@ function CommunicationTab({ patient, onUpdate, canWrite }: {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{t("patients.preferredContact")}</label>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{t("patients.preferredContact")}</span>
         <div style={{ display: "flex", gap: 6 }}>
           {(["prefer_call", "prefer_text", "prefer_email"] as const).map((key) => (
             <button
@@ -791,7 +792,7 @@ function CommunicationTab({ patient, onUpdate, canWrite }: {
 
       <Field label={t("patients.fieldPharmacyHomeId")} value={patient.pharmacy_home_id ?? ""} canWrite={canWrite} onChange={(v) => onUpdate({ pharmacy_home_id: v })} />
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{t("patients.is340b")}</label>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{t("patients.is340b")}</span>
         <button
           type="button"
           onClick={() => canWrite && onUpdate({ is_340b: patient.is_340b ? 0 : 1 })}
@@ -1036,59 +1037,61 @@ function CreatePatientModal({ onClose, onSubmit }: { onClose: () => void; onSubm
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 50 }}>
-      <div style={{ width: "100%", maxWidth: 400, background: "white", borderRadius: 8, padding: 24, boxShadow: "0 4px 24px rgba(0,0,0,0.15)" }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>{t("patients.newPatientModal")}</h2>
-        {error && <p style={{ fontSize: 13, color: "#dc2626", marginBottom: 12 }}>{error}</p>}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 4 }}>{t("patients.fullName")}</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="John Doe"
-              autoFocus
-              style={{ width: "100%", padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}
-            />
+    <DashboardLayout>
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 50 }}>
+        <div style={{ width: "100%", maxWidth: 400, background: "white", borderRadius: 8, padding: 24, boxShadow: "0 4px 24px rgba(0,0,0,0.15)" }}>
+          <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>{t("patients.newPatientModal")}</h2>
+          {error && <p style={{ fontSize: 13, color: "#dc2626", marginBottom: 12 }}>{error}</p>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <label htmlFor="pt-fullname" style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 4 }}>{t("patients.fullName")}</label>
+              <input id="pt-fullname"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Doe"
+                autoFocus
+                style={{ width: "100%", padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}
+              />
+            </div>
+            <div>
+              <label htmlFor="pt-dob" style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 4 }}>{t("patients.dateOfBirth")}</label>
+              <input id="pt-dob"
+                type="date"
+                value={dob}
+                onChange={(e) => setDob(e.target.value)}
+                style={{ width: "100%", padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}
+              />
+            </div>
+            <div>
+              <label htmlFor="pt-1066" style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 4 }}>{t("patients.phone")}</label>
+              <input id="pt-1066"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="(555) 123-4567"
+                style={{ width: "100%", padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}
+              />
+            </div>
+            <div>
+              <label htmlFor="pt-1075" style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 4 }}>{t("patients.emailField")}</label>
+              <input id="pt-1075"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="john@example.com"
+                style={{ width: "100%", padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}
+              />
+            </div>
           </div>
-          <div>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 4 }}>{t("patients.dateOfBirth")}</label>
-            <input
-              type="date"
-              value={dob}
-              onChange={(e) => setDob(e.target.value)}
-              style={{ width: "100%", padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}
-            />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+            <button onClick={onClose} disabled={saving} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", fontSize: 14, cursor: saving ? "default" : "pointer" }}>
+              {t("common.cancel")}
+            </button>
+            <button onClick={() => void handleSubmit()} disabled={saving || !name.trim()} style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: saving || !name.trim() ? "#9ca3af" : "#16a34a", color: "white", fontSize: 14, fontWeight: 500, cursor: saving || !name.trim() ? "default" : "pointer" }}>
+              {saving ? "Creating..." : t("patients.createPatient")}
+            </button>
           </div>
-          <div>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 4 }}>{t("patients.phone")}</label>
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="(555) 123-4567"
-              style={{ width: "100%", padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}
-            />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 4 }}>{t("patients.emailField")}</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="john@example.com"
-              style={{ width: "100%", padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}
-            />
-          </div>
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
-          <button onClick={onClose} disabled={saving} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", fontSize: 14, cursor: saving ? "default" : "pointer" }}>
-            {t("common.cancel")}
-          </button>
-          <button onClick={() => void handleSubmit()} disabled={saving || !name.trim()} style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: saving || !name.trim() ? "#9ca3af" : "#16a34a", color: "white", fontSize: 14, fontWeight: 500, cursor: saving || !name.trim() ? "default" : "pointer" }}>
-            {saving ? "Creating..." : t("patients.createPatient")}
-          </button>
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

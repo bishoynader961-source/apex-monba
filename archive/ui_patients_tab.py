@@ -2,7 +2,7 @@ import customtkinter as ctk
 from tkinter import ttk, messagebox
 import logging
 
-import database
+import db
 import i18n
 from ui_helpers import apply_treeview_style
 from ui_region_fields import RegionFieldSet
@@ -81,7 +81,7 @@ def _load_patients(self, search_query=None):
     for item in self.tree_patients.get_children():
         self.tree_patients.delete(item)
 
-    patients = database.get_all_patients(search_query)
+    patients = db.get_all_patients(search_query)
     for pid, name, phone, email, created_at, fields in patients:
         fields_str = ", ".join(f"{k}: {v}" for k, v in fields.items()) if fields else ""
         self.tree_patients.insert("", "end", iid=f"patient_{pid}", values=(
@@ -108,7 +108,7 @@ def _get_selected_patient_id(self):
 
 def _build_field_combo_choices():
     """Merge DB-distinct field names with defaults, deduplicated and sorted."""
-    db_names = database.get_distinct_patient_field_names()
+    db_names = db.get_distinct_patient_field_names()
     seen = set()
     merged = []
     for name in DEFAULT_FIELD_NAMES + db_names:
@@ -128,7 +128,7 @@ def _open_patient_dialog(self, patient_id=None):
 
     patient = None
     if patient_id:
-        patient = database.get_patient_by_id(patient_id)
+        patient = db.get_patient_by_id(patient_id)
         if not patient:
             messagebox.showerror(i18n.t("error"), i18n.t("patient_not_found"))
             dialog.destroy()
@@ -289,9 +289,9 @@ def _open_patient_dialog(self, patient_id=None):
 
         try:
             if patient_id:
-                database.update_patient(patient_id, name, phone, email, custom_fields)
+                db.update_patient(patient_id, name, phone, email, custom_fields)
             else:
-                database.add_patient(name, phone, email, custom_fields)
+                db.add_patient(name, phone, email, custom_fields)
         except Exception as e:
             messagebox.showerror(i18n.t("error"), f"Database error:\n{e}", parent=dialog)
             return
@@ -319,7 +319,7 @@ def _delete_selected_patient(self):
     if not pid:
         messagebox.showwarning(i18n.t("warning"), i18n.t("select_patient_to_delete"))
         return
-    patient = database.get_patient_by_id(pid)
+    patient = db.get_patient_by_id(pid)
     if not patient:
         messagebox.showerror(i18n.t("error"), i18n.t("patient_not_found"))
         return
@@ -328,7 +328,7 @@ def _delete_selected_patient(self):
         f"Delete patient '{patient[1]}' and all their custom fields?",
     )
     if confirm:
-        database.delete_patient(pid)
+        db.delete_patient(pid)
         _load_patients(self)
 
 

@@ -3,9 +3,10 @@ from tkinter import ttk, messagebox
 from tkinter import filedialog
 import threading
 import os
+import sqlite3
 from datetime import date, timedelta
 
-import database
+import db
 import barcode_logic
 import excel_handler
 from ui_helpers import apply_treeview_style
@@ -538,7 +539,7 @@ def _header_sort(self, col):
 
 def _refresh_expiry_bar(self):
     from datetime import date, timedelta
-    batches = database.get_expiring_batches()
+    batches = db.get_expiring_batches()
     today = date.today()
     c30 = c60 = c90 = 0
     for exp_date, _row in batches:
@@ -563,7 +564,7 @@ def load_inventory(self):
     _configure_tree_tags(self)
     self._row_counter = 0
 
-    batches = database.get_all_in_stock_batches(sort_by=self._current_sort)
+    batches = db.get_all_in_stock_batches(sort_by=self._current_sort)
     current_filter = getattr(self, '_inventory_filter', 'All')
 
     config = barcode_logic.load_config()
@@ -576,7 +577,7 @@ def load_inventory(self):
         batch_id, name, price, mfg_barcode, int_barcode, status, expiry, mfg_date, vendor = batch
 
         if current_filter == "Low Stock":
-            name_count = sum(1 for b in database.get_all_in_stock_batches() if b[1] == name)
+            name_count = sum(1 for b in db.get_all_in_stock_batches() if b[1] == name)
             if name_count > low_stock_threshold:
                 continue
         elif current_filter == "Expiring Soon":
@@ -621,9 +622,9 @@ def perform_search(self, event=None):
         self.load_inventory()
         return
 
-    exact = database.get_product_by_internal_barcode(query)
+    exact = db.get_product_by_internal_barcode(query)
     if not exact:
-        exact = database.get_product_by_barcode(query)
+        exact = db.get_product_by_barcode(query)
     if exact and event:
         self.load_inventory()
         batch_iid = f"batch_{exact[0]}"
@@ -637,7 +638,7 @@ def perform_search(self, event=None):
         self.tree_inv.delete(item)
 
     self._row_counter = 0
-    batches = database.search_all_batches(query)
+    batches = db.search_all_batches(query)
     for batch in batches:
         batch_id, name, price, mfg_barcode, int_barcode, status, expiry, mfg_date, vendor = batch
         expiry_text = expiry if expiry else "N/A"
@@ -673,7 +674,7 @@ def _send_to_checkout(self):
     except ValueError:
         messagebox.showerror("Error", "Could not parse price from the selected batch.")
         return
-    product_row = database.get_product_by_internal_barcode(int_barcode)
+    product_row = db.get_product_by_internal_barcode(int_barcode)
     if not product_row:
         messagebox.showwarning("Out of Stock", f"'{product_name}' (batch {int_barcode or 'N/A'}) is no longer in stock.")
         return
@@ -713,7 +714,7 @@ def _edit_batch(self):
         messagebox.showwarning("Warning", "Please select a batch row to edit.")
         return
     batch_id = int(iid[len("batch_"):])
-    row = database.get_product_by_id(batch_id)
+    row = db.get_product_by_id(batch_id)
     if not row:
         messagebox.showerror("Error", "Could not locate this batch in the database.")
         return
@@ -738,7 +739,7 @@ def _delete_batch(self):
     
     if pin == "1234":
         try:
-            conn = database.sqlite3.connect(database.get_db_path())
+            conn = sqlite3.connect(db.get_db_path())
             cursor = conn.cursor()
             cursor.execute("DELETE FROM products WHERE id = ?", (batch_id,))
             conn.commit()

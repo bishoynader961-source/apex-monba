@@ -51,3 +51,15 @@ export async function rotatePepper(): Promise<{
   }>(`${BASE}/rotate-pepper`);
   return data;
 }
+
+export async function changePassword(payload: {
+  current_password: string;
+  new_password: string;
+  target_user_id?: number;
+}): Promise<{ status: string; message: string }> {
+  const { data } = await api.post<{ status: string; message: string }>(
+    `${BASE}/change-password`,
+    payload
+  );
+  return data;
+}

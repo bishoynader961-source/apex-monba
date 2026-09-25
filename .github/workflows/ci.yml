@@ -64,7 +64,7 @@ jobs:
         run: python -m pytest tests/test_postgres_live.py -q --no-cov
 
   frontend:
-    name: Frontend - tsc + vitest + build
+    name: Frontend - lint + tsc + vitest + build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -76,12 +76,29 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Lint (ESLint 9 flat config — `next lint` was removed in Next 16)
+        run: npm run lint
       - name: Type check
         run: npx tsc --noEmit
       - name: Unit tests
         run: npx vitest run
       - name: Build
         run: npx next build
+
+  npm-audit:
+    name: Dependency audit (npm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Audit npm dependencies
+        # Fail the gate on high/critical advisories (moderate noise stays visible
+        # in the log without breaking CI).
+        run: npm audit --audit-level=high
 
   contract-check:
     name: Frontend/Backend contract parity (C3)

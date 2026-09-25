@@ -41,6 +41,7 @@ hiddenimports = [
     "app.api.routers.patients_route",
     "app.api.routers.pos_route",
     "app.api.routers.settings_route",
+    "app.api.routers.support_route",
     "app.api.routers.sync_route",
     "app.api.routers.users_route",
     "app.api.routers.roles_route",
@@ -113,6 +114,7 @@ hiddenimports = [
     "anyio.lowlevel",
     "httpx",
     "jinja2",
+    "openpyxl",
 ]
 
 # Swagger/ReDoc assets are served from app/static via StaticFiles at runtime, so

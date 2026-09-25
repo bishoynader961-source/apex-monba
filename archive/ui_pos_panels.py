@@ -28,7 +28,7 @@ from typing import Any, Callable, Optional
 import customtkinter as ctk
 from tkinter import ttk, messagebox
 
-import database
+import db
 import i18n
 import barcode_logic
 
@@ -176,7 +176,7 @@ class InsurancePanel(ctk.CTkToplevel):
             for v in self._rows.values(): v.configure(text="No patient selected")
             return
         try:
-            conn = sqlite3.connect(database.get_db_path())
+            conn = sqlite3.connect(db.get_db_path())
             conn.row_factory = sqlite3.Row
             cur  = conn.cursor()
             cur.execute("SELECT COALESCE(insurance_provider, '') AS insurance_provider, "
@@ -495,7 +495,7 @@ class ReceiptHistoryPanel(ctk.CTkToplevel):
                       command=self.destroy, width=80).pack(side="right")
 
     def _load(self) -> None:
-        try: rows = list(database.get_receipts() or [])[:50]
+        try: rows = list(db.get_receipts() or [])[:50]
         except Exception as e: log.error("ReceiptHistory load: %s", e); rows = []
         for r in self._rtree.get_children(): self._rtree.delete(r)
         for r in rows:
@@ -508,7 +508,7 @@ class ReceiptHistoryPanel(ctk.CTkToplevel):
         rid = int(sel[0])
         self._dhdr.configure(text=f"Receipt #{rid}  --  Items")
         for r in self._dtree.get_children(): self._dtree.delete(r)
-        try: items = database.get_receipt_items(rid) or []
+        try: items = db.get_receipt_items(rid) or []
         except Exception as e: log.error("Detail: %s", e); return
         for i in items:
             qty = i[3] if len(i) > 3 else 1
@@ -524,7 +524,7 @@ class ReceiptHistoryPanel(ctk.CTkToplevel):
             messagebox.showinfo("Print", "receipt_engine not available.", parent=self); return
         rid = int(sel[0])
         try:
-            items = database.get_receipt_items(rid) or []
+            items = db.get_receipt_items(rid) or []
             cart  = [{"product_name": i[2], "quantity": i[3], "price_at_time": float(i[4] or 0)} for i in items]
             sub   = sum(c["quantity"] * c["price_at_time"] for c in cart)
             cfg   = barcode_logic.load_config()
@@ -588,7 +588,7 @@ class CustomerHistoryPanel(ctk.CTkToplevel):
                       command=self.destroy, width=80).pack(side="right")
 
     def _load(self) -> None:
-        try: items = database.get_all_receipt_items_flat() or []
+        try: items = db.get_all_receipt_items_flat() or []
         except Exception as e: log.error("CustomerHistory: %s", e); return
         for r in self._tree.get_children(): self._tree.delete(r)
         total = 0.0; rids: set = set()
@@ -860,7 +860,7 @@ class ReturnDialog(ctk.CTkToplevel):
                       command=self.destroy, width=80).pack(side="right")
 
     def _load(self) -> None:
-        try: self._rows = list(database.get_sold_items() or [])[:200]
+        try: self._rows = list(db.get_sold_items() or [])[:200]
         except Exception as e: log.error("ReturnDialog: %s", e); self._rows = []
         self._filter()
 
@@ -884,7 +884,7 @@ class ReturnDialog(ctk.CTkToplevel):
                                    parent=self):
             return
         try:
-            database.reverse_sale(sid)
+            db.reverse_sale(sid)
             messagebox.showinfo("Return Processed", f"'{drug}' returned to inventory.", parent=self)
             self._load()
         except Exception as e:
@@ -1028,8 +1028,8 @@ class EODDialog(ctk.CTkToplevel):
 
     def _load(self) -> None:
         try:
-            total = float(database.get_receipts_total_for_date(self._today) or 0)
-            items = database.get_receipt_items_for_date(self._today) or []
+            total = float(db.get_receipts_total_for_date(self._today) or 0)
+            items = db.get_receipt_items_for_date(self._today) or []
         except Exception as e: log.error("EOD load: %s", e); return
         for r in self._tree.get_children(): self._tree.delete(r)
         rids: set = set(); cnt = 0
@@ -1163,7 +1163,7 @@ class ProductPickerDialog(ctk.CTkToplevel):
 
         def _load():
             try:
-                return database.get_all_products()
+                return db.get_all_products()
             except Exception as e:
                 log.error("ProductPickerDialog product load failed: %s", e)
                 return []
@@ -1343,9 +1343,10 @@ class ReceiptDetailDialog(ctk.CTkToplevel):
 
         def _load():
             try:
-                items = database.get_receipt_items(self._receipt_id) or []
+                items = db.get_receipt_items(self._receipt_id) or []
                 # Fetch receipt header info
-                conn = database.sqlite3.connect(database.get_db_path())
+                import sqlite3
+                conn = sqlite3.connect(db.get_db_path())
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT id, timestamp, total_amount, payment_method "

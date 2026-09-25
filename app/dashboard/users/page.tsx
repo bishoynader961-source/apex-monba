@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { RouteGuard } from "@/components/RouteGuard";
 import { useAuthStore, useCan } from "@/stores/authStore";
 import { useI18n } from "@/components/I18nProvider";
 import { listUsers, getUser, updateUser, setUserActive } from "@/lib/api/users";
@@ -69,9 +70,12 @@ export default function UsersPage() {
   }
 
   async function handleToggleActive(user: UserPublic) {
+    if (user.role_id === 1) return;
+    const action = user.is_active ? "deactivate" : "reactivate";
+    if (!window.confirm(`Are you sure you want to ${action} user "${user.username}"?`)) return;
     try {
       const updated = await setUserActive(user.id, !user.is_active);
-      setSelectedUser(updated);
+      setSelectedUser((prev) => (prev?.id === user.id ? updated : prev));
       setUsers((prev) => prev.map((u) => u.id === user.id ? updated : u));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to update user");
@@ -92,6 +96,7 @@ export default function UsersPage() {
 
   return (
     <DashboardLayout>
+      <RouteGuard permission="users.read">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-gray-100">{t("users.title")}</h1>
         {canWrite && (
@@ -125,20 +130,28 @@ export default function UsersPage() {
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id} className={`border-b border-gray-800/50 ${selectedUser?.id === u.id ? "bg-blue-900/20" : "hover:bg-white/5"}`}>
+                  <tr key={u.id} className={selectedUser?.id === u.id ? "border-b border-gray-800/50 bg-blue-900/20" : "border-b border-gray-800/50 hover:bg-white/5"}>
                     <td className="px-4 py-3 text-sm text-gray-300">{u.id}</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-200">{u.username}</td>
                     <td className="px-4 py-3 text-sm text-gray-400">{u.display_name}</td>
                     <td className="px-4 py-3 text-sm text-gray-400">{ROLE_NAMES[u.role_id] ?? `Role ${u.role_id}`}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${u.is_active ? "bg-green-900/30 text-green-400" : "bg-red-900/30 text-red-400"}`}>
+                      <span className={u.is_active ? "inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-green-900/30 text-green-400" : "inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-red-900/30 text-red-400"}>
                         {u.is_active ? t("users.statusActive") : t("users.statusInactive")}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <button onClick={() => viewUser(u.id)} className="text-sm text-blue-400 hover:text-blue-300 underline">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <button onClick={() => viewUser(u.id)} className="text-sm text-blue-400 hover:text-blue-300 underline mr-3">
                         {t("users.view")}
                       </button>
+                      {canWrite && u.role_id !== 1 && (
+                        <button
+                          onClick={() => void handleToggleActive(u)}
+                          className={`text-sm underline ${u.is_active ? "text-red-400 hover:text-red-300" : "text-green-400 hover:text-green-300"}`}
+                        >
+                          {u.is_active ? t("users.deactivate") : t("users.activate")}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -169,12 +182,14 @@ export default function UsersPage() {
                   <button onClick={() => setEditOpen(true)} className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">
                     {t("users.edit")}
                   </button>
-                  <button
-                    onClick={() => void handleToggleActive(selectedUser)}
-                    className={`px-3 py-1.5 text-xs text-white rounded ${selectedUser.is_active ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}`}
-                  >
-                    {selectedUser.is_active ? t("users.deactivate") : t("users.activate")}
-                  </button>
+                  {selectedUser.role_id !== 1 && (
+                    <button
+                      onClick={() => void handleToggleActive(selectedUser)}
+                      className={`px-3 py-1.5 text-xs text-white rounded ${selectedUser.is_active ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}`}
+                    >
+                      {selectedUser.is_active ? t("users.deactivate") : t("users.activate")}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -201,6 +216,7 @@ export default function UsersPage() {
           onSave={handleEditSave}
         />
       )}
+      </RouteGuard>
     </DashboardLayout>
   );
 }
@@ -242,8 +258,8 @@ function CreateUserModal({ roles, onClose, onSuccess }: { roles: RoleRead[]; onC
         {error && <p className="text-sm text-red-400 mb-3">{error}</p>}
         <div className="flex flex-col gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">{t("users.fieldUsername")}</label>
-            <input
+            <label className="block text-sm font-medium text-gray-400 mb-1" htmlFor="page-field-1">{t("users.fieldUsername")}</label>
+            <input id="page-field-1"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="jdoe"
@@ -252,8 +268,8 @@ function CreateUserModal({ roles, onClose, onSuccess }: { roles: RoleRead[]; onC
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">{t("users.fieldDisplayName")}</label>
-            <input
+            <label className="block text-sm font-medium text-gray-400 mb-1" htmlFor="page-field-2">{t("users.fieldDisplayName")}</label>
+            <input id="page-field-2"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="John Doe"
@@ -261,8 +277,8 @@ function CreateUserModal({ roles, onClose, onSuccess }: { roles: RoleRead[]; onC
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">{t("users.fieldPassword")}</label>
-            <input
+            <label className="block text-sm font-medium text-gray-400 mb-1" htmlFor="page-field-3">{t("users.fieldPassword")}</label>
+            <input id="page-field-3"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -271,8 +287,8 @@ function CreateUserModal({ roles, onClose, onSuccess }: { roles: RoleRead[]; onC
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">{t("users.fieldRole")}</label>
-            <select
+            <label className="block text-sm font-medium text-gray-400 mb-1" htmlFor="page-field-4">{t("users.fieldRole")}</label>
+            <select id="page-field-4"
               value={roleId}
               onChange={(e) => setRoleId(Number(e.target.value))}
               className="w-full px-3 py-2 bg-[#1a1a2e] border border-gray-700 rounded-md text-sm text-gray-200 focus:outline-none focus:border-blue-500"
@@ -319,8 +335,8 @@ function EditUserModal({ user, roles, onClose, onSave }: { user: UserPublic; rol
         <h2 className="text-lg font-semibold text-gray-100 mb-4">{t("users.modalEdit").replace("{username}", user.username)}</h2>
         <div className="flex flex-col gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">{t("users.labelDisplayName")}</label>
-            <input
+            <label className="block text-sm font-medium text-gray-400 mb-1" htmlFor="page-field-5">{t("users.labelDisplayName")}</label>
+            <input id="page-field-5"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               autoFocus
@@ -328,8 +344,8 @@ function EditUserModal({ user, roles, onClose, onSave }: { user: UserPublic; rol
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">{t("users.labelRole")}</label>
-            <select
+            <label className="block text-sm font-medium text-gray-400 mb-1" htmlFor="page-field-6">{t("users.labelRole")}</label>
+            <select id="page-field-6"
               value={roleId}
               onChange={(e) => setRoleId(Number(e.target.value))}
               className="w-full px-3 py-2 bg-[#1a1a2e] border border-gray-700 rounded-md text-sm text-gray-200 focus:outline-none focus:border-blue-500"

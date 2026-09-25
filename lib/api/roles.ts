@@ -50,3 +50,53 @@ export async function listAllPermissions(): Promise<PermissionRead[]> {
   const { data } = await api.get<PermissionRead[]>(`${BASE}/permissions/all`);
   return data;
 }
+
+export interface PermissionCreate {
+  feature_key: string;
+  description?: string;
+}
+
+export interface PermissionCreateResponse {
+  id: number;
+  feature_key: string;
+  description?: string | null;
+}
+
+export async function createPermission(payload: PermissionCreate): Promise<PermissionCreateResponse> {
+  const { data } = await api.post<PermissionCreateResponse>(`${BASE}/permissions`, payload);
+  return data;
+}
+
+export interface LockPasswordRequest {
+  password: string;
+}
+
+export interface LockPasswordVerifyRequest {
+  password: string;
+}
+
+export interface LockStatusResponse {
+  feature_key: string;
+  is_locked: boolean;
+  description?: string | null;
+}
+
+export async function setLockPassword(payload: LockPasswordRequest): Promise<{ message: string }> {
+  const { data } = await api.post<{ message: string }>(`${BASE}/lock-password`, payload);
+  return data;
+}
+
+export async function verifyLockPassword(payload: LockPasswordVerifyRequest): Promise<{ valid: boolean }> {
+  const { data } = await api.post<{ valid: boolean }>(`${BASE}/lock-password/verify`, payload);
+  return data;
+}
+
+export async function getLockStatus(featureKey: string): Promise<LockStatusResponse> {
+  const { data } = await api.get<LockStatusResponse>(`${BASE}/permissions/${featureKey}/lock-status`);
+  return data;
+}
+
+export async function toggleLock(featureKey: string, isLocked: boolean): Promise<LockStatusResponse> {
+  const { data } = await api.put<LockStatusResponse>(`${BASE}/permissions/${featureKey}/lock`, { is_locked: isLocked });
+  return data;
+}

@@ -29,7 +29,7 @@ from tkinter import ttk, messagebox, filedialog
 import tkinter as tk
 
 import i18n
-import database
+import db
 import audit_log
 
 log = logging.getLogger("ui_clinical_workflow")
@@ -199,7 +199,7 @@ class PrescriptionWizard(ctk.CTkToplevel):
 
     def _search_patients(self):
         try:
-            patients = database.get_all_patients()
+            patients = db.get_all_patients()
         except Exception:
             patients = []
         for item in self._patient_tree.get_children():
@@ -668,7 +668,7 @@ class ClinicalWorkflowFrame(ctk.CTkFrame):
 
     def _refresh_patient_list(self):
         try:
-            patients = database.get_all_patients()
+            patients = db.get_all_patients()
         except Exception:
             patients = []
         for item in self._clinical_patient_tree.get_children():

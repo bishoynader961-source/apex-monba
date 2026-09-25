@@ -3,7 +3,7 @@ from tkinter import messagebox
 from datetime import datetime
 from ui_navigation import CompactCard, BadgeLabel, COLOR_CARD_BG, COLOR_CARD_BORDER, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY
 from design_system import CascadeStatusBadge
-import database
+import db
 import audit_log
 import i18n
 
@@ -139,7 +139,7 @@ def setup_dashboard_tab(self):
 def load_dashboard(self):
     """Refresh all dashboard KPI cards, alert panels, and cascade badge."""
     try:
-        m = database.get_dashboard_metrics()
+        m = db.get_dashboard_metrics()
     except Exception as e:
         messagebox.showerror("Dashboard Error", f"Failed to load metrics:\n{e}")
         return

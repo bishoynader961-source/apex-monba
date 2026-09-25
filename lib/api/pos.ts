@@ -6,6 +6,7 @@ import type {
   CheckoutResult,
   DrawerMovementCreate,
   DrawerMovementRead,
+  ReceiptPrintResponse,
   RefundRead,
   RefundRequest,
   SalesReport,
@@ -51,5 +52,37 @@ export async function refundSale(payload: RefundRequest): Promise<RefundRead> {
 // B5: aggregated sales + refunds summary. Requires `inventory.reports`.
 export async function getSalesReport(): Promise<SalesReport> {
   const { data } = await api.get<SalesReport>(`${BASE}/reports/sales`);
+  return data;
+}
+
+// Receipt history (Phase 1.5).
+export async function getRecentReceipts(limit = 50): Promise<import("@/types/contracts").ReceiptRead[]> {
+  const { data } = await api.get<import("@/types/contracts").ReceiptRead[]>(`${BASE}/receipts/recent`, {
+    params: { limit },
+  });
+  return data;
+}
+
+export async function getReceiptDetail(receiptId: number): Promise<import("@/types/contracts").ReceiptRead> {
+  const { data } = await api.get<import("@/types/contracts").ReceiptRead>(`${BASE}/receipts/${receiptId}`);
+  return data;
+}
+
+export async function getReceiptPrint(receiptId: number): Promise<ReceiptPrintResponse> {
+  const { data } = await api.get<ReceiptPrintResponse>(`${BASE}/receipts/${receiptId}/print`);
+  return data;
+}
+
+// EOD summary (Phase 1.7).
+export async function getEODSummary(targetDate?: string): Promise<import("@/types/contracts").EODSummary> {
+  const { data } = await api.get<import("@/types/contracts").EODSummary>(`${BASE}/eod-summary`, {
+    params: targetDate ? { date: targetDate } : {},
+  });
+  return data;
+}
+
+// Void item (Phase 1.8).
+export async function voidItem(payload: import("@/types/contracts").VoidItemRequest): Promise<import("@/types/contracts").VoidItemResult> {
+  const { data } = await api.post<import("@/types/contracts").VoidItemResult>(`${BASE}/void-item`, payload);
   return data;
 }

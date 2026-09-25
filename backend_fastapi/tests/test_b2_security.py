@@ -31,13 +31,34 @@ from app.shared.security import (
 
 async def _make_user(session_factory, permissions: list[str]) -> dict[str, str]:
     """Create a real DB user (get_current_user requires one) and mint a token
-    carrying ``permissions`` as the signed claims."""
+    carrying ``permissions`` as the signed claims.
+
+    ``get_current_user`` sources permissions from the DB role (Spec 07 fix), so
+    a Role row with the granted Permission rows is created and the user is
+    assigned to it. The JWT still carries the same permission list.
+    """
+    from app.core.models import Permission, Role, RolePermission
+
     async with session_factory() as s:
+        # Role id 1 is the hardcoded owner/admin bypass (deps.require_permission),
+        # so reserve it with a placeholder and assign the test user id >= 2.
+        s.add(Role(name="Administrator", description="owner", is_system=1))
+        await s.commit()
+        role = Role(name="pharmacy_role", description="test role", is_system=0)
+        s.add(role)
+        await s.commit()
+        for key in permissions:
+            perm = Permission(feature_key=key, description=key)
+            s.add(perm)
+            await s.commit()
+            s.add(RolePermission(role_id=role.id, permission_id=perm.id, granted=1))
+        await s.commit()
         user = await UserRepository(s).create(
-            username="u", display_name="U", password_hash=b"x", role_id=3
+            username="u", display_name="U", password_hash=b"x", role_id=role.id
         )
         user_id = user.id
-    token = create_access_token(str(user_id), "pharmacy_role", permissions)
+        minted_role = role.id
+    token = create_access_token(str(user_id), "pharmacy_role", minted_role, permissions)
     return {"Authorization": f"Bearer {token}"}
 
 

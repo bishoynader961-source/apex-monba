@@ -150,8 +150,8 @@ export function ShiftCloseDialog({ open, onClose }: Props) {
           <DiscrepanciesPanel />
         </div>
 
-        <label style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Counted cash ($)</label>
-        <input
+        <label style={{ fontSize: 13, display: "block", marginBottom: 4 }} htmlFor="shiftclosedialog-field-1">Counted cash ($)</label>
+        <input id="shiftclosedialog-field-1"
           type="number"
           step="0.01"
           value={counted}

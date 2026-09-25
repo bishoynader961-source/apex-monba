@@ -15,7 +15,7 @@ import customtkinter as ctk
 import auth_session
 import authz
 import audit_log
-import database as db
+import db
 
 MIN_PASSWORD_LEN = 8
 

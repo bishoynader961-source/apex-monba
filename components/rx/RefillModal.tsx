@@ -67,16 +67,16 @@ export function RefillModal() {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-          <h2 className="text-lg font-bold text-white">Refill Prescription</h2>
-          <button onClick={handleClose} className="text-gray-400 hover:text-white text-xl">&times;</button>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Refill Prescription</h2>
+          <button onClick={handleClose} className="text-gray-600 dark:text-gray-400 hover:text-white text-xl">&times;</button>
         </div>
 
         {submitted && lastDispenseResult ? (
           <div className="p-6">
             <div className="rounded-lg bg-emerald-900/30 border border-emerald-700/40 p-4 mb-4">
               <div className="text-emerald-300 font-semibold mb-1">Refill Processed</div>
-              <div className="text-white text-lg font-mono">Rx #{lastDispenseResult.rx_number}</div>
-              <div className="text-sm text-gray-400 mt-1">
+              <div className="text-gray-900 dark:text-white text-lg font-mono">Rx #{lastDispenseResult.rx_number}</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 Refill #{lastDispenseResult.refill_count} of {lastDispenseResult.refills_authorized}
               </div>
             </div>
@@ -95,11 +95,12 @@ export function RefillModal() {
           <div className="p-6 flex flex-col gap-4">
             {/* Rx Lookup */}
             <div>
-              <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+              <label htmlFor="rx-refill-number" className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1">
                 Rx Number
               </label>
               <div className="flex gap-2">
                 <input
+                  id="rx-refill-number"
                   type="text"
                   value={rxQuery}
                   onChange={(e) => setRxQuery(e.target.value)}
@@ -125,12 +126,12 @@ export function RefillModal() {
               <div className="bg-white/5 rounded-lg p-4 text-sm">
                 <div className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-2">Original Prescription</div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div><span className="text-gray-400">Drug:</span> {foundDispense.product_name}</div>
-                  <div><span className="text-gray-400">Sig:</span> {foundDispense.sig_code}</div>
-                  <div><span className="text-gray-400">Qty:</span> {foundDispense.quantity}</div>
-                  <div><span className="text-gray-400">Days Supply:</span> {foundDispense.days_supply ?? "N/A"}</div>
-                  <div><span className="text-gray-400">Refills Used:</span> {foundDispense.refill_count} / {foundDispense.refills_authorized}</div>
-                  <div><span className="text-gray-400">Last Fill:</span> {foundDispense.last_fill_date ?? foundDispense.fill_date}</div>
+                  <div><span className="text-gray-600 dark:text-gray-400">Drug:</span> {foundDispense.product_name}</div>
+                  <div><span className="text-gray-600 dark:text-gray-400">Sig:</span> {foundDispense.sig_code}</div>
+                  <div><span className="text-gray-600 dark:text-gray-400">Qty:</span> {foundDispense.quantity}</div>
+                  <div><span className="text-gray-600 dark:text-gray-400">Days Supply:</span> {foundDispense.days_supply ?? "N/A"}</div>
+                  <div><span className="text-gray-600 dark:text-gray-400">Refills Used:</span> {foundDispense.refill_count} / {foundDispense.refills_authorized}</div>
+                  <div><span className="text-gray-600 dark:text-gray-400">Last Fill:</span> {foundDispense.last_fill_date ?? foundDispense.fill_date}</div>
                 </div>
                 {foundDispense.refill_count >= foundDispense.refills_authorized && (
                   <div className="mt-2 text-amber-400 text-xs font-semibold">
@@ -149,7 +150,7 @@ export function RefillModal() {
             <div className="flex justify-end gap-3 mt-2">
               <button
                 onClick={handleClose}
-                className="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg text-sm hover:bg-white/5"
+                className="px-4 py-2 border border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-white/5"
               >
                 Cancel
               </button>

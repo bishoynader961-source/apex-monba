@@ -5,11 +5,16 @@
 
 import { create } from "zustand";
 
+// Crypto helpers for offline payload encryption
+import { encryptString, decryptString } from "@/lib/offlineCrypto";
+// IndexedDB helpers for queue persistence
+import { idbGetAll, STORE_QUEUE } from "@/lib/db";
+
 import { checkout, drawerMovement } from "@/lib/api/pos";
 import { openShift } from "@/lib/api/shift";
 import { pushSync } from "@/lib/api/sync";
 import { getDeviceId } from "@/lib/deviceId";
-import { idbGetAll, STORE_QUEUE } from "@/lib/db";
+import { getOfflinePassphrase } from "@/lib/offlineKey";
 import {
   enqueueCheckout,
   getQueue,
@@ -34,6 +39,7 @@ import type {
   ProductRead,
   ShiftRead,
   SyncPushEntry,
+  CardTransactionPayload,
 } from "@/types/contracts";
 
 function makeTabId(): string {
@@ -42,6 +48,9 @@ function makeTabId(): string {
 }
 
 const lock = new SyncLock(makeTabId());
+
+// Background sync interval (SPEC 07): 15 seconds
+const SYNC_INTERVAL_MS = 15_000;
 
 interface PosState {
   tabId: string;
@@ -53,12 +62,30 @@ interface PosState {
   hydrated: boolean;
   shiftId: number | null;
   recoverable: RecoverableCart[];
+  // Discount: one-time % or $ reduction applied before tax.
+  discountType: "%" | "$" | null;
+  discountValue: number | null;
+  // Tax exemption: skips sales tax when true.
+  taxExempt: boolean;
+  // Price overrides: product_name → new unit price (money string).
+  priceOverrides: Record<string, string>;
+  // Split payment: list of {method, amount} legs for multi-tender checkout.
+  payments: Array<{ method: string; amount: string }> | null;
   addLine: (product: ProductRead) => void;
   updateQty: (name: string, delta: number) => void;
   remove: (name: string) => void;
   clear: () => void;
   setError: (e: string | null) => void;
   setResult: (r: CheckoutResult | null) => void;
+  setDiscount: (type: "%" | "$" | null, value: number | null) => void;
+  clearDiscount: () => void;
+  toggleTaxExempt: () => void;
+  setPriceOverride: (name: string, price: string) => void;
+  clearPriceOverride: (name: string) => void;
+    clearAllPriceOverrides: () => void;
+    setPayments: (payments: Array<{ method: string; amount: string }> | null) => void;
+  cardInfo: CardTransactionPayload | null;
+  setCardInfo: (info: CardTransactionPayload | null) => void;
   checkout: (paymentMethod?: string) => Promise<void>;
   recordDrawer: (payload: DrawerMovementCreate, approvalToken: string) => Promise<DrawerMovementRead>;
   openShift: (openingFloat: string) => Promise<void>;
@@ -83,6 +110,24 @@ const persistLines = async (lines: CartLine[]): Promise<void> => {
   await registerCart(tabId, lines.length);
 };
 
+// Start background sync timer (SPEC 07)
+let syncIntervalId: ReturnType<typeof setInterval> | null = null;
+
+const startBackgroundSync = (): void => {
+  if (syncIntervalId !== null) return;
+  syncIntervalId = setInterval(() => {
+    const { flushQueue } = usePosStore.getState();
+    void flushQueue();
+  }, SYNC_INTERVAL_MS);
+};
+
+const stopBackgroundSync = (): void => {
+  if (syncIntervalId !== null) {
+    clearInterval(syncIntervalId);
+    syncIntervalId = null;
+  }
+};
+
 export const usePosStore = create<PosState>((set, get) => ({
   tabId: makeTabId(),
   lines: [],
@@ -94,6 +139,12 @@ export const usePosStore = create<PosState>((set, get) => ({
   currentShiftId: null,
   shiftId: null,
   recoverable: [],
+  discountType: null,
+  discountValue: null,
+  taxExempt: false,
+  priceOverrides: {},
+  payments: null,
+  cardInfo: null,
 
   addLine: (product) => {
     set((state) => {
@@ -125,7 +176,11 @@ export const usePosStore = create<PosState>((set, get) => ({
   },
 
   remove: (name) => {
-    set((state) => ({ lines: state.lines.filter((l) => l.product_name !== name) }));
+    set((state) => {
+      const next = { ...state.priceOverrides };
+      delete next[name];
+      return { lines: state.lines.filter((l) => l.product_name !== name), priceOverrides: next };
+    });
     void persistLines(get().lines);
   },
 
@@ -137,23 +192,59 @@ export const usePosStore = create<PosState>((set, get) => ({
   setError: (e) => set({ error: e }),
   setResult: (r) => set({ result: r }),
 
-  checkout: async (paymentMethod?: string) => {
-    const { lines } = get();
-    if (lines.length === 0) return;
-    set({ error: null, result: null });
-    const payload = {
-      line_items: lines.map((l) => ({ product_name: l.product_name, quantity: l.quantity })),
-      payment_method: paymentMethod ?? "Cash",
-    };
+  setDiscount: (type, value) => set({ discountType: type, discountValue: value }),
+  clearDiscount: () => set({ discountType: null, discountValue: null }),
+  toggleTaxExempt: () => set((s) => ({ taxExempt: !s.taxExempt })),
+  setPriceOverride: (name: string, price: string) =>
+    set((s) => ({ priceOverrides: { ...s.priceOverrides, [name]: price } })),
+  clearPriceOverride: (name: string) =>
+    set((s) => {
+      const next = { ...s.priceOverrides };
+      delete next[name];
+      return { priceOverrides: next };
+    }),
+    clearAllPriceOverrides: () => set({ priceOverrides: {} }),
+    // Setter for split‑payment legs
+    setPayments: (payments) => set({ payments }),
+    setCardInfo: (info: CardTransactionPayload | null) => set({ cardInfo: info }),
+
+    checkout: async (paymentMethod?: string) => {
+      const { lines, discountType, discountValue, taxExempt, priceOverrides, payments, cardInfo } = get();
+      if (lines.length === 0) return;
+      set({ error: null, result: null });
+      const hasOverrides = Object.keys(priceOverrides).length > 0;
+        const payload: any = {
+          line_items: lines.map((l) => ({ product_name: l.product_name, quantity: l.quantity })),
+          payment_method: paymentMethod ?? "Cash",
+          tax_exempt: taxExempt,
+          ...(hasOverrides ? { price_overrides: priceOverrides } : {}),
+          ...(payments && payments.length > 0 ? { payments } : {}),
+          ...(discountType && discountValue != null && discountValue > 0
+            ? { discount_type: discountType, discount_value: String(discountValue) }
+            : {}),
+        };
+      // Include cardInfo when paying by card
+      if (paymentMethod === "Card" && cardInfo) {
+        payload.card_info = cardInfo;
+      }
+
     try {
       const result = await checkout(payload);
-      set({ result, lines: [] });
+      set({ result, lines: [], discountType: null, discountValue: null, taxExempt: false, priceOverrides: {}, payments: null });
       await persistLines([]);
     } catch (err) {
       // Network down or 5xx → enqueue for exactly-once replay.
       const message = err instanceof Error ? err.message : "Checkout failed";
       const items = lines.map((l) => ({ product_name: l.product_name, quantity: l.quantity }));
-      await enqueueCheckout({ items });
+        // Encrypt payload if it contains cardInfo before enqueueing
+        if (paymentMethod === "Card" && cardInfo) {
+          const pass = await getOfflinePassphrase();
+          const encrypted = await encryptString(pass, JSON.stringify({ items, card_info: cardInfo }));
+          await enqueueCheckout(encrypted);
+        } else {
+          await enqueueCheckout({ items });
+        }
+
       set({ error: `${message} — queued for offline sync` });
       await get().refreshOfflineCount();
     }
@@ -168,45 +259,46 @@ export const usePosStore = create<PosState>((set, get) => ({
     set({ currentShiftId: shift.id });
   },
 
-  flushQueue: async () => {
-    if (get().syncing) return;
-    const acquired = await lock.acquire();
-    if (!acquired) return; // another tab/flush holds the lock
-    set({ syncing: true });
-    try {
-      const entries: OfflineEntry[] = await getQueue();
-      if (entries.length === 0) return;
-      const deviceId = getDeviceId();
-      const toPush = entries.map((e) => ({
-        device_id: deviceId,
-        local_seq: e.local_seq,
-        client_txn_id: e.client_txn_id,
-        payload: e.payload as SyncPushEntry["payload"],
-      }));
-      const res = await pushSync(toPush);
-      // Remove only successfully accepted/deduped entries.
-      const accepted = res.accepted + res.deduped;
-      if (accepted > 0) {
-        for (const e of entries.slice(0, accepted)) {
-          if (e.id !== undefined) await removeEntry(e.id);
-        }
-        // If over-sells occurred, those were still merged (flagged) — drop them too.
-        for (const e of entries.slice(accepted, accepted + res.over_sells)) {
-          if (e.id !== undefined) await removeEntry(e.id);
-        }
-      }
-      await get().refreshOfflineCount();
-    } catch {
-      // Leave queue intact for the next attempt.
-    } finally {
-      set({ syncing: false });
+    flushQueue: async () => {
+      if (get().syncing) return;
+      const acquired = await lock.acquire();
+      if (!acquired) return; // another tab/flush holds the lock
+      set({ syncing: true });
       try {
-        await lock.release();
+        const entries: OfflineEntry[] = await getQueue();
+        if (entries.length === 0) return;
+        const deviceId = getDeviceId();
+        const toPush: any[] = [];
+        for (const e of entries) {
+          const payload = typeof e.payload === "string"
+            ? JSON.parse(await decryptString(await getOfflinePassphrase(), e.payload))
+            : e.payload;
+          toPush.push({ device_id: deviceId, local_seq: e.local_seq, client_txn_id: e.client_txn_id, payload });
+        }
+        const res = await pushSync(toPush);
+        // Remove only successfully accepted/deduped entries.
+        const accepted = res.accepted + res.deduped;
+        if (accepted > 0) {
+          for (const e of entries.slice(0, accepted)) {
+            if (e.id !== undefined) await removeEntry(e.id);
+          }
+          // If over-sells occurred, those were still merged (flagged) — drop them too.
+          for (const e of entries.slice(accepted, accepted + res.over_sells)) {
+            if (e.id !== undefined) await removeEntry(e.id);
+          }
+        }
+        await get().refreshOfflineCount();
       } catch {
-        // Lock release is best-effort; ignore failures here.
+        // Leave queue intact for the next attempt.
+      } finally {
+        set({ syncing: false });
+        try {
+          await lock.release();
+        } catch {
+          // Lock release is best‑effort; ignore failures here.
+        }
       }
-    }
-  },
+    },
 
   hydrate: async () => {
     try {
@@ -224,6 +316,8 @@ export const usePosStore = create<PosState>((set, get) => ({
           void get().flushQueue();
         });
       }
+      // Start background sync worker (SPEC 07)
+      startBackgroundSync();
     } catch {
       /* indexedDB unavailable — start fresh */
     } finally {

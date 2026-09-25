@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import tkinter.messagebox as msgbox
 
-import database as db
+import db
 
 # Features that additionally require a re-entered PIN / Owner override at runtime.
 SENSITIVE_FEATURES = {

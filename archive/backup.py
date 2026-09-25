@@ -3,7 +3,7 @@ import shutil
 import threading
 import time
 from datetime import datetime
-import database
+import db
 from path_utils import get_resource_path
 
 BACKUP_DIR = get_resource_path("backups")
@@ -15,7 +15,7 @@ def init_backup_dir():
 
 def create_backup():
     init_backup_dir()
-    db_path = database.get_db_path()
+    db_path = db.get_db_path()
     if not os.path.exists(db_path):
         return None
     

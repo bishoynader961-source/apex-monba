@@ -41,17 +41,18 @@ export function DrugEducationModal() {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-          <h2 className="text-lg font-bold text-white">Drug Education</h2>
-          <button onClick={handleClose} className="text-gray-400 hover:text-white text-xl">&times;</button>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Drug Education</h2>
+          <button onClick={handleClose} className="text-gray-600 dark:text-gray-400 hover:text-white text-xl">&times;</button>
         </div>
 
         <div className="p-6 flex flex-col gap-4">
           <div>
-            <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+            <label htmlFor="rx-edu-drug-search" className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1">
               Search Drug
             </label>
             <div className="flex gap-2">
               <input
+                id="rx-edu-drug-search"
                 type="text"
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setDrug(null); }}
@@ -79,7 +80,7 @@ export function DrugEducationModal() {
                   onClick={() => { setDrug(d); setResults([]); }}
                 >
                   <span className="font-medium">{d.name}</span>
-                  {d.strength && <span className="text-gray-400 ml-1">{d.strength}</span>}
+                  {d.strength && <span className="text-gray-600 dark:text-gray-400 ml-1">{d.strength}</span>}
                   {d.form && <span className="text-gray-500 ml-1">{d.form}</span>}
                 </button>
               ))}
@@ -89,13 +90,13 @@ export function DrugEducationModal() {
           {/* Drug Info Card */}
           {drug && (
             <div className="bg-white/5 rounded-lg p-4 text-sm space-y-2">
-              <div className="text-lg font-semibold text-white">{drug.name}</div>
-              {drug.strength && <div><span className="text-gray-400">Strength:</span> {drug.strength}</div>}
-              {drug.form && <div><span className="text-gray-400">Form:</span> {drug.form}</div>}
-              {drug.ndc_code && <div><span className="text-gray-400">NDC:</span> <span className="font-mono">{drug.ndc_code}</span></div>}
-              {drug.manufacturer_name && <div><span className="text-gray-400">Manufacturer:</span> {drug.manufacturer_name}</div>}
-              {drug.therapeutic_class && <div><span className="text-gray-400">Therapeutic Class:</span> {drug.therapeutic_class}</div>}
-              {drug.dea_schedule && <div><span className="text-gray-400">DEA Schedule:</span> {drug.dea_schedule}</div>}
+              <div className="text-lg font-semibold text-gray-900 dark:text-white">{drug.name}</div>
+              {drug.strength && <div><span className="text-gray-600 dark:text-gray-400">Strength:</span> {drug.strength}</div>}
+              {drug.form && <div><span className="text-gray-600 dark:text-gray-400">Form:</span> {drug.form}</div>}
+              {drug.ndc_code && <div><span className="text-gray-600 dark:text-gray-400">NDC:</span> <span className="font-mono">{drug.ndc_code}</span></div>}
+              {drug.manufacturer_name && <div><span className="text-gray-600 dark:text-gray-400">Manufacturer:</span> {drug.manufacturer_name}</div>}
+              {drug.therapeutic_class && <div><span className="text-gray-600 dark:text-gray-400">Therapeutic Class:</span> {drug.therapeutic_class}</div>}
+              {drug.dea_schedule && <div><span className="text-gray-600 dark:text-gray-400">DEA Schedule:</span> {drug.dea_schedule}</div>}
               {drug.is_generic ? <div className="text-emerald-400">Generic</div> : <div className="text-gray-500">Brand</div>}
               {drug.is_controlled ? <div className="text-amber-400">Controlled Substance</div> : null}
             </div>
@@ -104,7 +105,7 @@ export function DrugEducationModal() {
           <div className="flex justify-end gap-3">
             <button
               onClick={handleClose}
-              className="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg text-sm hover:bg-white/5"
+              className="px-4 py-2 border border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-white/5"
             >
               Close
             </button>

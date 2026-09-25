@@ -11,19 +11,7 @@ export function OfflineSyncBanner() {
   if (offlineCount === 0 && !syncing) return null;
 
   return (
-    <div
-      style={{
-        background: "#fef3c7",
-        color: "#92400e",
-        padding: "0.5rem 1rem",
-        borderRadius: 6,
-        fontSize: 13,
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 12,
-      }}
-    >
+    <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 px-4 py-2 rounded-md text-sm flex justify-between items-center mb-3">
       <span>
         {syncing
           ? "Syncing offline sales…"
@@ -32,7 +20,7 @@ export function OfflineSyncBanner() {
       {!syncing && offlineCount > 0 && (
         <button
           onClick={() => void flushQueue()}
-          style={{ padding: "0.3rem 0.7rem", background: "#d97706", color: "#fff", border: "none", borderRadius: 6 }}
+          className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-xs font-medium transition-colors"
         >
           Sync now
         </button>

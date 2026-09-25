@@ -36,7 +36,7 @@ from rx_config import (
 )
 from rx_strategies import strategy_factory
 from rx_database import init_rx_tables
-import database
+import db
 import barcode_logic
 import authz
 import auth_session
@@ -184,7 +184,7 @@ def _fetch_audit_logs(limit=500, search_query=""):
             log.debug("SQLAlchemy audit query failed, falling back to sqlite3: %s", e)
 
     # --- SQLite fallback ---
-    db_path = database.get_db_path()
+    db_path = db.get_db_path()
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()

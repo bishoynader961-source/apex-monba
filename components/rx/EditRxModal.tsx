@@ -63,14 +63,14 @@ export function EditRxModal() {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-          <h2 className="text-lg font-bold text-white">Edit Prescription</h2>
-          <button onClick={handleClose} className="text-gray-400 hover:text-white text-xl">&times;</button>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Edit Prescription</h2>
+          <button onClick={handleClose} className="text-gray-600 dark:text-gray-400 hover:text-white text-xl">&times;</button>
         </div>
 
         {!target ? (
           <div className="p-6 text-center text-gray-500">
             <p>No prescription loaded. Submit or look up an Rx first, then reopen Edit.</p>
-            <button onClick={handleClose} className="mt-4 px-4 py-2 border border-gray-600 text-gray-300 rounded-lg text-sm hover:bg-white/5">
+            <button onClick={handleClose} className="mt-4 px-4 py-2 border border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-white/5">
               Close
             </button>
           </div>
@@ -78,7 +78,7 @@ export function EditRxModal() {
           <div className="p-6">
             <div className="rounded-lg bg-emerald-900/30 border border-emerald-700/40 p-4 mb-4">
               <div className="text-emerald-300 font-semibold">Prescription Updated</div>
-              <div className="text-sm text-gray-400 mt-1">Changes saved for Rx #{target.rx_number}</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">Changes saved for Rx #{target.rx_number}</div>
             </div>
             <div className="flex justify-end">
               <button onClick={handleClose} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium">
@@ -88,16 +88,16 @@ export function EditRxModal() {
           </div>
         ) : (
           <div className="p-6 flex flex-col gap-4">
-            <div className="text-sm text-gray-400 bg-white/5 rounded-lg p-3">
+            <div className="text-sm text-gray-600 dark:text-gray-400 bg-white/5 rounded-lg p-3">
               Editing Rx #{target.rx_number} &mdash; {target.product_name}
             </div>
 
             {/* Sig Code */}
             <div>
-              <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+              <label className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1" htmlFor="editrxmodal-field-1">
                 Sig Code
               </label>
-              <input
+              <input id="editrxmodal-field-1"
                 type="text"
                 value={sigQuery}
                 onChange={(e) => { setSigQuery(e.target.value); }}
@@ -113,10 +113,10 @@ export function EditRxModal() {
             {/* Quantity + Days Supply */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+                <label className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1" htmlFor="editrxmodal-field-2">
                   Quantity
                 </label>
-                <input
+                <input id="editrxmodal-field-2"
                   type="number"
                   min={1}
                   value={quantity || ""}
@@ -125,10 +125,10 @@ export function EditRxModal() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+                <label className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1" htmlFor="editrxmodal-field-3">
                   Days Supply
                 </label>
-                <input
+                <input id="editrxmodal-field-3"
                   type="number"
                   min={0}
                   value={daysSupply ?? ""}
@@ -141,10 +141,10 @@ export function EditRxModal() {
             {/* Refills + Fill Date */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+                <label className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1" htmlFor="editrxmodal-field-4">
                   Refills Authorized
                 </label>
-                <input
+                <input id="editrxmodal-field-4"
                   type="number"
                   min={0}
                   value={refillsAuthorized}
@@ -153,10 +153,10 @@ export function EditRxModal() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+                <label className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1" htmlFor="editrxmodal-field-5">
                   Fill Date
                 </label>
-                <input
+                <input id="editrxmodal-field-5"
                   type="date"
                   value={fillDate}
                   onChange={(e) => setFillDate(e.target.value)}
@@ -174,7 +174,7 @@ export function EditRxModal() {
             <div className="flex justify-end gap-3 mt-2">
               <button
                 onClick={handleClose}
-                className="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg text-sm hover:bg-white/5"
+                className="px-4 py-2 border border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-white/5"
               >
                 Cancel
               </button>

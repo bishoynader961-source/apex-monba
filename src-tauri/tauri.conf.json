@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "PharmacySuite",
+  "productName": "Pharmacy Suite",
   "version": "1.0.0",
-  "identifier": "com.pharmacy.suite",
+  "identifier": "com.pharmacysuite.app",
   "build": {
     "frontendDist": "../.next/static",
     "devUrl": "http://localhost:3000",
@@ -13,28 +13,49 @@
     "windows": [
       {
         "title": "Pharmacy Suite",
-        "url": "about:blank",
+        "url": "/pos",
         "width": 800,
         "height": 600,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "devtools": false
       }
     ],
     "security": {
       "csp": "default-src 'self'; img-src 'self' data: https: http://127.0.0.1:3000 http://localhost:3000; style-src 'self' 'unsafe-inline' http://127.0.0.1:3000 http://localhost:3000; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' http://127.0.0.1:3000 http://localhost:3000 https://cdn.paddle.com; connect-src 'self' http://127.0.0.1:3000 http://localhost:3000 http://localhost:8000 http://127.0.0.1:8000; font-src 'self' http://127.0.0.1:3000 http://localhost:3000 data:"
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/pharmacysuite/pharmacy-suite/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYxQzY5OTQ5NUU1MTY0OUMKUldTY1pGRmVTWm5HOFhmbEdxcC9vTGRQZW5scitaSm9hcmtkU0ZnUHJ2STc5eDRNaDRsNHloYUMK"
+    }
+  },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "externalBin": ["binaries/node", "binaries/backend"],
+    "targets": [
+      "nsis",
+      "msi"
+    ],
+    "externalBin": [
+      "binaries/node",
+      "binaries/backend"
+    ],
     "resources": {
       "../.next/standalone": "standalone"
     },
     "windows": {
       "nsis": {
         "installerHooks": "./windows/hooks.nsh"
-      }
+      },
+      "wix": {
+        "version": "1.0.0.0"
+      },
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
     },
     "icon": [
       "icons/32x32.png",

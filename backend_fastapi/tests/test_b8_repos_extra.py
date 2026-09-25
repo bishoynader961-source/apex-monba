@@ -30,7 +30,6 @@ from app.core.models import (
 from app.core.repositories import (
     AuditRepository,
     BatchRepository,
-    LicenseRepository,
     ProductRepository,
     SupplierRepository,
     SyncRepository,
@@ -143,37 +142,6 @@ async def test_user_repo_mark_all_pins_for_rehash(session):
     await UserRepository(session).mark_all_pins_for_rehash()
     await session.refresh(user)
     assert user.pin_pepper_version == 0
-
-
-# ── License repository (Creem MoR fulfillment) ─────────────────────────────────
-async def test_license_repo_crud_and_status_transitions(session):
-    repo = LicenseRepository(session)
-    lic = await repo.create(
-        license_key="PHARM-L1",
-        email="a@b.c",
-        expires_at="2099-01-01T00:00:00+00:00",
-        subscription_id="sub-l1",
-        offline_grace_hours=1,
-    )
-    await session.commit()
-    await session.refresh(lic)
-    assert (await repo.get_by_key("PHARM-L1")).id == lic.id
-    assert (await repo.get_by_subscription_id("sub-l1")).id == lic.id
-    assert await repo.get_by_key("NOPE") is None
-    assert await repo.get_by_subscription_id("NOPE") is None
-
-    revoked = await repo.update_status("PHARM-L1", "revoked")
-    assert revoked.status == "revoked"
-    assert await repo.update_status("NOPE", "revoked") is None
-
-    ext = await repo.extend_expires_at("PHARM-L1", "5999-01-01T00:00:00+00:00")
-    assert ext is not None and ext.status == "active"
-    assert await repo.extend_expires_at("NOPE", "x") is None
-
-    bound = await repo.bind_hardware("PHARM-L1", "hw-1")
-    assert bound.hardware_id == "hw-1"
-    assert (await repo.bind_hardware("PHARM-L1", "hw-1")).hardware_id == "hw-1"
-    assert await repo.bind_hardware("NOPE", "hw") is None
 
 
 # ── Security: pin pepper rotation / previous pepper / lockout / legacy verify ─

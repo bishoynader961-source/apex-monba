@@ -7,6 +7,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { useI18n } from "@/components/I18nProvider";
 import { useAuthStore, useCan } from "@/stores/authStore";
 import { useAnalytics } from "@/hooks/useAnalytics";
+import { RouteGuard } from "@/components/RouteGuard";
 import { downloadCsv } from "@/lib/csv";
 import { formatMoney, parseMoney } from "@/lib/decimalCurrency";
 import type { DemandAnalyticsItem } from "@/types/contracts";
@@ -116,37 +117,26 @@ export default function DemandAnalyticsPage() {
   };
 
   const totalQty =
-    summary?.items.reduce((s, it) => s + it.total_quantity_demanded, 0) ?? 0;
+    summary?.items?.reduce((s, it) => s + it.total_quantity_demanded, 0) ?? 0;
   const totalRevenue =
-    summary?.items.reduce((s, it) => s + parseMoney(it.total_revenue), 0n) ?? 0n;
-  const topProduct = summary?.items.reduce(
+    summary?.items?.reduce((s, it) => s + parseMoney(it.total_revenue), 0n) ?? 0n;
+  const topProduct = summary?.items?.reduce<DemandAnalyticsItem | null>(
     (top, it) => (it.total_quantity_demanded > (top?.total_quantity_demanded ?? 0) ? it : top),
+    null,
   );
   const slowOrNon =
     summary?.items.filter(
       (it) => it.velocity_category === "SLOW_MOVING" || it.velocity_category === "NON_MOVING",
     ).length ?? 0;
 
-  if (!isAuthenticated()) return null;
-  if (!canRead) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-gray-400 text-center">
-            <div className="text-4xl mb-4">🔒</div>
-            <p className="text-lg font-medium text-gray-200 mb-1">{t("analytics.noPermission")}</p>
-            <p className="text-sm text-gray-500">You do not have permission to view demand analytics.</p>
-          </div>
-      </div>
-    </DashboardLayout>
-  );
-}
+if (!isAuthenticated()) return null;
 
   return (
     <DashboardLayout>
+      <RouteGuard permission="analytics.read">
 
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-100">{t("analytics.title")}</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-gray-100">{t("analytics.title")}</h1>
         <div className="flex gap-2">
           <button
             onClick={handleExport}
@@ -207,26 +197,26 @@ export default function DemandAnalyticsPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <div className="rounded-lg bg-gray-800/60 p-4 text-center">
             <div className="text-2xl font-bold text-blue-400">{totalQty}</div>
-            <p className="text-xs text-gray-400">{t("analytics.totalDemanded")}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400">{t("analytics.totalDemanded")}</p>
           </div>
           <div className="rounded-lg bg-gray-800/60 p-4 text-center">
             <div className="text-2xl font-bold text-green-400">{formatMoney(totalRevenue)}</div>
-            <p className="text-xs text-gray-400">{t("analytics.totalRevenue")}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400">{t("analytics.totalRevenue")}</p>
           </div>
           <div className="rounded-lg bg-gray-800/60 p-4 text-center">
             <div className="text-2xl font-bold text-purple-400 truncate">
               {topProduct?.product_name ?? "—"}
             </div>
-            <p className="text-xs text-gray-400">{t("analytics.topProduct")}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400">{t("analytics.topProduct")}</p>
           </div>
           <div className="rounded-lg bg-gray-800/60 p-4 text-center">
             <div className="text-2xl font-bold text-amber-400">{slowOrNon}</div>
-            <p className="text-xs text-gray-400">{t("analytics.slowNonMoving")}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400">{t("analytics.slowNonMoving")}</p>
           </div>
         </div>
       )}
 
-      {isLoading && <p className="text-sm text-gray-400">{t("analytics.loading")}</p>}
+      {isLoading && <p className="text-sm text-gray-600 dark:text-gray-400">{t("analytics.loading")}</p>}
 
       {/* Velocity Table */}
       {summary && !isLoading && (
@@ -238,7 +228,7 @@ export default function DemandAnalyticsPage() {
                   <th
                     key={col.key}
                     onClick={() => handleSort(col.key)}
-                    className="px-3 py-2 text-left font-medium text-gray-300 cursor-pointer select-none hover:text-white"
+                    className="px-3 py-2 text-left font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:text-white"
                   >
                     {t(col.labelKey)}
                     {sortKey === col.key ? (sortDesc ? " ▼" : " ▲") : ""}
@@ -250,12 +240,12 @@ export default function DemandAnalyticsPage() {
               {sortedItems.map((it) => (
                 <tr key={it.product_id}>
                   <td className="px-3 py-2 truncate">{it.product_name}</td>
-                  <td className="px-3 py-2 truncate text-gray-400">{it.ndc_code || "—"}</td>
+                  <td className="px-3 py-2 truncate text-gray-600 dark:text-gray-400">{it.ndc_code || "—"}</td>
                   <td className="px-3 py-2 text-right font-medium">{it.total_quantity_demanded}</td>
-                  <td className="px-3 py-2 text-right text-gray-300">
+                  <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">
                     {formatMoney(parseMoney(it.total_revenue))}
                   </td>
-                  <td className="px-3 py-2 text-right text-gray-300">
+                  <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">
                     {it.avg_daily_consumption.toFixed(2)}
                   </td>
                   <td className="px-3 py-2">
@@ -267,13 +257,14 @@ export default function DemandAnalyticsPage() {
                       {it.velocity_category}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-right text-gray-300">{it.reorder_suggestion}</td>
+                  <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{it.reorder_suggestion}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+    </RouteGuard>
     </DashboardLayout>
   );
 }

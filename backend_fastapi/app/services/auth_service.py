@@ -15,7 +15,7 @@ from app.core.models import Role, User
 from app.core.repositories import AuditRepository, UserRepository
 from app.shared.config import settings
 from app.shared.exceptions import ConflictError, ForbiddenError, UnauthorizedError
-from app.shared.schemas import CurrentUser, PinLoginRequest, Token, UserCreate, UserPublic
+from app.shared.schemas import CurrentUser, PinLoginRequest, Token, UserCreate, UserPublic, VerifyPasswordRequest
 from app.shared.security import (
     create_access_token,
     create_approval_token,
@@ -33,6 +33,9 @@ from app.shared.security import (
     generate_pin_salt,
     hash_pin,
 )
+from app.shared.logging_config import get_logger
+
+logger = get_logger("auth_service")
 
 MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_MINUTES = 15
@@ -56,8 +59,10 @@ class AuthService:
     async def authenticate(self, username: str, password: str) -> User:
         repo = UserRepository(self.session)
         user = await repo.get_by_username(username)
-        if user is None or user.is_active != 1:
+        if user is None:
             raise UnauthorizedError("Invalid username or password")
+        if user.is_active != 1:
+            raise UnauthorizedError("Your account has been deactivated")
 
         locked = _parse_locked_until(user.locked_until)
         if locked is not None and locked > datetime.now(timezone.utc):
@@ -83,16 +88,22 @@ class AuthService:
     async def _build_token(self, user: User) -> Token:
         repo = UserRepository(self.session)
         permissions = await repo.permissions_for_role(user.role_id)
+        role_name = "admin" if user.role_id == 1 else "user"
         role_result = await self.session.execute(select(Role.name).where(Role.id == user.role_id))
-        role_name: Optional[str] = role_result.scalar_one_or_none()
+        db_role_name: Optional[str] = role_result.scalar_one_or_none()
+        if db_role_name:
+            role_name = db_role_name
+        from app.shared.security import create_access_token, create_refresh_token
         access = create_access_token(
-            str(user.id), role_name or "unknown", permissions, username=user.username
+            str(user.id), role_name, user.role_id, permissions, username=user.username
         )
         refresh = create_refresh_token(str(user.id))
         return Token(access_token=access, refresh_token=refresh, user=UserPublic.model_validate(user))
 
     async def login(self, username: str, password: str) -> Token:
+        logger.info("login_attempt", username=username)
         user = await self.authenticate(username, password)
+        logger.info("login_success", username=username, user_id=user.id, role_id=user.role_id)
         return await self._build_token(user)
 
     async def refresh(self, refresh_token: str) -> Token:
@@ -152,8 +163,10 @@ class AuthService:
         """
         repo = UserRepository(self.session)
         user = await repo.get_by_username(username)
-        if user is None or user.is_active != 1 or not user.pin_hash:
+        if user is None or not user.pin_hash:
             raise UnauthorizedError("Invalid username or PIN")
+        if user.is_active != 1:
+            raise UnauthorizedError("Your account has been deactivated")
 
         peppers = get_pin_peppers()
         if not peppers:
@@ -251,6 +264,38 @@ class AuthService:
         user.lockout_hmac = seal_lockout(0, None, seal_pepper)
         await self.session.commit()
         return create_approval_token(subject=user.username, scope=scope)
+
+    async def verify_password(self, username: str, password: str) -> None:
+        """Verify the current user's password without issuing new tokens or modifying state.
+
+        Used for sensitive action confirmation (change password, edit role, delete user).
+        Raises UnauthorizedError if password is invalid."""
+        repo = UserRepository(self.session)
+        user = await repo.get_by_username(username)
+        if user is None or user.is_active != 1:
+            raise UnauthorizedError("Invalid credentials")
+
+        if not verify_password(password, user.password_hash):
+            raise UnauthorizedError("Invalid password")
+
+    async def change_password(self, username: str, new_password: str) -> None:
+        """Change a user's password.
+
+        Hashes the new password and updates the user record. Does not verify the old
+        password — the caller must verify it first via verify_password().
+        """
+        validate_password_complexity(new_password)
+        repo = UserRepository(self.session)
+        user = await repo.get_by_username(username)
+        if user is None:
+            raise UnauthorizedError("User not found")
+        await repo.update_password_hash(user, hash_password(new_password))
+        await AuditRepository(self.session).log(
+            action="password.change",
+            subject_type="user",
+            subject_id=user.id,
+            details=f"username={username}",
+        )
 
 
 def get_auth_service(session: AsyncSession = Depends(get_session)) -> AuthService:

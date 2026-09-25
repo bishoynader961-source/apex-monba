@@ -33,7 +33,7 @@ import customtkinter as ctk
 from tkinter import ttk, messagebox
 
 import i18n
-import database
+import db
 import barcode_logic
 import audit_log
 from ui_helpers import apply_treeview_style
@@ -116,12 +116,12 @@ def _ensure_rx_tables():
 
 
 def _load_patients(search: str = "") -> list:
-    """Load patients via database.get_all_patients().
+    """Load patients via db.get_all_patients().
 
     Returns: [(pid, name, phone, email, created_at, {field_name: field_value})]
     """
     try:
-        return database.get_all_patients(search or None)
+        return db.get_all_patients(search or None)
     except Exception as e:
         log.warning("Failed to load patients: %s", e)
         return []
@@ -139,7 +139,7 @@ def _load_inventory(query: str = "") -> list:
         except Exception as e:
             log.debug("rx_db.search_inventory failed, falling back to sqlite3: %s", e)
     try:
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -173,7 +173,7 @@ def _load_prescribers(query: str = "") -> list:
         except Exception as e:
             log.debug("rx_db prescriber query failed, falling back to sqlite3: %s", e)
     try:
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -215,7 +215,7 @@ def _get_prescriber_regional(prescriber_id: int) -> Optional[dict]:
     except Exception as e:
         log.debug("rx_db.get_prescriber_regional failed: %s", e)
     try:
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -286,7 +286,7 @@ def _generate_rx_number_sqlite() -> str:
     year_month = now.strftime("%Y-%m")
     prefix = f"RX-{year_month}-"
     try:
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute(
@@ -322,7 +322,7 @@ def _create_rx_sqlite(patient_id: int, prescriber_id: int, drug_ndc: str,
     now = datetime.now().strftime("%Y-%m-%d")
     meta_json = json.dumps(regional_metadata) if regional_metadata else "{}"
     try:
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("""
@@ -353,7 +353,7 @@ def _update_rx_status_sqlite(rx_id: int, new_status: str, user_pin: str = "",
     """
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute(
@@ -551,6 +551,11 @@ class EpcsWorkflowFrame(ctk.CTkFrame):
 
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
+
+        widget = master
+        while widget is not None and not hasattr(widget, 'currency'):
+            widget = getattr(widget, 'master', None)
+        self.app = widget
 
         self._region = _get_rx_region()
         self._labels = get_labels(self._region)

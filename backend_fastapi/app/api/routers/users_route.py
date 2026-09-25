@@ -50,6 +50,9 @@ async def update_user(
     _user: CurrentUser = Depends(require_permission("users.write")),
     session: AsyncSession = Depends(get_session),
 ) -> UserPublic:
+    # Protect immutable admin user (id=1)
+    if user_id == 1:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot modify the immutable administrator user")
     u = await UserRepository(session).get(user_id)
     if u is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -69,6 +72,9 @@ async def set_user_active(
     _user: CurrentUser = Depends(require_permission("users.write")),
     session: AsyncSession = Depends(get_session),
 ) -> UserPublic:
+    # Protect immutable admin user (id=1)
+    if user_id == 1:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot deactivate the immutable administrator user")
     u = await UserRepository(session).get(user_id)
     if u is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")

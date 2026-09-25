@@ -1,6 +1,6 @@
 import threading
 import time
-import database
+import db
 import customtkinter as ctk
 
 class AlertEngine:
@@ -37,7 +37,7 @@ class AlertEngine:
                 time.sleep(1)
                 
     def _check_alerts(self):
-        metrics = database.get_dashboard_metrics()
+        metrics = db.get_dashboard_metrics()
         low_stock = metrics.get('low_stock_count', 0)
         expiring_30 = metrics.get('expiring_30', 0)
         

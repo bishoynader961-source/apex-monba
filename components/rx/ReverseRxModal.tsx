@@ -39,14 +39,14 @@ export function ReverseRxModal() {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-          <h2 className="text-lg font-bold text-white">Reverse (Void) Prescription</h2>
-          <button onClick={handleClose} className="text-gray-400 hover:text-white text-xl">&times;</button>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Reverse (Void) Prescription</h2>
+          <button onClick={handleClose} className="text-gray-600 dark:text-gray-400 hover:text-white text-xl">&times;</button>
         </div>
 
         {!lastDispenseResult && !done ? (
           <div className="p-6 text-center text-gray-500">
             <p>No prescription loaded. Submit or look up an Rx first, then reopen Reverse.</p>
-            <button onClick={handleClose} className="mt-4 px-4 py-2 border border-gray-600 text-gray-300 rounded-lg text-sm hover:bg-white/5">
+            <button onClick={handleClose} className="mt-4 px-4 py-2 border border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-white/5">
               Close
             </button>
           </div>
@@ -54,7 +54,7 @@ export function ReverseRxModal() {
           <div className="p-6">
             <div className="rounded-lg bg-amber-900/30 border border-amber-700/40 p-4 mb-4">
               <div className="text-amber-300 font-semibold">Prescription Voided</div>
-              <div className="text-sm text-gray-400 mt-1">
+              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 Rx has been reversed. Inventory has been restocked.
               </div>
             </div>
@@ -72,15 +72,15 @@ export function ReverseRxModal() {
             </div>
 
             <div className="bg-white/5 rounded-lg p-3 text-sm">
-              <div className="text-gray-400">Rx #<span className="font-mono text-white">{lastDispenseResult!.rx_number}</span></div>
-              <div className="text-gray-400 mt-1">{lastDispenseResult!.product_name} &mdash; Qty: {lastDispenseResult!.quantity}</div>
+              <div className="text-gray-600 dark:text-gray-400">Rx #<span className="font-mono text-gray-900 dark:text-white">{lastDispenseResult!.rx_number}</span></div>
+              <div className="text-gray-600 dark:text-gray-400 mt-1">{lastDispenseResult!.product_name} &mdash; Qty: {lastDispenseResult!.quantity}</div>
             </div>
 
             <div>
-              <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+              <label className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1" htmlFor="reverserxmodal-field-1">
                 Reason for Reversal
               </label>
-              <textarea
+              <textarea id="reverserxmodal-field-1"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Enter reason..."
@@ -98,7 +98,7 @@ export function ReverseRxModal() {
             <div className="flex justify-end gap-3 mt-2">
               <button
                 onClick={handleClose}
-                className="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg text-sm hover:bg-white/5"
+                className="px-4 py-2 border border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-white/5"
               >
                 Cancel
               </button>

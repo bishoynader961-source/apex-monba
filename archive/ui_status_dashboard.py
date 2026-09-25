@@ -28,7 +28,7 @@ import customtkinter as ctk
 from tkinter import ttk, messagebox
 
 import i18n
-import database
+import db
 from ui_navigation import (
     COLOR_SIDEBAR_BG,
     COLOR_SIDEBAR_HOVER,
@@ -442,7 +442,7 @@ class QueueTabFrame(ctk.CTkFrame):
 
         # Strategy 2: raw sqlite3 fallback
         try:
-            db_path = database.get_db_path()
+            db_path = db.get_db_path()
             conn = sqlite3.connect(str(db_path))
             cursor = conn.cursor()
             placeholders = ", ".join("?" for _ in statuses)
@@ -670,7 +670,7 @@ class StatusDashboardFrame(ctk.CTkFrame):
 
         # ── Phase 2: sqlite3 for JSON-based + fallback metrics ──────────
         try:
-            db_path = database.get_db_path()
+            db_path = db.get_db_path()
             conn = sqlite3.connect(str(db_path))
             cursor = conn.cursor()
 
@@ -782,9 +782,9 @@ class StatusDashboardFrame(ctk.CTkFrame):
             log.error(
                 "Custom rx_table queries failed: %s", e)
 
-        # Daily sales from database.get_dashboard_metrics (todays_sales)
+        # Daily sales from db.get_dashboard_metrics (todays_sales)
         try:
-            metrics = database.get_dashboard_metrics()
+            metrics = db.get_dashboard_metrics()
             if isinstance(metrics, dict) and "todays_sales" in metrics:
                 result["daily_sales"] = round(float(metrics["todays_sales"]), 2)
         except Exception as e:

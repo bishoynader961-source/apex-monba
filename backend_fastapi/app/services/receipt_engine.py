@@ -10,9 +10,10 @@ No I/O lives here: formatting only, so it is trivially unit-testable.
 """
 from __future__ import annotations
 
+import json
 from datetime import date
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Optional
 
 # ── ESC/POS control primitives (real Epson/TM-T88V byte sequences) ───────────
 ESC = b"\x1b"
@@ -120,3 +121,114 @@ def compute_price_check(price_at_time: Decimal, quantity: int, insurance_copay: 
     if insurance_copay > 0:
         return insurance_copay
     return (price_at_time * Decimal(quantity)).quantize(Decimal("0.01"))
+
+
+def _resolve_align(align: str) -> bytes:
+    if align == "center":
+        return CENTER
+    return LEFT
+
+
+def _align_and_wrap(line: str, width: int, align: str) -> bytes:
+    if align == "center":
+        padded = line.center(width)
+    elif align == "right":
+        padded = line.rjust(width)
+    else:
+        padded = line[:width]
+    return _text(padded)
+
+
+def format_receipt_from_template(
+    template_sections_json: str,
+    paper_width: int,
+    receipt_number: str,
+    patient_name: str,
+    items: list[tuple[str, Decimal]],
+    total: Decimal,
+    payment_method: str,
+    cashier: str,
+    server_created_at: Optional[str] = None,
+) -> bytes:
+    """Build a receipt using a configurable template instead of hardcoded layout.
+
+    Supports placeholder variables: {{receipt_number}}, {{patient_name}}, {{total}},
+    {{payment_method}}, {{cashier}}, {{date}}.
+    Section types: header, separator, text, items_header, items, total, footer.
+    """
+    try:
+        sections = json.loads(template_sections_json)
+    except (json.JSONDecodeError, TypeError):
+        sections = []
+
+    fill = server_created_at or fill_date_default()
+    width = max(paper_width, 20)
+
+    var_map: dict[str, str] = {
+        "{{receipt_number}}": receipt_number,
+        "{{patient_name}}": patient_name,
+        "{{total}}": str(total),
+        "{{payment_method}}": payment_method,
+        "{{cashier}}": cashier,
+        "{{date}}": fill,
+    }
+
+    buf: list[bytes] = [RESET]
+
+    for sec in sections:
+        if not sec.get("visible", True):
+            continue
+        sec_type = sec.get("type", "text")
+        content = sec.get("content", "")
+        align = sec.get("align", "left")
+        bold = sec.get("font_bold", False)
+
+        # Resolve variables
+        for var, val in var_map.items():
+            content = content.replace(var, val)
+
+        if sec_type == "header":
+            buf.append(CENTER + BOLD_ON + DOUBLE_ON)
+            buf.append(_align_and_wrap(content, width, align))
+            buf.append(DOUBLE_OFF + BOLD_OFF)
+
+        elif sec_type == "separator":
+            buf.append(CENTER + _align_and_wrap(content * (width // max(len(content), 1)), width, align))
+
+        elif sec_type == "text":
+            buf.append(_resolve_align(align))
+            if bold:
+                buf.append(BOLD_ON)
+            buf.append(_align_and_wrap(content, width, align))
+            if bold:
+                buf.append(BOLD_OFF)
+
+        elif sec_type == "items_header":
+            buf.append(_resolve_align(align))
+            if bold:
+                buf.append(BOLD_ON)
+            buf.append(_align_and_wrap(content, width, align))
+            if bold:
+                buf.append(BOLD_OFF)
+
+        elif sec_type == "items":
+            buf.append(LEFT)
+            for name, price in items:
+                line = f"{name:<{width - 8}}{price:>8}"
+                buf.append(_text(line))
+
+        elif sec_type == "total":
+            buf.append(LEFT + BOLD_ON)
+            buf.append(_align_and_wrap(f"TOTAL: {total}", width, align))
+            buf.append(BOLD_OFF)
+
+        elif sec_type == "footer":
+            buf.append(CENTER)
+            if bold:
+                buf.append(BOLD_ON)
+            buf.append(_align_and_wrap(content, width, align))
+            if bold:
+                buf.append(BOLD_OFF)
+
+    buf.append(CUT)
+    return b"".join(buf)

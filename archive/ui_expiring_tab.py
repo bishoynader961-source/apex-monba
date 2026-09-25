@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from tkinter import ttk
 
-import database
+import db
 import barcode_logic
 
 
@@ -217,7 +217,7 @@ def load_expiring_items(self):
 
     config = barcode_logic.load_config()
     ignore_list = config.get("expiry_ignore_list", [])
-    batches = database.get_batches_expiring_within(days, exclude_names=ignore_list)
+    batches = db.get_batches_expiring_within(days, exclude_names=ignore_list)
 
     today = date.today()
     critical_cutoff = today + timedelta(days=critical_days)

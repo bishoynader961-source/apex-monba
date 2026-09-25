@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import type { UserPublic } from "@/types/contracts";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+import { BACKEND_URL as API_BASE } from "@/lib/backend-url";
 
 export interface LoginState {
   success?: boolean;

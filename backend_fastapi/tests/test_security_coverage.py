@@ -76,7 +76,7 @@ def test_validate_password_no_upper():
 
 def test_create_and_decode_access_token():
     from app.shared.security import create_access_token, decode_token
-    tok = create_access_token("1", "admin", ["users.read"], username="admin")
+    tok = create_access_token("1", "admin", 1, ["users.read"], username="admin")
     claims = decode_token(tok)
     assert claims["sub"] == "1"
     assert claims["role"] == "admin"
@@ -117,7 +117,7 @@ def test_approval_token_lifecycle():
 def test_approval_token_wrong_type():
     from app.shared.security import create_access_token, decode_approval_token
     from app.shared.exceptions import AppException
-    tok = create_access_token("1", "admin", ["test"])
+    tok = create_access_token("1", "admin", 1, ["test"])
     with pytest.raises(AppException):
         decode_approval_token(tok)
 
@@ -429,65 +429,6 @@ async def test_inventory_supplier_conflict(
         headers=auth,
     )
     assert resp.status_code == 409
-
-
-# ── Routes: license validate / checkout / status ─────────────────────────────
-
-@pytest.mark.asyncio
-async def test_license_validate_local(
-    client: AsyncClient, auth: dict[str, str], session: AsyncSession
-) -> None:
-    from app.core.repositories import LicenseRepository
-    from datetime import datetime, timedelta, timezone
-    repo = LicenseRepository(session)
-    key = f"LIC-{uuid.uuid4().hex[:8].upper()}"
-    expires = (datetime.now(timezone.utc) + timedelta(days=365)).isoformat()
-    await repo.create(license_key=key, email="test@test.com", expires_at=expires)
-    resp = await client.post(
-        "/api/v1/license/validate",
-        json={"license_key": key, "hardware_id": "TEST-HW"},
-        headers=auth,
-    )
-    assert resp.status_code == 200
-
-
-@pytest.mark.asyncio
-async def test_license_validate_hardware_mismatch(
-    client: AsyncClient, auth: dict[str, str], session: AsyncSession
-) -> None:
-    from app.core.repositories import LicenseRepository
-    from datetime import datetime, timedelta, timezone
-    repo = LicenseRepository(session)
-    key = f"LIC-{uuid.uuid4().hex[:8].upper()}"
-    expires = (datetime.now(timezone.utc) + timedelta(days=365)).isoformat()
-    await repo.create(license_key=key, email="test@test.com", expires_at=expires)
-    # First bind
-    await client.post(
-        "/api/v1/license/validate",
-        json={"license_key": key, "hardware_id": "HW-AAA"},
-        headers=auth,
-    )
-    # Mismatch
-    resp = await client.post(
-        "/api/v1/license/validate",
-        json={"license_key": key, "hardware_id": "HW-BBB"},
-        headers=auth,
-    )
-    assert resp.status_code == 403
-
-
-@pytest.mark.asyncio
-async def test_license_status_reachable(client: AsyncClient, auth: dict[str, str]) -> None:
-    resp = await client.get("/api/v1/license/status", headers=auth)
-    assert resp.status_code in (200, 502)
-
-
-# ── Routes: admin manage proxy ───────────────────────────────────────────────
-
-@pytest.mark.asyncio
-async def test_admin_manage_proxy(client: AsyncClient, auth: dict[str, str]) -> None:
-    resp = await client.post("/api/v1/license/admin/manage", headers=auth)
-    assert resp.status_code in (200, 502)
 
 
 # ── Routes: dispensing missing lines ─────────────────────────────────────────

@@ -14,6 +14,7 @@ from __future__ import annotations
 from httpx import AsyncClient
 
 from app.api.deps import oauth2_scheme
+from app.core.models import Permission, Role, RolePermission
 from app.core.repositories import UserRepository
 from app.shared.security import (
     create_access_token,
@@ -26,12 +27,26 @@ _TEST_PERMISSIONS = ["pos.checkout", "inventory.read"]
 
 
 async def _seed_user(session, username: str = "testuser") -> int:
+    # get_current_user sources role/permissions from the DB (Spec 07 fix), so
+    # back the JWT's role_id with a real Role row carrying the test permissions.
+    # Role id 1 is the hardcoded owner bypass, so reserve it first (ids >= 2).
+    session.add(Role(name="Administrator", description="owner", is_system=1))
+    await session.commit()
+    role = Role(name="pharmacist", description="test role", is_system=0)
+    session.add(role)
+    await session.commit()
+    for key in _TEST_PERMISSIONS:
+        perm = Permission(feature_key=key, description=key)
+        session.add(perm)
+        await session.commit()
+        session.add(RolePermission(role_id=role.id, permission_id=perm.id, granted=1))
+    await session.commit()
     repo = UserRepository(session)
     user = await repo.create(
         username=username,
         display_name=username,
         password_hash=hash_password("password123"),
-        role_id=_TEST_ROLE_ID,
+        role_id=role.id,
     )
     return user.id
 
@@ -49,6 +64,7 @@ async def test_me_returns_user_with_valid_token(client: AsyncClient, session) ->
     token = create_access_token(
         subject=str(user_id),
         role="pharmacist",
+        role_id=2,
         permissions=_TEST_PERMISSIONS,
         username="alice",
     )
@@ -81,6 +97,7 @@ async def test_me_with_tampered_token_returns_401(client: AsyncClient, session) 
     valid_token = create_access_token(
         subject=str(user_id),
         role="pharmacist",
+        role_id=2,
         permissions=_TEST_PERMISSIONS,
         username="bob",
     )
@@ -103,6 +120,7 @@ async def test_me_with_expired_token_returns_401(client: AsyncClient, session) -
     expired_token = create_access_token(
         subject=str(user_id),
         role="pharmacist",
+        role_id=2,
         permissions=_TEST_PERMISSIONS,
         username="carol",
         expires_minutes=-1,
@@ -139,6 +157,7 @@ async def test_me_with_valid_token_for_inactive_user_returns_401(
     token = create_access_token(
         subject=str(user_id),
         role="pharmacist",
+        role_id=2,
         permissions=_TEST_PERMISSIONS,
         username="erin",
     )
@@ -163,6 +182,7 @@ async def test_me_with_valid_token_for_deleted_user_returns_401(
     token = create_access_token(
         subject=str(user_id),
         role="pharmacist",
+        role_id=2,
         permissions=_TEST_PERMISSIONS,
         username="frank",
     )

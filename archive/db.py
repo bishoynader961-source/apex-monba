@@ -142,6 +142,34 @@ def get_db_path() -> str:
     return p if os.path.isabs(p) else get_resource_path(p)
 
 
+def load_config():
+    """Load the application config.json (used by localization/settings modules)."""
+    import barcode_logic
+    return barcode_logic.load_config()
+
+
+def set_kv(key: str, value) -> None:
+    """Set a key/value in the system_settings table (idempotent, INSERT OR REPLACE)."""
+    sval = value if isinstance(value, str) else str(value)
+    with get_session() as s:
+        s.execute(
+            text("INSERT OR REPLACE INTO system_settings(key, value) VALUES (:k, :v)"),
+            {"k": key, "v": sval},
+        )
+
+
+def get_kv(key: str, default: str = "") -> str:
+    """Read a key from the system_settings table; return default on any error."""
+    with get_session() as s:
+        row = s.execute(
+            text("SELECT value FROM system_settings WHERE key = :k"), {"k": key}
+        ).fetchone()
+    if row is None or row[0] is None:
+        return default
+    val = row[0]
+    return val.decode("utf-8") if isinstance(val, bytes) else str(val)
+
+
 # ── Module-level defaults ──────────────────────────────────────────────
 
 engine = None

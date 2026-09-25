@@ -8,6 +8,11 @@ from app.shared.security import hash_password
 
 
 async def _make_role(session, name: str, perms: list[str]) -> int:
+    # Role id 1 is the hardcoded owner/admin bypass (deps.require_permission),
+    # so reserve it before creating the test role (ids >= 2).
+    owner = Role(name="Administrator", description="owner", is_system=1)
+    session.add(owner)
+    await session.commit()
     role = Role(name=name, description=name, is_system=1)
     session.add(role)
     await session.commit()

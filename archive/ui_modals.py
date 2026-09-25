@@ -6,7 +6,7 @@ import json
 import tempfile
 from datetime import datetime, date
 
-import database
+import db
 import barcode_logic
 
 from label_engine.canvas_core import LabelCanvas, draw_elements
@@ -309,7 +309,7 @@ class QuickReceiveModal(ctk.CTkToplevel):
             messagebox.showerror("Invalid Cost", "Cost must be a number.", parent=self)
             return
 
-        existing = database.get_product_by_barcode(self.barcode)
+        existing = db.get_product_by_barcode(self.barcode)
         if not existing:
             messagebox.showerror("Error", f"Could not find product with barcode {self.barcode}.", parent=self)
             return
@@ -317,7 +317,7 @@ class QuickReceiveModal(ctk.CTkToplevel):
         _, tpl_name, tpl_price, tpl_mfg_barcode, _, _, tpl_expiry, tpl_mfg_date, _ = existing
 
         try:
-            database.receive_inventory_atomically(
+            db.receive_inventory_atomically(
                 self.vendor_name, self.product_name, date.today().isoformat(), qty, qty * tpl_price,
                 tpl_price, tpl_mfg_barcode, tpl_expiry, tpl_mfg_date,
                 barcode_logic.generate_internal_barcode
@@ -792,14 +792,14 @@ class EditBatchDialog(ctk.CTkToplevel):
                 return
 
         try:
-            database.update_product_full(
+            db.update_product_full(
                 self.batch_id, name, price, mfg_barcode, self.int_barcode,
                 expiry, mfg, status, vendor
             )
             vendor_changed = (self._original_vendor in (None, '', 'N/A')
                               and vendor not in (None, '', 'N/A'))
             if vendor_changed:
-                database.log_shipment(
+                db.log_shipment(
                     vendor, name, _dt.now().strftime('%Y-%m-%d'),
                     1, price, self.int_barcode
                 )

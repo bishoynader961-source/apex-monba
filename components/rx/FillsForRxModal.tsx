@@ -42,8 +42,8 @@ export function FillsForRxModal() {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700 shrink-0">
-          <h2 className="text-lg font-bold text-white">Fills for Rx</h2>
-          <button onClick={handleClose} className="text-gray-400 hover:text-white text-xl">&times;</button>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Fills for Rx</h2>
+          <button onClick={handleClose} className="text-gray-600 dark:text-gray-400 hover:text-white text-xl">&times;</button>
         </div>
 
         <div className="p-6 flex flex-col gap-4 flex-1 min-h-0">
@@ -98,7 +98,7 @@ export function FillsForRxModal() {
           <div className="flex justify-end shrink-0">
             <button
               onClick={handleClose}
-              className="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg text-sm hover:bg-white/5"
+              className="px-4 py-2 border border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-white/5"
             >
               Close
             </button>

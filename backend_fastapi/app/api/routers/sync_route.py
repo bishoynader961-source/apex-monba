@@ -41,7 +41,7 @@ async def push(
 )
 async def list_discrepancies(
     unresolved_only: bool = True,
-    _user: CurrentUser = Depends(require_permission("inventory.read")),
+    _user: CurrentUser = Depends(require_permission("sync.read")),
     session: AsyncSession = Depends(get_session),
 ) -> list[DiscrepancyRead]:
     """List persisted sync discrepancies surfaced for manager review (A4)."""
@@ -55,7 +55,7 @@ async def list_discrepancies(
 )
 async def resolve_discrepancy(
     discrepancy_id: int,
-    _user: CurrentUser = Depends(require_permission("inventory.write")),
+    _user: CurrentUser = Depends(require_permission("sync.write")),
     session: AsyncSession = Depends(get_session),
 ) -> DiscrepancyRead:
     """Mark a discrepancy as resolved by a manager (A4)."""

@@ -9,13 +9,13 @@ import {
   type ReactNode,
 } from "react";
 
-import { defaultLocale, isLocale, locales, type Locale } from "@/lib/i18n/config";
+import { defaultLocale, isLocale, isRTL, locales, type Locale } from "@/lib/i18n/config";
 import { dictionaries } from "@/lib/i18n/dictionaries";
 
 interface I18nValue {
   locale: Locale;
   setLocale: (locale: Locale) => void;
-  t: (key: string) => string;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 const I18nContext = createContext<I18nValue | null>(null);
@@ -30,6 +30,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     if (isLocale(saved)) {
       setLocaleState(saved);
       document.documentElement.lang = saved;
+      document.documentElement.dir = isRTL(saved) ? "rtl" : "ltr";
     }
   }, []);
 
@@ -37,10 +38,19 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     setLocaleState(next);
     localStorage.setItem(STORAGE_KEY, next);
     document.documentElement.lang = next;
+    document.documentElement.dir = isRTL(next) ? "rtl" : "ltr";
   }, []);
 
   const t = useCallback(
-    (key: string) => dictionaries[locale][key] ?? key,
+    (key: string, params?: Record<string, string | number>) => {
+      let translation = dictionaries[locale][key] ?? key;
+      if (params) {
+        Object.entries(params).forEach(([k, v]) => {
+          translation = translation.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+        });
+      }
+      return translation;
+    },
     [locale],
   );
 

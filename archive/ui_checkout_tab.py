@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from tkinter import ttk, messagebox
 import logging
-import database
+import db
 import audit_log
 import receipt_engine
 import barcode_logic
@@ -145,7 +145,7 @@ def setup_checkout_tab(self):
     self.checkout_patient_combo = ctk.CTkComboBox(patient_frame, variable=self.checkout_patient_var, width=160)
     self.checkout_patient_combo.pack(side="left")
 
-    if hasattr(database, "get_all_patients"):
+    if hasattr(db, "get_all_patients"):
         _pos_refresh_patients(self)
 
     self.checkout_patient_combo.bind("<<ComboboxSelected>>", lambda e: _pos_on_patient_select(self))
@@ -258,9 +258,9 @@ def setup_checkout_tab(self):
 # ═════════════════════════════════════════════════════════════════════════════
 
 def _pos_scan_barcode(self, barcode: str):
-    product = database.get_product_by_internal_barcode(barcode)
+    product = db.get_product_by_internal_barcode(barcode)
     if not product:
-        product = database.get_product_by_barcode(barcode)
+        product = db.get_product_by_barcode(barcode)
 
     if not product:
         messagebox.showwarning("Not Found", f"Product with barcode '{barcode}' not found.", parent=self.tab_checkout)
@@ -307,7 +307,7 @@ def _pos_adjust_qty(self, delta: int):
         return
     entry = self.pos_cart[idx]
     if delta > 0:
-        batches = database.get_batches_by_name(entry["product_name"], sort_by='expiry_date')
+        batches = db.get_batches_by_name(entry["product_name"], sort_by='expiry_date')
         existing = set(entry.get("internal_barcodes", []))
         for b in batches:
             if b[4] not in existing:
@@ -387,7 +387,7 @@ def _pos_refresh_patients(self):
 
     def _load():
         try:
-            return database.get_all_patients()
+            return db.get_all_patients()
         except Exception:
             return []
 
@@ -428,7 +428,7 @@ def _checkout_load_products(self):
 
     def _load():
         try:
-            products = database.get_all_products()
+            products = db.get_all_products()
             return products or []
         except Exception as e:
             log.error("Checkout product load failed: %s", e)
@@ -529,7 +529,7 @@ def _pos_complete_sale(self):
     }
 
     try:
-        receipt_id = database.checkout_cart_atomically(
+        receipt_id = db.checkout_cart_atomically(
             method, self.pos_cart,
             patient_id=getattr(self, 'pos_patient_id', None),
             tax_rate=tax_rate,
@@ -570,7 +570,8 @@ def _pos_refresh_receipts(self):
         self.tree_receipts.delete(item)
 
     try:
-        conn = database.sqlite3.connect(database.get_db_path())
+        import sqlite3
+        conn = sqlite3.connect(db.get_db_path())
         cursor = conn.cursor()
         cursor.execute("SELECT id, timestamp, total_amount, payment_method FROM receipts ORDER BY id DESC LIMIT 50")
         receipts = cursor.fetchall()

@@ -51,14 +51,14 @@ export function TransferRxModal() {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-          <h2 className="text-lg font-bold text-white">Transfer Prescription</h2>
-          <button onClick={handleClose} className="text-gray-400 hover:text-white text-xl">&times;</button>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Transfer Prescription</h2>
+          <button onClick={handleClose} className="text-gray-600 dark:text-gray-400 hover:text-white text-xl">&times;</button>
         </div>
 
         {!lastDispenseResult && !done ? (
           <div className="p-6 text-center text-gray-500">
             <p>No prescription loaded. Submit or look up an Rx first, then reopen Transfer.</p>
-            <button onClick={handleClose} className="mt-4 px-4 py-2 border border-gray-600 text-gray-300 rounded-lg text-sm hover:bg-white/5">
+            <button onClick={handleClose} className="mt-4 px-4 py-2 border border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-white/5">
               Close
             </button>
           </div>
@@ -66,7 +66,7 @@ export function TransferRxModal() {
           <div className="p-6">
             <div className="rounded-lg bg-sky-900/30 border border-sky-700/40 p-4 mb-4">
               <div className="text-sky-300 font-semibold">Prescription Transferred</div>
-              <div className="text-sm text-gray-400 mt-1">
+              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 {transferType === "outgoing" ? "Transferred to" : "Received from"} {pharmacyName}
               </div>
             </div>
@@ -79,13 +79,13 @@ export function TransferRxModal() {
         ) : (
           <div className="p-6 flex flex-col gap-4">
             <div className="bg-white/5 rounded-lg p-3 text-sm">
-              <div className="text-gray-400">Rx #<span className="font-mono text-white">{lastDispenseResult!.rx_number}</span></div>
-              <div className="text-gray-400 mt-1">{lastDispenseResult!.product_name} &mdash; Qty: {lastDispenseResult!.quantity}</div>
+              <div className="text-gray-600 dark:text-gray-400">Rx #<span className="font-mono text-gray-900 dark:text-white">{lastDispenseResult!.rx_number}</span></div>
+              <div className="text-gray-600 dark:text-gray-400 mt-1">{lastDispenseResult!.product_name} &mdash; Qty: {lastDispenseResult!.quantity}</div>
             </div>
 
             {/* Transfer Type */}
             <div>
-              <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+              <label className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1">
                 Transfer Direction
               </label>
               <div className="flex gap-3">
@@ -114,10 +114,10 @@ export function TransferRxModal() {
 
             {/* Pharmacy Info */}
             <div>
-              <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+              <label className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1" htmlFor="transferrxmodal-field-1">
                 {transferType === "outgoing" ? "Transfer To Pharmacy" : "Transfer From Pharmacy"}
               </label>
-              <input
+              <input id="transferrxmodal-field-1"
                 type="text"
                 value={pharmacyName}
                 onChange={(e) => setPharmacyName(e.target.value)}
@@ -127,10 +127,10 @@ export function TransferRxModal() {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+              <label className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1" htmlFor="transferrxmodal-field-2">
                 Pharmacy Phone
               </label>
-              <input
+              <input id="transferrxmodal-field-2"
                 type="tel"
                 value={pharmacyPhone}
                 onChange={(e) => setPharmacyPhone(e.target.value)}
@@ -141,10 +141,10 @@ export function TransferRxModal() {
 
             {/* Reason */}
             <div>
-              <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+              <label className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1" htmlFor="transferrxmodal-field-3">
                 Reason for Transfer
               </label>
-              <textarea
+              <textarea id="transferrxmodal-field-3"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Enter reason..."
@@ -162,7 +162,7 @@ export function TransferRxModal() {
             <div className="flex justify-end gap-3 mt-2">
               <button
                 onClick={handleClose}
-                className="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg text-sm hover:bg-white/5"
+                className="px-4 py-2 border border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-white/5"
               >
                 Cancel
               </button>

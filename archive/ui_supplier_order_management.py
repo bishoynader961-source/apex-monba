@@ -32,7 +32,7 @@ import customtkinter as ctk
 from tkinter import ttk, messagebox
 
 import i18n
-import database
+import db
 import audit_log
 import barcode_logic
 from native_accel import fuzzy_search, generate_batch_barcodes, _native_accel_loaded
@@ -240,7 +240,7 @@ class SupplierCrudManager:
 
     def __init__(self, db_path: str | None = None,
                  observer: SupplierObserver | None = None) -> None:
-        self._db_path: str = db_path or database.get_db_path()
+        self._db_path: str = db_path or db.get_db_path()
         self._observer: SupplierObserver = observer or SupplierObserver()
 
     @property
@@ -409,7 +409,7 @@ class PoCrudManager:
     def __init__(self, db_path: str | None = None,
                  supplier_mgr: SupplierCrudManager | None = None,
                  observer: SupplierObserver | None = None) -> None:
-        self._db_path: str = db_path or database.get_db_path()
+        self._db_path: str = db_path or db.get_db_path()
         self._supplier_mgr: SupplierCrudManager = supplier_mgr or SupplierCrudManager(
             db_path=self._db_path)
         self._observer: SupplierObserver = observer or SupplierObserver()
@@ -459,7 +459,7 @@ class PoCrudManager:
         """Create an empty Draft PO (line items added via ``add_item``)."""
         if SqliteWALConnection is None:
             raise RuntimeError("SqliteWALConnection unavailable")
-        po_number = database.get_next_po_number()
+        po_number = db.get_next_po_number()
         vendor_name = ""
         sup = self._supplier_mgr.get_by_id(vendor_id)
         if sup is not None:
@@ -591,7 +591,7 @@ class PoCrudManager:
             if receipt_data:
                 self._receive_with_data(po_id, receipt_data)
             else:
-                database.receive_po_items(po_id)
+                db.receive_po_items(po_id)
             self._observer.notify("purchase_orders_changed",
                                   {"action": "receive", "po_id": po_id, "po_number": po.get("po_number")})
             return True
@@ -681,7 +681,7 @@ class PoCrudManager:
                     qc = it["received_qty"]
                     item_barcodes = all_barcodes[offset:offset + qc]
                     offset += qc
-                    database.receive_inventory_atomically(
+                    db.receive_inventory_atomically(
                         vendor_name=vendor_name,
                         product_name=it["product_name"],
                         date_received=date_received,
@@ -741,7 +741,7 @@ class PoCrudManager:
         registered supplier matches the product's ``vendor_name``; the caller
         (``auto_reorder``) creates an on-demand supplier for those.
         """
-        low_rows = database.get_products_below_reorder_threshold()
+        low_rows = db.get_products_below_reorder_threshold()
         if not low_rows:
             return []
 

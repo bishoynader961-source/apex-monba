@@ -1,12 +1,15 @@
 """POS routes: checkout + cash-drawer movements + shift lifecycle (A1)."""
+import base64
+from datetime import datetime, timezone
 from decimal import Decimal
-from fastapi import APIRouter, Depends, Header, Request, status
+from fastapi import APIRouter, Body, Depends, Header, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permission
 from app.core.database import get_session
 from app.services.auth_service import AuthService, get_auth_service
 from app.services.pos_service import PosService
+from app.services.sync_lock_service import get_lock_service
 from app.shared.exceptions import AppException, ForbiddenError
 from app.shared.rate_limit import get_pin_limit, limiter
 from app.shared.schemas import (
@@ -16,6 +19,9 @@ from app.shared.schemas import (
     CurrentUser,
     DrawerMovementCreate,
     DrawerMovementRead,
+    EODSummary,
+    ReceiptPrintResponse,
+    ReceiptRead,
     RefundRead,
     RefundRequest,
     SalesReport,
@@ -24,6 +30,10 @@ from app.shared.schemas import (
     ShiftOpenRequest,
     ShiftPreviewResult,
     ShiftRead,
+    SyncLockRequest,
+    SyncLockResponse,
+    VoidItemRequest,
+    VoidItemResult,
 )
 from app.shared.security import consume_approval_token
 
@@ -141,4 +151,88 @@ async def sales_report(
 ) -> SalesReport:
     """Aggregated sales + refunds summary (B5)."""
     return await PosService(session).sales_report()
+
+
+@router.get("/receipts/recent", response_model=list[ReceiptRead], status_code=status.HTTP_200_OK)
+async def recent_receipts(
+    limit: int = 50,
+    user: CurrentUser = Depends(require_permission("pos.checkout")),
+    session: AsyncSession = Depends(get_session),
+) -> list[ReceiptRead]:
+    """Return the last *limit* receipts (newest first) with line items."""
+    return await PosService(session).recent_receipts(limit)
+
+
+@router.get("/receipts/{receipt_id}", response_model=ReceiptRead, status_code=status.HTTP_200_OK)
+async def receipt_detail(
+    receipt_id: int,
+    user: CurrentUser = Depends(require_permission("pos.checkout")),
+    session: AsyncSession = Depends(get_session),
+) -> ReceiptRead:
+    """Return a single receipt with its line items."""
+    return await PosService(session).receipt_detail(receipt_id)
+
+
+@router.get("/receipts/{receipt_id}/print", response_model=ReceiptPrintResponse, status_code=status.HTTP_200_OK)
+async def receipt_print(
+    receipt_id: int,
+    user: CurrentUser = Depends(require_permission("pos.checkout")),
+    session: AsyncSession = Depends(get_session),
+) -> ReceiptPrintResponse:
+    """Return a receipt in thermal-text and browser-printable HTML formats."""
+    return await PosService(session).format_receipt_print(receipt_id)
+
+
+@router.get("/eod-summary", response_model=EODSummary, status_code=status.HTTP_200_OK)
+async def eod_summary(
+    date: str | None = None,
+    user: CurrentUser = Depends(require_permission("pos.checkout")),
+    session: AsyncSession = Depends(get_session),
+) -> EODSummary:
+    """End-of-Day reconciliation summary for *date* (default: today UTC)."""
+    return await PosService(session).eod_summary(date)
+
+
+@router.post("/void-item", response_model=VoidItemResult, status_code=status.HTTP_200_OK)
+async def void_item(
+    payload: VoidItemRequest,
+    user: CurrentUser = Depends(require_permission("pos.void_item")),
+    session: AsyncSession = Depends(get_session),
+) -> VoidItemResult:
+    """Void a single receipt item: restock inventory and create a partial refund."""
+    return await PosService(session).void_item(payload, user)
+
+
+@router.post("/lock", response_model=SyncLockResponse, status_code=status.HTTP_200_OK)
+async def sync_lock(
+    payload: SyncLockRequest,
+    user: CurrentUser = Depends(require_permission("pos.checkout")),
+) -> SyncLockResponse:
+    """Distributed sync-lock probe (Tier-3 concurrency control, §2.1).
+
+    Coordinates the offline→online merge replay so two terminals never
+    double-submit the sync queue simultaneously.
+    """
+    svc = get_lock_service()
+    action = (payload.action or "").strip().upper()
+
+    if action == "ACQUIRE":
+        entry = await svc.acquire("sync", payload.device_id, payload.nonce, payload.ttl_seconds)
+        if entry.nonce == payload.nonce:
+            return SyncLockResponse(
+                acquired=True,
+                current_holder=payload.device_id,
+                expires_at=datetime.fromtimestamp(entry.expires_at, tz=timezone.utc).isoformat(),
+            )
+        return SyncLockResponse(acquired=False, current_holder=entry.device_id)
+
+    if action == "RELEASE":
+        ok = await svc.release("sync", payload.nonce)
+        return SyncLockResponse(acquired=not ok, current_holder=None)
+
+    if action == "HEARTBEAT":
+        ok = await svc.heartbeat("sync", payload.nonce, payload.ttl_seconds)
+        return SyncLockResponse(acquired=ok, current_holder=payload.device_id)
+
+    raise AppException(f"Invalid lock action: {action}", status_code=400, error_code="invalid_lock_action")
 

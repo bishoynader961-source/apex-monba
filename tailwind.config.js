@@ -9,7 +9,30 @@ module.exports = {
     "./types/**/*.{ts,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        background: "var(--bg-primary)",
+        surface: "var(--bg-secondary)",
+        primary: {
+          DEFAULT: "var(--brand-primary)",
+          hover: "var(--brand-primary-hover)",
+        },
+        sidebar: {
+          DEFAULT: "var(--brand-sidebar)",
+          hover: "var(--brand-sidebar-hover)",
+        },
+        textMain: "var(--text-main)",
+        textMuted: "var(--text-muted)",
+        border: "var(--border)",
+        danger: "var(--danger)",
+        success: "var(--success)",
+        warning: "var(--warning)",
+      },
+      boxShadow: {
+        sm: "var(--shadow-sm)",
+        md: "var(--shadow-md)",
+      },
+    },
   },
   plugins: [],
 };

@@ -1,6 +1,6 @@
 import sys
 import customtkinter as ctk
-import database
+import db
 import barcode_logic
 import audit_log
 import backup
@@ -24,7 +24,7 @@ def main():
     i18n.init()
 
     # ── Initialize localization/region manager (single source of truth for
-    #    currency, tax term & region). Must precede database.init_db so the
+    #    currency, tax term & region). Must precede db.init_db so the
     #    banner-dismissal KV keys land in system_settings. ──
     import localization_manager
     localization_manager.init()
@@ -48,7 +48,7 @@ def main():
     ctk.set_default_color_theme("blue")
     
     # Initialize the database (creates tables if missing)
-    database.init_db()
+    db.init_db()
     audit_log.init_audit_db()
     
     # Start background database backup

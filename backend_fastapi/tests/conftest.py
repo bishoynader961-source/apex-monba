@@ -1,6 +1,13 @@
 """Pytest fixtures: in-memory aiosqlite engine, session, and ASGI test client."""
 from __future__ import annotations
 
+import os
+
+# Tests exercise the seeded-admin path (login fixtures depend on
+# ``seed_admin_if_absent``), which is env-gated to development in production
+# code. Force the development env before any app code reads it.
+os.environ.setdefault("APP_ENV", "development")
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -8,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.database import Base, build_engine, get_session
 from app.core.lock_manager import reset_locks
+from app.core.ttl_cache import cache_clear
 from app.main import app
 from app.shared.rate_limit import limiter
 
@@ -22,6 +30,19 @@ def _reset_locks() -> Generator[None, None, None]:
     reset_locks()
     yield
     reset_locks()
+
+
+@pytest.fixture(autouse=True)
+def _reset_ttl_cache() -> Generator[None, None, None]:
+    """Clear the in-process TTL cache around each test.
+
+    Each test builds a fresh in-memory database where autoincrement ids restart
+    at 1, so cached entries keyed by role_id would leak permissions across
+    tests. Production runs a single long-lived process and is unaffected.
+    """
+    cache_clear()
+    yield
+    cache_clear()
 
 
 @pytest.fixture(autouse=True)

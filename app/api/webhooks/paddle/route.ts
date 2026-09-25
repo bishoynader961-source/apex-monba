@@ -65,7 +65,6 @@ export async function POST(req: NextRequest) {
         });
 
         const result = await resp.json();
-        console.log(`[Paddle Webhook] Proxied to ${serverUrl}: ${resp.status}`, result);
         return NextResponse.json(result, { status: resp.status });
       } catch (err) {
         console.error('[Paddle Webhook] Proxy failed:', err);

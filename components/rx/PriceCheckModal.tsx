@@ -49,8 +49,8 @@ export function PriceCheckModal() {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-          <h2 className="text-lg font-bold text-white">Price Check</h2>
-          <button onClick={handleClose} className="text-gray-400 hover:text-white text-xl">&times;</button>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Price Check</h2>
+          <button onClick={handleClose} className="text-gray-600 dark:text-gray-400 hover:text-white text-xl">&times;</button>
         </div>
 
         <div className="p-6 flex flex-col gap-4">
@@ -64,7 +64,7 @@ export function PriceCheckModal() {
             renderItem={(d) => (
               <div>
                 <span className="font-medium">{d.name}</span>
-                {d.strength && <span className="text-gray-400 ml-1">{d.strength}</span>}
+                {d.strength && <span className="text-gray-600 dark:text-gray-400 ml-1">{d.strength}</span>}
               </div>
             )}
           />
@@ -85,16 +85,16 @@ export function PriceCheckModal() {
             renderItem={(pc) => (
               <div>
                 <span className="font-mono font-bold">{pc.code}</span>
-                <span className="text-gray-400 ml-2">{pc.description}</span>
+                <span className="text-gray-600 dark:text-gray-400 ml-2">{pc.description}</span>
               </div>
             )}
           />
 
           <div>
-            <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+            <label className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1" htmlFor="pricecheckmodal-field-1">
               Acquisition Cost
             </label>
-            <input
+            <input id="pricecheckmodal-field-1"
               type="number"
               step="0.01"
               min={0}
@@ -108,7 +108,7 @@ export function PriceCheckModal() {
           {result && (
             <div className="bg-white/5 rounded-lg p-4 text-center">
               <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Computed Price</div>
-              <div className="text-2xl font-bold text-white">${Number(result.computed_price).toFixed(2)}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">${Number(result.computed_price).toFixed(2)}</div>
               {result.clamped && (
                 <div className="text-xs text-amber-400 mt-1">Price was clamped to min/max range</div>
               )}
@@ -118,7 +118,7 @@ export function PriceCheckModal() {
           <div className="flex justify-end gap-3 mt-2">
             <button
               onClick={handleClose}
-              className="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg text-sm hover:bg-white/5"
+              className="px-4 py-2 border border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-white/5"
             >
               Close
             </button>

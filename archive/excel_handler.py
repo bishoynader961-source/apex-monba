@@ -4,7 +4,7 @@ from datetime import datetime
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
-import database
+import db
 import barcode_logic
 from async_ui import AsyncUI
 
@@ -180,7 +180,7 @@ def execute_import(file_path: str, column_map: dict, custom_field_map: dict = No
 
             # Second pass: insert into database
             for vr in valid_rows:
-                database.add_product(
+                db.add_product(
                     name=vr["name"],
                     price=vr["price"],
                     manufacturer_barcode=vr["sku"],
@@ -252,7 +252,7 @@ def export_to_excel(data_list: list, headers: list, output_path: str, on_complet
 
 def export_inventory(output_path: str, on_complete=None):
     """Export current in-stock inventory to Excel."""
-    batches = database.get_all_in_stock_batches()
+    batches = db.get_all_in_stock_batches()
     headers = ["Name", "Price", "Int. Barcode", "Vendor", "Expiry", "Mfg Date", "Mfg Barcode"]
     data = []
     for b in batches:

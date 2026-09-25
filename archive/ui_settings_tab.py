@@ -4,7 +4,7 @@ import os
 import json
 import threading
 
-import database
+import db
 import barcode_logic
 import audit_log
 import auth_session
@@ -220,7 +220,7 @@ def setup_settings_tab(self):
     exclude_label.grid(row=9, column=0, padx=(100, 10), pady=(10, 0), sticky="w")
     self.set_ignore_combo = ctk.CTkComboBox(scroll, width=300,
                                              state="normal",
-                                             values=database.get_unique_product_names())
+                                             values=db.get_unique_product_names())
     self.set_ignore_combo.grid(row=9, column=1, padx=(10, 10), pady=(10, 0), sticky="w")
     self.btn_ignore_add = ctk.CTkButton(scroll, text="Add", width=60,
                                         command=self._add_ignore_product)
@@ -254,12 +254,12 @@ def setup_settings_tab(self):
         _role_name = ""
         _user_name = ""
         if _uid is not None:
-            _rid = database.get_user_role_id(_uid)
-            for _r in database.get_roles():
+            _rid = db.get_user_role_id(_uid)
+            for _r in db.get_roles():
                 if _r[0] == _rid:
                     _role_name = _r[1]
                     break
-            _user_name = database.get_user_display(_uid)
+            _user_name = db.get_user_display(_uid)
         signed_in = ctk.CTkLabel(
             scroll, text=i18n.t("signed_in_as", _user_name or "", _role_name or ""),
             font=ctk.CTkFont(size=12), text_color="#94a3b8",
@@ -606,7 +606,7 @@ def _refresh_ignore_list(self):
     for name in ignore_list:
         self.ignore_list_tree.insert("", "end", values=(name,))
     if hasattr(self, 'set_ignore_combo'):
-        current_names = database.get_unique_product_names()
+        current_names = db.get_unique_product_names()
         self.set_ignore_combo.configure(values=current_names)
 
 
@@ -743,7 +743,7 @@ def save_settings(self):
             import db as _db
             _db.reconnect_db(db_url)
 
-        database.init_db()
+        db.init_db()
 
         self._notify_config_updated()
 

@@ -240,3 +240,30 @@ class InventoryService:
         async with acquire_drug_lock(lock_name):
             batch = await repo.adjust(batch, data)
         return BatchRead.model_validate(batch)
+
+    async def batch_mark_expired(self, batch_ids: list[int]) -> dict[str, object]:
+        """Mark multiple batches as expired (on_hand = 0)."""
+        from app.core.models import InventoryExtended
+        updated = 0
+        for batch_id in batch_ids:
+            batch = await BatchRepository(self.session).get(batch_id)
+            if batch and batch.on_hand > 0:
+                batch.on_hand = 0
+                updated += 1
+        await self.session.commit()
+        return {"updated": updated, "total_requested": len(batch_ids)}
+
+    async def batch_adjust_price(self, medicine_ids: list[int], price_change_pct: float) -> dict[str, object]:
+        """Adjust price for multiple medicines by percentage."""
+        from app.core.models import Product
+        from sqlalchemy import select
+        updated = 0
+        for med_id in medicine_ids:
+            product = await self.session.get(Product, med_id)
+            if product:
+                current_price = float(product.price) if product.price else 0
+                new_price = round(current_price * (1 + price_change_pct / 100), 2)
+                product.price = new_price
+                updated += 1
+        await self.session.commit()
+        return {"updated": updated, "total_requested": len(medicine_ids), "price_change_pct": price_change_pct}

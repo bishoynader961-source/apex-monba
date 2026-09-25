@@ -2,7 +2,7 @@ import customtkinter as ctk
 from tkinter import messagebox
 from datetime import datetime
 
-import database
+import db
 import barcode_logic
 
 
@@ -67,7 +67,7 @@ def setup_add_tab(self):
 
 
 def refresh_add_tab_templates(self):
-    self.templates_list = database.get_templates()
+    self.templates_list = db.get_templates()
     combo_values = ["Select a template..."] + [tpl[1] for tpl in self.templates_list]
     self.template_combo.configure(values=combo_values)
 
@@ -138,8 +138,8 @@ def save_product(self, event=None):
     internal_barcode = barcode_logic.generate_internal_barcode(vendor_name)
 
     try:
-        database.add_product(name, price, mfg_barcode, internal_barcode, expiry_date, manufacture_date, vendor_name)
-        database.log_shipment(
+        db.add_product(name, price, mfg_barcode, internal_barcode, expiry_date, manufacture_date, vendor_name)
+        db.log_shipment(
             vendor_name, name, datetime.now().strftime('%Y-%m-%d'),
             1, price, internal_barcode
         )

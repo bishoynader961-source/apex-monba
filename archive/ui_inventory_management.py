@@ -474,7 +474,7 @@ class InventoryCrudManager:
         Time complexity: O(n) where n = total in-stock rows (GROUP BY COUNT).
         """
         try:
-            rows = database.get_low_stock_products(threshold=threshold)
+            rows = db.get_low_stock_products(threshold=threshold)
             return {r[0] for r in rows}
         except Exception as exc:
             log.warning("Low-stock computation failed, using empty set: %s", exc)
@@ -685,6 +685,7 @@ class InventoryManagementFrame(ctk.CTkFrame):
     def __init__(self, parent: Any, app: Any = None, **kwargs: Any) -> None:
         super().__init__(parent, fg_color=kwargs.pop("fg_color", "transparent"), **kwargs)
         self._app: Any = app
+        self.app = app
         self._crud: InventoryCrudManager = InventoryCrudManager()
         self._crud.observer.register(self._on_inventory_changed)
 

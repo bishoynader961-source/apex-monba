@@ -6,6 +6,8 @@ the route is enabled without fighting the cached settings singleton.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select

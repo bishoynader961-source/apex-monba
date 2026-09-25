@@ -25,7 +25,7 @@ async def list_claims(
     status: Optional[str] = Query(default=None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    _auth: CurrentUser = Depends(require_permission("patients.read")),
+    _auth: CurrentUser = Depends(require_permission("wc.read")),
     session: AsyncSession = Depends(get_session),
 ) -> list[WCClaimRead]:
     """List Workers' Compensation claims with optional filters."""
@@ -42,7 +42,7 @@ async def list_claims(
 @router.get("/{claim_id}", response_model=WCClaimRead)
 async def get_claim(
     claim_id: int,
-    _auth: CurrentUser = Depends(require_permission("patients.read")),
+    _auth: CurrentUser = Depends(require_permission("wc.read")),
     session: AsyncSession = Depends(get_session),
 ) -> WCClaimRead:
     """Get a single Workers' Compensation claim by ID."""
@@ -56,7 +56,7 @@ async def get_claim(
 @router.post("", response_model=WCClaimRead, status_code=201)
 async def create_claim(
     payload: WCClaimCreate,
-    _auth: CurrentUser = Depends(require_permission("patients.write")),
+    _auth: CurrentUser = Depends(require_permission("wc.write")),
     session: AsyncSession = Depends(get_session),
 ) -> WCClaimRead:
     """Create a new Workers' Compensation claim."""
@@ -75,7 +75,7 @@ async def create_claim(
 async def update_claim(
     claim_id: int,
     payload: WCClaimUpdate,
-    _auth: CurrentUser = Depends(require_permission("patients.write")),
+    _auth: CurrentUser = Depends(require_permission("wc.write")),
     session: AsyncSession = Depends(get_session),
 ) -> WCClaimRead:
     """Update a Workers' Compensation claim."""
@@ -89,7 +89,7 @@ async def update_claim(
 @router.delete("/{claim_id}", status_code=204)
 async def delete_claim(
     claim_id: int,
-    _auth: CurrentUser = Depends(require_permission("patients.write")),
+    _auth: CurrentUser = Depends(require_permission("wc.write")),
     session: AsyncSession = Depends(get_session),
 ) -> None:
     """Delete a Workers' Compensation claim."""

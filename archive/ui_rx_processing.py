@@ -36,7 +36,7 @@ from rx_config import ConfigManager, get_labels
 from rx_strategies import strategy_factory
 from rx_database import init_rx_tables
 
-import database
+import db
 import barcode_logic
 import audit_log
 
@@ -110,9 +110,9 @@ def _ensure_rx_tables():
 
 
 def _load_patients(search=""):
-    """Load patients from database.get_all_patients()."""
+    """Load patients from db.get_all_patients()."""
     try:
-        return database.get_all_patients(search or None)
+        return db.get_all_patients(search or None)
     except Exception as e:
         log.warning("Failed to load patients: %s", e)
         return []
@@ -126,7 +126,7 @@ def _load_inventory(query=""):
         except Exception as e:
             log.debug("rx_db.search_inventory failed, falling back to sqlite3: %s", e)
     try:
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -157,7 +157,7 @@ def _load_prescribers(query=""):
         except Exception as e:
             log.debug("rx_db prescriber query failed, falling back to sqlite3: %s", e)
     try:
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -199,7 +199,7 @@ def _load_insurance(patient_id):
         except Exception as e:
             log.debug("rx_db.get_insurance_by_patient failed: %s", e)
     try:
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -224,7 +224,7 @@ def _fetch_rxs_by_status(status):
         except Exception as e:
             log.debug("rx_db.get_rxs_by_status failed: %s", e)
     try:
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -267,7 +267,7 @@ def _move_rx_status(rx_id, new_status, user_pin=""):
         except Exception as e:
             log.debug("rx_db.update_rx_status failed, falling back to sqlite3: %s", e)
     try:
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute(
@@ -297,7 +297,7 @@ def _add_rx_db(patient_id, prescriber_id, drug_ndc, days_supply, daw_code,
         except Exception as e:
             log.debug("rx_db.add_rx failed, falling back to sqlite3: %s", e)
     try:
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         now = datetime.now().strftime("%Y-%m-%d")
@@ -335,11 +335,11 @@ def _add_rx_db(patient_id, prescriber_id, drug_ndc, days_supply, daw_code,
 
 
 def _get_patient_name(patient_id):
-    """Resolve patient name from database.get_patient_by_id()."""
+    """Resolve patient name from db.get_patient_by_id()."""
     if patient_id is None:
         return ""
     try:
-        patient = database.get_patient_by_id(patient_id)
+        patient = db.get_patient_by_id(patient_id)
         if patient and len(patient) > 1:
             return patient[1]
     except Exception as e:
@@ -367,6 +367,11 @@ class RxProcessingFrame(ctk.CTkFrame):
 
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
+
+        widget = master
+        while widget is not None and not hasattr(widget, 'currency'):
+            widget = getattr(widget, 'master', None)
+        self.app = widget
 
         self._region = _get_rx_region()
         self._labels = get_labels(self._region)
@@ -1500,7 +1505,7 @@ def _get_drug_name(ndc_code):
     except Exception:
         pass
     try:
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT drug_name FROM inventory_extended WHERE ndc_code = ?", (ndc_code,))

@@ -101,52 +101,41 @@ export function ManagerApprovalDialog({ open, scope, title, onApproved, onClose 
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 50,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{ background: "#fff", borderRadius: 8, padding: 24, width: 340 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
+      <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-lg p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
           {title ?? "Manager Approval Required"}
         </h2>
-        <label style={{ display: "block", fontSize: 13, marginBottom: 4 }}>Manager username</label>
-        <input
+        <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1" htmlFor="managerapprovaldialog-field-1">Manager username</label>
+        <input id="managerapprovaldialog-field-1"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          style={{ width: "100%", padding: 8, marginBottom: 12, border: "1px solid #d1d5db", borderRadius: 6 }}
+          className="w-full px-3 py-2 mb-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <label style={{ display: "block", fontSize: 13, marginBottom: 4 }}>PIN</label>
-        <input
+        <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1" htmlFor="managerapprovaldialog-field-2">PIN</label>
+        <input id="managerapprovaldialog-field-2"
           type="password"
           inputMode="numeric"
           value={pin}
           onChange={(e) => setPin(e.target.value)}
-          style={{ width: "100%", padding: 8, marginBottom: 12, border: "1px solid #d1d5db", borderRadius: 6 }}
+          className="w-full px-3 py-2 mb-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         {error && (
-          <div style={{ background: "#fee2e2", color: "#991b2b", padding: "0.5rem 0.75rem", borderRadius: 6, marginBottom: 12, fontSize: 13 }}>
+          <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-200 rounded-md text-sm">
             {error}
           </div>
         )}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button onClick={onClose} style={{ padding: "0.5rem 1rem", border: "1px solid #d1d5db", borderRadius: 6 }}>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+          >
             Cancel
           </button>
           <button
             onClick={() => void submit()}
             disabled={busy || !username || !pin}
-            style={{ padding: "0.5rem 1rem", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6 }}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {busy ? "Verifying…" : "Approve"}
           </button>

@@ -1,4 +1,4 @@
-import database
+import db
 import receipt_engine
 import audit_log
 
@@ -11,9 +11,9 @@ class POSEngine:
         self.patient_id = patient_id
         
     def scan_barcode(self, barcode: str):
-        product = database.get_product_by_internal_barcode(barcode)
+        product = db.get_product_by_internal_barcode(barcode)
         if not product:
-            product = database.get_product_by_barcode(barcode)
+            product = db.get_product_by_barcode(barcode)
             
         if product:
             # Ensure not already expired or check rules (simplified)
@@ -46,10 +46,11 @@ class POSEngine:
             return False, "Cart is empty"
             
         try:
-            database.create_receipt(payment_method, self.cart, self.patient_id)
+            db.create_receipt(payment_method, self.cart, self.patient_id)
             
             # Find the last receipt ID
-            conn = database.sqlite3.connect(database.get_db_path())
+            import sqlite3
+            conn = sqlite3.connect(db.get_db_path())
             cursor = conn.cursor()
             cursor.execute("SELECT id FROM receipts ORDER BY id DESC LIMIT 1")
             receipt_id = cursor.fetchone()[0]

@@ -42,17 +42,18 @@ export function EligibilityModal() {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-          <h2 className="text-lg font-bold text-white">Insurance Eligibility Check</h2>
-          <button onClick={handleClose} className="text-gray-400 hover:text-white text-xl">&times;</button>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Insurance Eligibility Check</h2>
+          <button onClick={handleClose} className="text-gray-600 dark:text-gray-400 hover:text-white text-xl">&times;</button>
         </div>
 
         <div className="p-6 flex flex-col gap-4">
           <div>
-            <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+            <label htmlFor="rx-elig-patient-id" className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1">
               Patient ID
             </label>
             <div className="flex gap-2">
               <input
+                id="rx-elig-patient-id"
                 type="number"
                 value={patientId ?? patientQuery}
                 onChange={(e) => {
@@ -81,18 +82,18 @@ export function EligibilityModal() {
                 <span className={`px-2 py-0.5 rounded text-xs font-bold ${result.eligible ? "bg-emerald-600" : "bg-red-600"}`}>
                   {result.eligible ? "ELIGIBLE" : "NOT ELIGIBLE"}
                 </span>
-                <span className="text-gray-400">{result.patient_name}</span>
+                <span className="text-gray-600 dark:text-gray-400">{result.patient_name}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <div><span className="text-gray-400">Plan:</span> {result.plan_name || "None"}</div>
-                <div><span className="text-gray-400">Status:</span> {result.active ? "Active" : "Inactive"}</div>
-                <div><span className="text-gray-400">Copay Tier:</span> {result.copay_tier || "N/A"}</div>
-                <div><span className="text-gray-400">Copay:</span> ${Number(result.copay_amount).toFixed(2)}</div>
-                <div><span className="text-gray-400">Deductible:</span> ${Number(result.deductible).toFixed(2)}</div>
-                <div><span className="text-gray-400">Remaining:</span> ${Number(result.deductible_remaining).toFixed(2)}</div>
-                <div><span className="text-gray-400">Co-Insurance:</span> {result.coinsurance_pct}%</div>
-                <div><span className="text-gray-400">Coverage:</span> {result.coverage_percentage}%</div>
+                <div><span className="text-gray-600 dark:text-gray-400">Plan:</span> {result.plan_name || "None"}</div>
+                <div><span className="text-gray-600 dark:text-gray-400">Status:</span> {result.active ? "Active" : "Inactive"}</div>
+                <div><span className="text-gray-600 dark:text-gray-400">Copay Tier:</span> {result.copay_tier || "N/A"}</div>
+                <div><span className="text-gray-600 dark:text-gray-400">Copay:</span> ${Number(result.copay_amount).toFixed(2)}</div>
+                <div><span className="text-gray-600 dark:text-gray-400">Deductible:</span> ${Number(result.deductible).toFixed(2)}</div>
+                <div><span className="text-gray-600 dark:text-gray-400">Remaining:</span> ${Number(result.deductible_remaining).toFixed(2)}</div>
+                <div><span className="text-gray-600 dark:text-gray-400">Co-Insurance:</span> {result.coinsurance_pct}%</div>
+                <div><span className="text-gray-600 dark:text-gray-400">Coverage:</span> {result.coverage_percentage}%</div>
               </div>
 
               <div className="mt-2 text-xs text-gray-500 italic">{result.message}</div>
@@ -102,7 +103,7 @@ export function EligibilityModal() {
           <div className="flex justify-end">
             <button
               onClick={handleClose}
-              className="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg text-sm hover:bg-white/5"
+              className="px-4 py-2 border border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-white/5"
             >
               Close
             </button>

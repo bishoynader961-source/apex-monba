@@ -39,3 +39,6 @@ backend_fastapi/.coverage
 *.db-shm
 *.db-wal
 .pharmacy_device_id
+
+# Tauri updater signing key — NEVER commit (compromise = signed malware)
+src-tauri/updater-key/

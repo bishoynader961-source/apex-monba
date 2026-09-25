@@ -4,7 +4,7 @@ import logging
 import subprocess
 from path_utils import get_resource_path
 
-import database
+import db
 import auth_session
 import authz
 import audit_log
@@ -219,7 +219,7 @@ def run_startup_gate(app) -> bool:
     creation past the retry cap.
     """
     retries = 0
-    while database.count_users() == 0:
+    while db.count_users() == 0:
         ui_auth.maybe_show_create_owner(app)      # blocks until owner exists / exit
         retries += 1
         if retries > 10:                           # CI / abort safety
@@ -233,7 +233,7 @@ def run_startup_gate(app) -> bool:
 
     # G8 (Force Bootstrap Secret Rotation): if the Owner override still uses the
     # shipped bootstrap secret, block the UI until the Owner rotates it.
-    if database.is_owner_override_default():
+    if db.is_owner_override_default():
         ui_auth.force_rotate_owner_override(app)
     return True
 
@@ -255,7 +255,7 @@ def _wire_rbac():
         _orig_init(self, *args, **kwargs)
 
         # Idempotent schema/seed (creates RBAC tables if missing).
-        database.init_db()
+        db.init_db()
 
         # §7.1: realize the root, then hide it so the half-built UI cannot be
         # click-through behind the blocking modals.
@@ -267,8 +267,13 @@ def _wire_rbac():
             sys.exit(1)
 
         # Gate succeeded: reveal the fully authenticated UI.
-        self.deiconify()
-        self.lift()
+        self.after(50, lambda: (
+            self.deiconify(),
+            self.lift(),
+            self.focus_force(),
+            self.attributes("-topmost", True),
+            self.after(200, lambda: self.attributes("-topmost", False)),
+        ))
 
         # G9: start the session expiry timer (auto-logout on idle).
         auth_session.start_session_timer(self, on_expire=lambda: ui_auth.force_relogin(self))

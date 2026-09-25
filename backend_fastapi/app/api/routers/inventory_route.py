@@ -1,6 +1,7 @@
 """Inventory routes: product catalog, batches, receive, alerts, suppliers."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -29,6 +30,7 @@ from app.shared.schemas import (
     StockLevelRead,
     SupplierCreate,
     SupplierRead,
+    SupplierUpdate,
 )
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
@@ -77,6 +79,20 @@ async def search_medicines(
     repo = ProductRepository(session)
     items = await repo.search(q)
     return [ProductRead.model_validate(p) for p in items]
+
+
+@router.get("/by-barcode/{barcode}", response_model=ProductRead)
+async def get_by_barcode(
+    barcode: str,
+    _auth: CurrentUser = Depends(require_permission("inventory.read")),
+    session: AsyncSession = Depends(get_session),
+) -> ProductRead:
+    """Single-product lookup by internal_unique_barcode (mobile barcode scan support)."""
+    repo = ProductRepository(session)
+    product = await repo.get_by_barcode(barcode)
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found for barcode")
+    return ProductRead.model_validate(product)
 
 
 @router.get("/medicines/{medicine_id}", response_model=ProductRead)
@@ -233,6 +249,90 @@ async def create_supplier(
     return SupplierRead.model_validate(supplier)
 
 
+@router.put("/suppliers/{supplier_id}", response_model=SupplierRead)
+async def update_supplier(
+    supplier_id: int,
+    payload: SupplierUpdate,
+    _auth: CurrentUser = Depends(require_permission("inventory.write")),
+    session: AsyncSession = Depends(get_session),
+) -> SupplierRead:
+    repo = SupplierRepository(session)
+    supplier = await repo.get(supplier_id)
+    if supplier is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Supplier not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(supplier, field, value)
+    supplier.updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    await session.commit()
+    await session.refresh(supplier)
+    return SupplierRead.model_validate(supplier)
+
+
+@router.delete("/suppliers/{supplier_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_supplier(
+    supplier_id: int,
+    _auth: CurrentUser = Depends(require_permission("inventory.write")),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    repo = SupplierRepository(session)
+    supplier = await repo.get(supplier_id)
+    if supplier is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Supplier not found")
+    if supplier.preferred:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Preferred supplier cannot be deleted; demote first",
+        )
+    await session.delete(supplier)
+    await session.commit()
+
+
+@router.post("/suppliers/{supplier_id}/prefer", response_model=SupplierRead)
+async def set_preferred_supplier(
+    supplier_id: int,
+    _auth: CurrentUser = Depends(require_permission("inventory.write")),
+    session: AsyncSession = Depends(get_session),
+) -> SupplierRead:
+    repo = SupplierRepository(session)
+    supplier = await repo.get(supplier_id)
+    if supplier is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Supplier not found")
+    # Clear all preferred flags
+    all_suppliers = await repo.all()
+    for s in all_suppliers:
+        if s.preferred:
+            s.preferred = 0
+    supplier.preferred = 1
+    supplier.updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    await session.commit()
+    await session.refresh(supplier)
+    return SupplierRead.model_validate(supplier)
+
+
+@router.get("/suppliers/search", response_model=list[SupplierRead])
+async def search_suppliers(
+    q: str = Query(..., min_length=1),
+    cutoff: float = Query(60.0, ge=0, le=100),
+    _auth: CurrentUser = Depends(require_permission("inventory.read")),
+    session: AsyncSession = Depends(get_session),
+) -> list[SupplierRead]:
+    all_suppliers = await SupplierRepository(session).all()
+    if not q:
+        return [SupplierRead.model_validate(s) for s in all_suppliers]
+    # Simple difflib-based fuzzy search
+    from difflib import SequenceMatcher
+    choices = [s.name for s in all_suppliers]
+    scored = []
+    ql = q.lower()
+    for idx, choice in enumerate(choices):
+        ratio = SequenceMatcher(None, ql, choice.lower()).ratio() * 100.0
+        if ratio >= cutoff:
+            scored.append((ratio, choice, idx))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    matched_suppliers = [all_suppliers[idx] for _, _, idx in scored]
+    return [SupplierRead.model_validate(s) for s in matched_suppliers]
+
+
 @router.get("/movements", response_model=MovementLogResponse)
 async def list_movements(
     product_id: Optional[int] = Query(default=None, ge=1),
@@ -285,3 +385,26 @@ async def create_adjustment(
     )
     svc = MovementService(session)
     return {"id": adj.id, "product_id": adj.product_id, "quantity_change": adj.quantity_change}
+
+
+@router.post("/batches/batch-expire", response_model=dict[str, object])
+async def batch_expire(
+    batch_ids: list[int],
+    _auth: CurrentUser = Depends(require_permission("inventory.write")),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    """Mark multiple batches as expired (set on_hand = 0)."""
+    svc = InventoryService(session)
+    return await svc.batch_mark_expired(batch_ids)
+
+
+@router.post("/medicines/batch-price-adjust", response_model=dict[str, object])
+async def batch_price_adjust(
+    medicine_ids: list[int],
+    price_change_pct: float,
+    _auth: CurrentUser = Depends(require_permission("inventory.write")),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    """Adjust price for multiple medicines by percentage."""
+    svc = InventoryService(session)
+    return await svc.batch_adjust_price(medicine_ids, price_change_pct)

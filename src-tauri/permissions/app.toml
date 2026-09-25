@@ -1,0 +1,24 @@
+[[permission]]
+identifier = "allow-setup-main-device"
+description = "Allows setting up the main device configuration"
+commands.allow = ["setup_main_device"]
+
+[[permission]]
+identifier = "allow-start-udp-broadcast"
+description = "Allows starting UDP broadcast for device discovery"
+commands.allow = ["start_udp_broadcast"]
+
+[[permission]]
+identifier = "allow-stop-udp-broadcast"
+description = "Allows stopping UDP broadcast"
+commands.allow = ["stop_udp_broadcast"]
+
+[[permission]]
+identifier = "allow-scan-udp-broadcast"
+description = "Allows scanning for UDP broadcast from main device"
+commands.allow = ["scan_udp_broadcast"]
+
+[[permission]]
+identifier = "allow-open-label-window"
+description = "Allows opening the label designer window"
+commands.allow = ["open_label_window"]

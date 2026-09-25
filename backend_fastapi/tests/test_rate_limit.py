@@ -123,7 +123,7 @@ async def test_me_endpoint_rate_limited(client: AsyncClient, session) -> None:
     await session.flush()
     from app.shared.security import create_access_token
 
-    token = create_access_token(str(user.id), "pharmacist", ["pos.checkout"], username="rlme")
+    token = create_access_token(str(user.id), "pharmacist", 2, ["pos.checkout"], username="rlme")
     for _ in range(_AUTH_LIMIT):
         await client.post("/api/v1/auth/login", json={"username": "rlme", "password": "wrong"})
 

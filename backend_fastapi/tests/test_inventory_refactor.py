@@ -30,6 +30,10 @@ async def _token(
     username: str,
     password: str = "password123",
 ) -> str:
+    # Role id 1 is the hardcoded owner/admin bypass (deps.require_permission),
+    # so reserve it before creating the test role (ids >= 2).
+    session.add(Role(name="Administrator", description="owner", is_system=1))
+    await session.commit()
     role = Role(name=f"role_{username}", description=username, is_system=1)
     session.add(role)
     await session.commit()

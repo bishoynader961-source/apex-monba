@@ -17,12 +17,12 @@ from typing import Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.models import DrawerMovement, Receipt, ReceiptItem, Refund, Shift, SoldItem
+from app.core.models import DrawerMovement, Patient, Receipt, ReceiptItem, Refund, Shift, SoldItem, SystemSetting
 from app.core.lock_manager import get_lock
 from app.core.repositories import AuditRepository, ProductRepository, SyncRepository
 from app.services.inventory_service import InventoryService
 from app.shared.config import settings
-from app.shared.exceptions import AppException, NotFoundError
+from app.shared.exceptions import AppException, ForbiddenError, NotFoundError
 from app.shared.logging_config import get_logger
 from app.shared.schemas import (
     CheckoutItemRead,
@@ -31,6 +31,12 @@ from app.shared.schemas import (
     CurrentUser,
     DrawerMovementCreate,
     DrawerMovementRead,
+    EODReceiptLine,
+    EODReceiptSummary,
+    EODSummary,
+    ReceiptPrintResponse,
+    ReceiptRead,
+    ReceiptItemRead,
     RefundRead,
     RefundRequest,
     SalesReport,
@@ -39,6 +45,8 @@ from app.shared.schemas import (
     ShiftOpenRequest,
     ShiftPreviewResult,
     ShiftRead,
+    VoidItemRequest,
+    VoidItemResult,
 )
 
 logger = get_logger("pos")
@@ -85,6 +93,19 @@ class PosService:
             aggregated[line.product_name] = aggregated.get(line.product_name, 0) + line.quantity
         names = sorted(aggregated)
 
+        # Privileged checkout inputs are permission-gated (docs in contracts.ts):
+        # price overrides, tax exemption, and split payments. Admin (role_id 1 / "*")
+        # bypasses via has_permission.
+        def _has(perm: str) -> bool:
+            return user.role_id == 1 or "*" in user.permissions or perm in user.permissions
+
+        if payload.price_overrides and not _has("pos.price_override"):
+            raise ForbiddenError("Price override requires pos.price_override permission")
+        if payload.tax_exempt and not _has("pos.checkout"):
+            raise ForbiddenError("Tax exemption requires manager approval")
+        if payload.payments and not _has("pos.checkout"):
+            raise ForbiddenError("Split payments require pos.checkout permission")
+
         acquired: list[asyncio.Lock] = []
         try:
             for name in names:
@@ -109,7 +130,9 @@ class PosService:
                         raise NotFoundError("Medicine", name)
                     consumed = await inventory.fifo_deduct(name, qty)
                     consumed_rows.extend(consumed)
-                    unit = product.price
+                    # Price override: use caller-supplied price when present.
+                    overrides = payload.price_overrides or {}
+                    unit = overrides.get(name, product.price)
                     net_line = Decimal(qty) * unit
                     tax_line = net_line * _TAX_RATE
                     net_raw += net_line
@@ -125,15 +148,41 @@ class PosService:
                     )
 
                 net_total = _round2(net_raw)
-                tax_total = _round2(tax_raw)
-                total = _round2(net_total + tax_total)
+
+                # Discount: applied before tax (percentage or flat dollar).
+                discount_total = Decimal("0")
+                if payload.discount_type and payload.discount_value is not None and payload.discount_value > 0:
+                    if payload.discount_type == "%":
+                        discount_total = _round2(net_total * payload.discount_value / Decimal("100"))
+                        if discount_total > net_total:
+                            discount_total = net_total
+                    elif payload.discount_type == "$":
+                        discount_total = _round2(min(payload.discount_value, net_total))
+
+                taxable = net_total - discount_total
+                # Money contract: always emit 2-dp decimals, even for a zero tax leg.
+                tax_total = Decimal("0.00") if payload.tax_exempt else _round2(taxable * _TAX_RATE)
+                total = _round2(taxable + tax_total)
+
+                # Split payment: validate amounts sum ≥ total.
+                payment_method = payload.payment_method
+                if payload.payments:
+                    split_sum = sum(p.amount for p in payload.payments)
+                    if split_sum < total:
+                        raise AppException(
+                            f"Split payments sum {split_sum} is less than total {total}",
+                            status_code=400,
+                            error_code="split_insufficient",
+                        )
+                    parts = [f"{p.method} {_round2(p.amount)}" for p in payload.payments]
+                    payment_method = "Split: " + " + ".join(parts)
 
                 server_dt = datetime.now(timezone.utc)
                 skew = _skew_seconds(payload.client_timestamp, server_dt)
                 receipt = Receipt(
                     timestamp=server_dt.isoformat(timespec="seconds"),
                     total_amount=total,
-                    payment_method=payload.payment_method,
+                    payment_method=payment_method,
                     patient_id=payload.patient_id,
                     server_created_at=server_dt.isoformat(timespec="seconds"),
                     ts_skew_confidence=skew,
@@ -173,7 +222,8 @@ class PosService:
 
                 await audit_repo.log(
                     action="pos.checkout",
-                    details=f"receipt={receipt_number} items={len(results)} total={total}",
+                    details=f"receipt={receipt_number} items={len(results)} total={total}"
+                    + (" tax_exempt" if payload.tax_exempt else ""),
                     category="sales",
                     subject_type="receipt",
                     subject_id=receipt.id,
@@ -210,6 +260,7 @@ class PosService:
                     net_total=net_total,
                     tax_total=tax_total,
                     total_amount=total,
+                    discount_total=discount_total,
                     server_created_at=receipt.server_created_at,
                     ts_skew_confidence=receipt.ts_skew_confidence,
                     cashier_attribution=receipt.cashier_attribution,
@@ -407,6 +458,55 @@ class PosService:
         await self.session.commit()
         return RefundRead.model_validate(refund)
 
+    async def void_item(self, payload: VoidItemRequest, user: CurrentUser) -> VoidItemResult:
+        """Void a single receipt item: restock inventory and create a partial refund.
+
+        The receipt item is deleted and a refund ledger entry is created for the
+        item's line total. The parent receipt's total is *not* mutated (it remains
+        as an audit trail); the negative ledger entry nets it in reports.
+        """
+        item = await self.session.get(ReceiptItem, payload.receipt_item_id)
+        if item is None:
+            raise NotFoundError("ReceiptItem", str(payload.receipt_item_id))
+        receipt = await self.session.get(Receipt, item.receipt_id)
+        if receipt is None:
+            raise NotFoundError("Receipt", str(item.receipt_id))
+        # Restock inventory
+        inventory = InventoryService(self.session)
+        await inventory.return_stock(item.product_name, item.quantity)
+        # Calculate refund amount for this line
+        refund_amount = _round2(Decimal(str(item.quantity)) * item.price_at_time)
+        # Delete the receipt item
+        await self.session.delete(item)
+        # Create a partial refund ledger entry
+        server_dt = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        ledger = Receipt(
+            timestamp=server_dt,
+            total_amount=_round2(-refund_amount),
+            payment_method="Void",
+            server_created_at=server_dt,
+            created_by=user.username,
+            cashier_attribution=user.username,
+        )
+        self.session.add(ledger)
+        await self.session.flush()
+        await AuditRepository(self.session).log(
+            action="pos.void_item",
+            details=f"receipt={item.receipt_id} item={payload.receipt_item_id} product={item.product_name} qty={item.quantity} amount={refund_amount}",
+            category="void",
+            subject_type="receipt_item",
+            subject_id=payload.receipt_item_id,
+            user_pin=user.username,
+            role=user.role,
+        )
+        await self.session.commit()
+        return VoidItemResult(
+            receipt_id=item.receipt_id,
+            restocked_product=item.product_name,
+            quantity_restocked=item.quantity,
+            refund_amount=refund_amount,
+        )
+
     async def sales_report(self) -> SalesReport:
         """Aggregated sales + refunds for the reporting view (B5)."""
         rows = (
@@ -432,3 +532,305 @@ class PosService:
             net_revenue=net,
             by_payment_method={k: _round2(v) for k, v in by_method.items()},
         )
+
+    async def eod_summary(self, target_date: str | None = None) -> EODSummary:
+        """End-of-Day summary for *target_date* (default: today UTC)."""
+        if target_date is None:
+            target_date = date.today().isoformat()
+        # Fetch all receipts, filter by date prefix.
+        result = await self.session.execute(select(Receipt))
+        all_receipts = result.scalars().all()
+        day_receipts = [r for r in all_receipts if r.timestamp and r.timestamp[:10] == target_date]
+        by_method: dict[str, Decimal] = {}
+        total = Decimal("0")
+        items_sold = 0
+        receipt_summaries: list[EODReceiptSummary] = []
+        for r in day_receipts:
+            if r.total_amount < 0:
+                continue
+            total += r.total_amount
+            by_method[r.payment_method] = by_method.get(r.payment_method, Decimal("0")) + r.total_amount
+            # Fetch items for this receipt.
+            items_result = await self.session.execute(
+                select(ReceiptItem).where(ReceiptItem.receipt_id == r.id)
+            )
+            items = items_result.scalars().all()
+            lines: list[EODReceiptLine] = []
+            for i in items:
+                items_sold += i.quantity
+                lines.append(EODReceiptLine(
+                    product_name=i.product_name,
+                    quantity=i.quantity,
+                    price_at_time=i.price_at_time,
+                ))
+            try:
+                year = datetime.fromisoformat(r.timestamp).year
+            except (ValueError, TypeError):
+                year = datetime.now(timezone.utc).year
+            receipt_summaries.append(EODReceiptSummary(
+                receipt_id=r.id,
+                receipt_number=f"RCP-{year}-{r.id:06d}",
+                timestamp=r.timestamp,
+                total_amount=r.total_amount,
+                payment_method=r.payment_method,
+                items=lines,
+            ))
+        return EODSummary(
+            date=target_date,
+            total_revenue=_round2(total),
+            transaction_count=len(receipt_summaries),
+            items_sold=items_sold,
+            by_payment_method={k: _round2(v) for k, v in by_method.items()},
+            receipts=receipt_summaries,
+        )
+
+    # ── Receipt History ─────────────────────────────────────────────────────
+
+    async def recent_receipts(self, limit: int = 50) -> list[ReceiptRead]:
+        """Return the last *limit* receipts (newest first) with line items."""
+        result = await self.session.execute(
+            select(Receipt).order_by(Receipt.id.desc()).limit(limit)
+        )
+        receipts = result.scalars().all()
+        out: list[ReceiptRead] = []
+        for r in receipts:
+            items_result = await self.session.execute(
+                select(ReceiptItem).where(ReceiptItem.receipt_id == r.id)
+            )
+            items = items_result.scalars().all()
+            out.append(
+                ReceiptRead(
+                    id=r.id,
+                    receipt_number=f"RCP-{r.timestamp[:4]}-{r.id:06d}" if r.timestamp else f"RCP-{r.id:06d}",
+                    timestamp=r.timestamp,
+                    total_amount=r.total_amount,
+                    payment_method=r.payment_method,
+                    patient_id=r.patient_id,
+                    server_created_at=r.server_created_at,
+                    cashier_attribution=r.cashier_attribution,
+                    client_tx_id=r.client_tx_id,
+                    items=[
+                        ReceiptItemRead(
+                            id=i.id,
+                            receipt_id=i.receipt_id,
+                            product_name=i.product_name,
+                            quantity=i.quantity,
+                            price_at_time=i.price_at_time,
+                            internal_barcode=i.internal_barcode,
+                            vendor=i.vendor,
+                            expiry_date=i.expiry_date,
+                        )
+                        for i in items
+                    ],
+                )
+            )
+        return out
+
+    async def receipt_detail(self, receipt_id: int) -> ReceiptRead:
+        """Return a single receipt with its line items."""
+        r = await self.session.get(Receipt, receipt_id)
+        if r is None:
+            raise NotFoundError("Receipt", str(receipt_id))
+        items_result = await self.session.execute(
+            select(ReceiptItem).where(ReceiptItem.receipt_id == r.id)
+        )
+        items = items_result.scalars().all()
+        return ReceiptRead(
+            id=r.id,
+            receipt_number=f"RCP-{r.timestamp[:4]}-{r.id:06d}" if r.timestamp else f"RCP-{r.id:06d}",
+            timestamp=r.timestamp,
+            total_amount=r.total_amount,
+            payment_method=r.payment_method,
+            patient_id=r.patient_id,
+            server_created_at=r.server_created_at,
+            cashier_attribution=r.cashier_attribution,
+            client_tx_id=r.client_tx_id,
+            items=[
+                ReceiptItemRead(
+                    id=i.id,
+                    receipt_id=i.receipt_id,
+                    product_name=i.product_name,
+                    quantity=i.quantity,
+                    price_at_time=i.price_at_time,
+                    internal_barcode=i.internal_barcode,
+                    vendor=i.vendor,
+                    expiry_date=i.expiry_date,
+                )
+                for i in items
+            ],
+        )
+
+    async def format_receipt_print(self, receipt_id: int) -> ReceiptPrintResponse:
+        """Return a receipt in both thermal-text and browser-printable HTML formats."""
+        detail = await self.receipt_detail(receipt_id)
+
+        pharmacy_name = await self._get_setting("pharmacy_name") or "Pharmacy"
+        pharmacy_address = await self._get_setting("pharmacy_address") or ""
+        pharmacy_phone = await self._get_setting("pharmacy_phone") or ""
+
+        patient_name = ""
+        if detail.patient_id is not None:
+            patient = await self.session.get(Patient, detail.patient_id)
+            if patient is not None:
+                patient_name = patient.name
+
+        subtotal = sum((i.price_at_time * i.quantity for i in detail.items), Decimal("0"))
+        tax_total = detail.total_amount - subtotal
+
+        receipt_text = self._render_thermal(
+            pharmacy_name, pharmacy_address, pharmacy_phone,
+            detail, patient_name, subtotal, tax_total,
+        )
+        printable_html = self._render_printable_html(
+            pharmacy_name, pharmacy_address, pharmacy_phone,
+            detail, patient_name, subtotal, tax_total,
+        )
+
+        return ReceiptPrintResponse(
+            receipt_id=detail.id,
+            receipt_number=detail.receipt_number,
+            receipt_text=receipt_text,
+            printable_html=printable_html,
+            items=detail.items,
+            total_amount=detail.total_amount,
+            payment_method=detail.payment_method,
+            timestamp=detail.timestamp,
+            cashier_attribution=detail.cashier_attribution,
+            patient_name=patient_name or None,
+            sale_type=detail.sale_type if hasattr(detail, "sale_type") else None,
+            tax_total=tax_total,
+            subtotal=subtotal,
+        )
+
+    async def _get_setting(self, key: str) -> str | None:
+        """Read a SystemSetting value, decoding from stored bytes."""
+        row = await self.session.get(SystemSetting, key)
+        if row is None or row.value is None:
+            return None
+        return row.value.decode("utf-8")
+
+    @staticmethod
+    def _fmt_amount(value: Decimal) -> str:
+        """Format a Decimal as a display string with up to 2 decimal places."""
+        q = value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return f"{q}"
+
+    @staticmethod
+    def _render_thermal(
+        pharmacy_name: str,
+        pharmacy_address: str,
+        pharmacy_phone: str,
+        receipt: ReceiptRead,
+        patient_name: str,
+        subtotal: Decimal,
+        tax_total: Decimal,
+    ) -> str:
+        """Build a 32-char-wide ESC/POS-compatible thermal text receipt."""
+        w = 32
+        lines: list[str] = []
+
+        lines.append(pharmacy_name.center(w).rstrip())
+        if pharmacy_address:
+            for addr_line in pharmacy_address.split("\n"):
+                if addr_line.strip():
+                    lines.append(addr_line.strip().center(w).rstrip())
+        if pharmacy_phone:
+            lines.append(pharmacy_phone.strip().center(w).rstrip())
+        lines.append("=" * w)
+
+        lines.append(receipt.receipt_number.center(w).rstrip())
+        lines.append(receipt.timestamp.center(w).rstrip())
+        if receipt.cashier_attribution:
+            lines.append(f"cashier: {receipt.cashier_attribution}".center(w).rstrip())
+        if patient_name:
+            lines.append(f"patient: {patient_name}".center(w).rstrip())
+        lines.append("-" * w)
+
+        for item in receipt.items:
+            name = item.product_name[:24]
+            qty_total = item.quantity * item.price_at_time
+            lines.append(f"{name:<24}{item.quantity:>2}x")
+            price_str = f"{PosService._fmt_amount(item.price_at_time):>7}"
+            total_str = f"{PosService._fmt_amount(qty_total):>7}"
+            lines.append(f"{price_str}{total_str:>11}")
+
+        lines.append("-" * w)
+        sub_str = f"{PosService._fmt_amount(subtotal):>10}"
+        tax_str = f"{PosService._fmt_amount(tax_total):>10}"
+        total_str = f"{PosService._fmt_amount(receipt.total_amount):>10}"
+        lines.append(f"subtotal:{sub_str}")
+        if tax_total != Decimal("0"):
+            lines.append(f"tax:{tax_str}")
+        lines.append(f"total:{total_str}")
+        lines.append(f"Payment: {receipt.payment_method}".rstrip())
+        lines.append("")
+        lines.append("THANK YOU".center(w).rstrip())
+        lines.append("")
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def _render_printable_html(
+        pharmacy_name: str,
+        pharmacy_address: str,
+        pharmacy_phone: str,
+        receipt: ReceiptRead,
+        patient_name: str,
+        subtotal: Decimal,
+        tax_total: Decimal,
+    ) -> str:
+        """Build a minimal HTML string for browser print preview."""
+        import html
+
+        esc = html.escape
+
+        def fmt(v: Decimal) -> str:
+            return esc(PosService._fmt_amount(v))
+
+        parts: list[str] = [
+            "<div class='pharmacy-receipt'>",
+            f"<div class='pharmacy-header'><div class='pharmacy-name'>{esc(pharmacy_name)}</div>",
+        ]
+        if pharmacy_address:
+            parts.append(f"<div class='pharmacy-address'>{esc(pharmacy_address)}</div>")
+        if pharmacy_phone:
+            parts.append(f"<div class='pharmacy-phone'>{esc(pharmacy_phone)}</div>")
+        parts.append("</div>")
+
+        parts.append("<div class='receipt-meta'>")
+        parts.append(f"<div class='receipt-number'>{esc(receipt.receipt_number)}</div>")
+        parts.append(f"<div class='receipt-date'>{esc(receipt.timestamp)}</div>")
+        if receipt.cashier_attribution:
+            parts.append(f"<div class='cashier'>Cashier: {esc(receipt.cashier_attribution)}</div>")
+        if patient_name:
+            parts.append(f"<div class='patient'>Patient: {esc(patient_name)}</div>")
+        parts.append("</div>")
+
+        parts.append("<table class='receipt-items'>")
+        parts.append("<thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>")
+        parts.append("<tbody>")
+        for item in receipt.items:
+            line_total = item.quantity * item.price_at_time
+            parts.append(
+                "<tr>"
+                f"<td>{esc(item.product_name)}</td>"
+                f"<td class='right'>{item.quantity}</td>"
+                f"<td class='right'>{fmt(item.price_at_time)}</td>"
+                f"<td class='right'>{fmt(line_total)}</td>"
+                "</tr>"
+            )
+        parts.append("</tbody>")
+        parts.append("</table>")
+
+        parts.append("<div class='receipt-totals'>")
+        parts.append(f"<div class='total-row'><span>Subtotal</span><span class='right'>{fmt(subtotal)}</span></div>")
+        if tax_total != Decimal("0"):
+            parts.append(f"<div class='total-row'><span>Tax</span><span class='right'>{fmt(tax_total)}</span></div>")
+        parts.append(f"<div class='total-row grand-total'><span>Total</span><span class='right'>{fmt(receipt.total_amount)}</span></div>")
+        parts.append(f"<div class='payment-method'>Payment: {esc(receipt.payment_method)}</div>")
+        parts.append("</div>")
+
+        parts.append("<div class='receipt-footer'>THANK YOU FOR YOUR BUSINESS</div>")
+        parts.append("</div>")
+
+        return "".join(parts)

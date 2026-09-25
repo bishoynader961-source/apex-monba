@@ -1,13 +1,13 @@
 """Async SQLAlchemy 2.0 engine, session dependency, and schema bootstrap.
 
-The engine connects to the single preserved ``pharmacy.db``. WAL mode and a busy
-timeout are applied on every connection so concurrent POS writes serialize safely
-(see risk R1 in the plan). An in-memory SQLite URL uses ``StaticPool`` so the
-connection pool shares one database across sessions (required for tests).
+The engine connects to the single preserved ``pharmacy.db`` in the OS app data
+directory. WAL mode and a busy timeout are applied on every connection so
+concurrent POS writes serialize safely (see risk R1 in the plan). An in-memory
+SQLite URL uses ``StaticPool`` so the connection pool shares one database across
+sessions (required for tests).
 """
 from __future__ import annotations
 
-import os
 import urllib.parse
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
@@ -24,6 +24,20 @@ from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import StaticPool
 
 from app.shared.config import settings
+
+
+def _get_database_path() -> str:
+    """Get the database path in the per-install OS app data directory.
+
+    Delegates to ``app.shared.config.get_app_data_dir`` (``%APPDATA%``
+    ``\\PharmacySuite\\pharmacy.db`` on Windows) so every resolution path —
+    ``settings.database_url`` default, frozen sidecar, and dev server — agrees
+    on one location. A fresh install therefore starts with zero users and the
+    first-run setup wizard appears.
+    """
+    from app.shared.config import get_app_data_dir
+
+    return str(get_app_data_dir() / "pharmacy.db")
 
 
 class Base(DeclarativeBase):
@@ -50,6 +64,12 @@ def _write_db_path() -> Optional[str]:
     # sqlite+aiosqlite:///./pharmacy.db  ->  ./pharmacy.db
     path = url.split("///", 1)[-1]
     return str(Path(path).resolve())
+
+
+def _get_default_database_url() -> str:
+    """Get the default database URL using platformdirs."""
+    db_path = _get_database_path()
+    return f"sqlite+aiosqlite:///{db_path}"
 
 def _configure_pragmas(dbapi_conn: Any, _record: Any) -> None:
     """Per-connection SQLite pragmas (runs once per pooled connection — Concern 10).
@@ -137,7 +157,7 @@ def build_read_engine() -> Optional[AsyncEngine]:
 
 def init_engine(url: Optional[str] = None) -> None:
     global _engine, _sessionmaker, _read_engine, _read_sessionmaker
-    _engine = build_engine(url or settings.database_url)
+    _engine = build_engine(url or _get_default_database_url())
     _sessionmaker = async_sessionmaker(_engine, expire_on_commit=False)
     _read_engine = build_read_engine()
     # In-memory / unsupported RO: reuse the write sessionmaker for reads too.
@@ -775,13 +795,14 @@ async def migrate_schema(conn: Any) -> None:
             WHERE first_name IS NULL OR first_name = ''
         """)
         # address -> address (street), city, state, zip (simple split on comma)
-        await conn.exec_driver_sql("""
-            UPDATE patients
-            SET city = TRIM(SUBSTR(address, 1, INSTR(address || ',', ',') - 1)),
-                state = TRIM(SUBSTR(address, INSTR(address || ',', ',') + 1, 2)),
-                zip = TRIM(SUBSTR(address, INSTR(address || ',', ',') + 4))
-            WHERE city IS NULL OR city = ''
-        """)
+        if await _table_has_column(conn, "patients", "address") and await _table_has_column(conn, "patients", "city"):
+            await conn.exec_driver_sql("""
+                UPDATE patients
+                SET city = TRIM(SUBSTR(address, 1, INSTR(address || ',', ',') - 1)),
+                    state = TRIM(SUBSTR(address, INSTR(address || ',', ',') + 1, 2)),
+                    zip = TRIM(SUBSTR(address, INSTR(address || ',', ',') + 4))
+                WHERE city IS NULL OR city = ''
+            """)
         # Create drug_dictionary table
         if not await _table_exists(conn, "drug_dictionary"):
             await conn.exec_driver_sql("""
@@ -812,8 +833,389 @@ async def migrate_schema(conn: Any) -> None:
             await conn.exec_driver_sql("ALTER TABLE patients DROP COLUMN patient_fax")
         version = 14
 
+    # ── v15: coupons table (Phase 1.9) ────────────────────────────────────
+    if version < 15:
+        if not await _table_exists(conn, "coupons"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE coupons (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    code TEXT NOT NULL UNIQUE,
+                    description TEXT NOT NULL DEFAULT '',
+                    discount_type TEXT NOT NULL DEFAULT '%',
+                    discount_value NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    min_purchase NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    max_uses INTEGER NOT NULL DEFAULT 0,
+                    used_count INTEGER NOT NULL DEFAULT 0,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    expires_at TEXT,
+                    created_at TEXT
+                )
+                """
+            )
+        version = 15
+
+    # ── v16: quick_sig_templates table (Phase 2.1) ────────────────────────
+    if version < 16:
+        if not await _table_exists(conn, "quick_sig_templates"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE quick_sig_templates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL DEFAULT '',
+                    drug_name TEXT NOT NULL DEFAULT '',
+                    dose TEXT NOT NULL DEFAULT '',
+                    route TEXT NOT NULL DEFAULT '',
+                    frequency TEXT NOT NULL DEFAULT '',
+                    duration TEXT NOT NULL DEFAULT '',
+                    directions TEXT NOT NULL DEFAULT '',
+                    is_favorite INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT
+                )
+                """
+            )
+        version = 16
+
+    # ── v17: purchase_orders + po_items tables (Phase 2.2) ─────────────────
+    if version < 17:
+        if not await _table_exists(conn, "purchase_orders"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE purchase_orders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    po_number TEXT NOT NULL UNIQUE,
+                    vendor_id TEXT,
+                    vendor_name TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'Draft',
+                    notes TEXT NOT NULL DEFAULT '',
+                    subtotal NUMERIC(12,2) NOT NULL DEFAULT 0,
+                    tax_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+                    total_cost NUMERIC(12,2) NOT NULL DEFAULT 0,
+                    created_at TEXT,
+                    submitted_at TEXT,
+                    received_at TEXT,
+                    closed_at TEXT,
+                    created_by TEXT
+                )
+                """
+            )
+        if not await _table_exists(conn, "po_items"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE po_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    po_id INTEGER NOT NULL,
+                    line_number INTEGER NOT NULL DEFAULT 0,
+                    product_name TEXT NOT NULL DEFAULT '',
+                    vendor_sku TEXT NOT NULL DEFAULT '',
+                    quantity INTEGER NOT NULL DEFAULT 0,
+                    unit_price NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    line_total NUMERIC(12,2) NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'Pending',
+                    received_qty INTEGER NOT NULL DEFAULT 0,
+                    received_at TEXT
+                )
+                """
+            )
+        version = 17
+
+    # ── v18: receipt_templates table (Phase 3.1) ──────────────────────────
+    if version < 18:
+        if not await _table_exists(conn, "receipt_templates"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE receipt_templates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    template_type TEXT NOT NULL DEFAULT 'receipt',
+                    paper_width INTEGER NOT NULL DEFAULT 42,
+                    is_default INTEGER NOT NULL DEFAULT 0,
+                    sections TEXT NOT NULL DEFAULT '[]',
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+                """
+            )
+        version = 18
+
+    # ── v19: drug_interactions table (Phase 4.1) ──────────────────────────
+    if version < 19:
+        if not await _table_exists(conn, "drug_interactions"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE drug_interactions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    drug_a TEXT NOT NULL,
+                    drug_b TEXT NOT NULL,
+                    severity TEXT NOT NULL DEFAULT 'moderate',
+                    description TEXT NOT NULL DEFAULT '',
+                    recommendation TEXT NOT NULL DEFAULT '',
+                    is_active INTEGER NOT NULL DEFAULT 1
+                )
+                """
+            )
+        version = 19
+
+    # ── v20: quick_sig_templates usage_count column (Phase 4.3) ───────────
+    if version < 20:
+        if await _table_exists(conn, "quick_sig_templates"):
+            cols = {row[1] for row in (await conn.exec_driver_sql("PRAGMA table_info(quick_sig_templates)")).fetchall()}
+            if "usage_count" not in cols:
+                await conn.exec_driver_sql("ALTER TABLE quick_sig_templates ADD COLUMN usage_count INTEGER NOT NULL DEFAULT 0")
+        version = 20
+
+    # ── v21: label_templates + product_labels tables (Phase 8.1) ─────────
+    if version < 21:
+        if not await _table_exists(conn, "label_templates"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE label_templates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    canvas_width INTEGER NOT NULL DEFAULT 400,
+                    canvas_height INTEGER NOT NULL DEFAULT 300,
+                    elements TEXT NOT NULL DEFAULT '[]',
+                    is_default INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+                """
+            )
+        if not await _table_exists(conn, "product_labels"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE product_labels (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    product_id INTEGER NOT NULL UNIQUE,
+                    canvas_width INTEGER NOT NULL DEFAULT 400,
+                    canvas_height INTEGER NOT NULL DEFAULT 300,
+                    elements TEXT NOT NULL DEFAULT '[]',
+                    updated_at TEXT
+                )
+                """
+            )
+        version = 21
+
+    # ── v22: compound prescriptions tables ──────────────────────────────────
+    if version < 22:
+        if not await _table_exists(conn, "compounds"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE compounds (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    total_quantity REAL NOT NULL,
+                    total_quantity_unit TEXT NOT NULL DEFAULT 'g',
+                    sig_code TEXT NOT NULL DEFAULT 'QD',
+                    days_supply INTEGER NOT NULL DEFAULT 30,
+                    refills_authorized INTEGER NOT NULL DEFAULT 0,
+                    refill_count INTEGER NOT NULL DEFAULT 0,
+                    last_fill_date TEXT,
+                    prescriber_id INTEGER REFERENCES prescribers(id),
+                    price_code TEXT,
+                    created_at TEXT
+                )
+                """
+            )
+        if not await _table_exists(conn, "compound_ingredients"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE compound_ingredients (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    compound_id INTEGER NOT NULL REFERENCES compounds(id),
+                    product_name TEXT NOT NULL,
+                    quantity REAL NOT NULL,
+                    unit TEXT NOT NULL DEFAULT 'g',
+                    strength TEXT,
+                    sequence INTEGER NOT NULL DEFAULT 0,
+                    ingredient_price NUMERIC(10,2) NOT NULL DEFAULT 0
+                )
+                """
+            )
+        if not await _table_exists(conn, "compound_dispenses"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE compound_dispenses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    compound_id INTEGER NOT NULL REFERENCES compounds(id),
+                    patient_id INTEGER NOT NULL REFERENCES patients(id),
+                    quantity REAL NOT NULL,
+                    fill_date TEXT NOT NULL,
+                    total_price NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    insurance_copay NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    insurance_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    insurance_plan_id INTEGER REFERENCES insurance_plans(id),
+                    price_code TEXT,
+                    client_tx_id TEXT NOT NULL UNIQUE,
+                    server_created_at TEXT,
+                    cashier TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
+        if not await _table_exists(conn, "compound_ingredients"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE compound_ingredients (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    compound_id INTEGER NOT NULL REFERENCES compounds(id),
+                    product_name TEXT NOT NULL,
+                    quantity REAL NOT NULL,
+                    unit TEXT NOT NULL DEFAULT 'g',
+                    strength TEXT,
+                    sequence INTEGER NOT NULL DEFAULT 0,
+                    ingredient_price NUMERIC(10,2) NOT NULL DEFAULT 0
+                )
+                """
+            )
+        if not await _table_exists(conn, "compound_dispense_items"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE compound_dispense_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    compound_dispense_id INTEGER NOT NULL REFERENCES compound_dispenses(id),
+                    ingredient_id INTEGER REFERENCES compound_ingredients(id),
+                    product_name TEXT NOT NULL,
+                    lot_id INTEGER,
+                    lot_number TEXT NOT NULL DEFAULT '',
+                    expiration_date TEXT NOT NULL DEFAULT '',
+                    quantity_used REAL NOT NULL,
+                    unit_price NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    total_price NUMERIC(10,2) NOT NULL DEFAULT 0
+                )
+                """
+            )
+        version = 22
+
+    # ── v23: prior authorization table ──────────────────────────────────────
+    if version < 23:
+        if not await _table_exists(conn, "prior_auths"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE prior_auths (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id INTEGER NOT NULL REFERENCES patients(id),
+                    prescriber_id INTEGER NOT NULL REFERENCES prescribers(id),
+                    product_name TEXT NOT NULL,
+                    ndc_code TEXT,
+                    quantity INTEGER NOT NULL,
+                    days_supply INTEGER NOT NULL,
+                    sig_code TEXT NOT NULL,
+                    diagnosis_codes TEXT NOT NULL DEFAULT '[]',
+                    clinical_rationale TEXT NOT NULL,
+                    prior_therapy_failed TEXT NOT NULL DEFAULT '[]',
+                    insurance_plan_id INTEGER REFERENCES insurance_plans(id),
+                    status TEXT NOT NULL DEFAULT 'SUBMITTED',
+                    prior_auth_number TEXT,
+                    denial_reason TEXT,
+                    approval_duration_days INTEGER,
+                    expires_at TEXT,
+                    submitted_at TEXT NOT NULL,
+                    reviewed_at TEXT,
+                    reviewed_by TEXT,
+                    reviewer_notes TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+        version = 23
+
+    # ── v24: EPCS (Electronic Prescribing for Controlled Substances) ───────────
+    if version < 24:
+        if not await _table_exists(conn, "epcs_prescriptions"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE epcs_prescriptions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id INTEGER NOT NULL REFERENCES patients(id),
+                    prescriber_id INTEGER NOT NULL REFERENCES prescribers(id),
+                    product_name TEXT NOT NULL,
+                    ndc_code TEXT,
+                    schedule TEXT NOT NULL,  -- C-II, C-III, C-IV, C-V
+                    quantity INTEGER NOT NULL,
+                    days_supply INTEGER NOT NULL,
+                    sig_code TEXT NOT NULL,
+                    diagnosis_codes TEXT NOT NULL DEFAULT '[]',
+                    refills INTEGER NOT NULL DEFAULT 0,
+                    daw_code TEXT NOT NULL DEFAULT '00',
+                    notes TEXT,
+                    status TEXT NOT NULL DEFAULT 'DRAFT',  -- DRAFT, PENDING_SIGNATURE, SIGNED, TRANSMITTED, REJECTED, ARCHIVED
+                    signed_at TEXT,
+                    signature_hash TEXT,  -- SHA-256 for non-repudiation
+                    transmitted_at TEXT,
+                    transmission_id TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    created_by INTEGER NOT NULL REFERENCES users(id)
+                )
+                """
+            )
+        version = 24
+
+    # ── v25: Clinical workflow (clinical_notes, allergy_records, clinical_attachments) ──
+    if version < 25:
+        if not await _table_exists(conn, "clinical_notes"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE clinical_notes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id INTEGER NOT NULL REFERENCES patients(id),
+                    dispense_id INTEGER,
+                    content TEXT NOT NULL,
+                    category TEXT NOT NULL DEFAULT 'general',
+                    created_by INTEGER NOT NULL REFERENCES users(id),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT
+                )
+                """
+            )
+        if not await _table_exists(conn, "allergy_records"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE allergy_records (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id INTEGER NOT NULL REFERENCES patients(id),
+                    drug_name TEXT NOT NULL,
+                    reaction TEXT NOT NULL DEFAULT '',
+                    severity TEXT NOT NULL DEFAULT 'unknown',
+                    recorded_by INTEGER NOT NULL REFERENCES users(id),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT
+                )
+                """
+            )
+        if not await _table_exists(conn, "clinical_attachments"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE clinical_attachments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id INTEGER NOT NULL REFERENCES patients(id),
+                    dispense_id INTEGER,
+                    filename TEXT NOT NULL,
+                    content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+                    file_size INTEGER NOT NULL DEFAULT 0,
+                    storage_path TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    uploaded_by INTEGER NOT NULL REFERENCES users(id),
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+        version = 25
+
+
+    # ── v26: Add custom_fields JSON to patients ───────────
+    if version < 26:
+        if not await _table_has_column(conn, "patients", "custom_fields"):
+            await conn.exec_driver_sql(
+                "ALTER TABLE patients ADD COLUMN custom_fields TEXT"
+            )
+        version = 26
+
     await conn.exec_driver_sql(f"PRAGMA user_version={SCHEMA_VERSION}")
 
 
-SCHEMA_VERSION = 14
+
+SCHEMA_VERSION = 26
 

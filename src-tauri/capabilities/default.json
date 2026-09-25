@@ -7,6 +7,8 @@
   ],
   "permissions": [
     "core:default",
+    "updater:default",
+    "process:allow-restart",
     "shell:allow-execute",
     "shell:allow-spawn",
     "shell:allow-stdin-write",
@@ -19,6 +21,11 @@
         { "path": "$DESKTOP/*" },
         { "path": "$DOCUMENT/*" }
       ]
-    }
+    },
+    "allow-setup-main-device",
+    "allow-start-udp-broadcast",
+    "allow-stop-udp-broadcast",
+    "allow-scan-udp-broadcast",
+    "allow-open-label-window"
   ]
 }

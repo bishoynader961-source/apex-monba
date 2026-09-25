@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import pytest
+from datetime import datetime, timezone
 from decimal import Decimal
 from httpx import AsyncClient
 from sqlalchemy import text
@@ -186,25 +187,36 @@ async def test_migration_idempotent(engine) -> None:
             r[0]
             for r in (await conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
         }
-        assert v1 == 14 and v2 == 14
+        assert v1 == 26 and v2 == 26
         assert {
-          "drawer_movements",
-          "receipts",
-          "sync_outbox",
-          "discrepancies",
-          "shifts",
-          "patients",
-          "insurance_plans",
-          "members_groups",
-          "sig_codes",
-          "price_codes",
-          "dispenses",
-          "dispense_items",
-          "inventory_adjustments",
-          "prescribers",
-          "workers_comp_claims",
-          "drug_dictionary",
-    } <= tables
+            "drawer_movements",
+            "receipts",
+            "sync_outbox",
+            "discrepancies",
+            "shifts",
+            "patients",
+            "insurance_plans",
+            "members_groups",
+            "sig_codes",
+            "price_codes",
+            "dispenses",
+            "dispense_items",
+            "inventory_adjustments",
+            "prescribers",
+            "workers_comp_claims",
+            "drug_dictionary",
+            "quick_sig_templates",
+            "coupons",
+            "purchase_orders",
+            "po_items",
+            "receipt_templates",
+            "drug_interactions",
+            "label_templates",
+            "product_labels",
+            "product_templates",
+            "patient_fields",
+            "gift_cards",
+        } <= tables
 
 
 def test_read_session_fallback_for_memory(monkeypatch) -> None:

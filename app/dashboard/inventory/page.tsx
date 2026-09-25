@@ -7,6 +7,9 @@ import { DashboardNav } from "@/components/DashboardNav";
 import { useAuthStore, useCan } from "@/stores/authStore";
 import { useInventory } from "@/hooks/useInventory";
 import { useInventoryStore } from "@/stores/inventoryStore";
+import { ImportWizard } from "@/components/excel/ImportWizard";
+import { DataTable } from "@/components/DataTable";
+import type { Column } from "@/components/DataTable";
 import type {
   Batch,
   Medicine,
@@ -18,8 +21,11 @@ import type {
 } from "@/types/contracts";
 import { formatMoney, parseMoney } from "@/lib/decimalCurrency";
 import { useI18n } from "@/components/I18nProvider";
+import { useToast } from "@/hooks/useToast";
+import { usePersistedFilters } from "@/hooks/usePersistedFilters";
 
 import * as inventoryApi from "@/lib/api/inventory";
+import { exportInventoryExcel, importInventoryExcel, importInventoryCsv } from "@/lib/api/excel";
 
 const SEARCH_DEBOUNCE_MS = 300;
 const TABS = ["Inventory", "Drug Information", "Movement History"] as const;
@@ -29,14 +35,31 @@ export default function InventoryPage() {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { t } = useI18n();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filters, setFilters] = useState({ vendor: "", status: "", lowStockOnly: false });
+  const { toast } = useToast();
+  // Filter memory: these three are restored when the user returns from a
+  // detail view (Back button), so the list looks exactly as they left it.
+  const [listMemory, setListMemory] = usePersistedFilters<{
+    searchTerm: string;
+    filters: { vendor: string; status: string; lowStockOnly: boolean };
+    activeTab: TabName;
+  }>({
+    routeKey: "/dashboard/inventory",
+    initial: { searchTerm: "", filters: { vendor: "", status: "", lowStockOnly: false }, activeTab: "Inventory" },
+  });
+  const searchTerm = listMemory.searchTerm;
+  const setSearchTerm = (v: string) => setListMemory({ searchTerm: v });
+  const filters = listMemory.filters;
+  const setFilters = (f: { vendor: string; status: string; lowStockOnly: boolean }) => setListMemory({ filters: f });
+  const activeTab = listMemory.activeTab;
+  const setActiveTab = (t: TabName) => setListMemory({ activeTab: t });
   const [modalOpen, setModalOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Medicine | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Medicine | null>(null);
-  const [activeTab, setActiveTab] = useState<TabName>("Inventory");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [importWizardOpen, setImportWizardOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showBatchToolbar, setShowBatchToolbar] = useState(false);
 
   const {
     medicines,
@@ -55,6 +78,9 @@ export default function InventoryPage() {
     status: filters.status || undefined,
     lowStockOnly: filters.lowStockOnly,
   });
+
+  const canExport = useCan("inventory.reports");
+  const canBatch = useCan("inventory.write");
 
   // Debounced search: fires 300ms after the user stops typing.
   useEffect(() => {
@@ -99,10 +125,16 @@ export default function InventoryPage() {
   }, [medicines, stockLevels]);
 
   const handleReceiveSubmit = async (payload: ReceiveBatch): Promise<Batch> => {
-    const result = await receiveBatch(payload);
-    void refetch();
-    setModalOpen(false);
-    return result;
+    try {
+      const result = await receiveBatch(payload);
+      void refetch();
+      setModalOpen(false);
+      toast({ title: "Success", message: "Batch received", variant: "success" });
+      return result;
+    } catch (err) {
+      toast({ title: "Error", message: err instanceof Error ? err.message : "Failed to receive batch", variant: "destructive" });
+      throw err;
+    }
   };
 
   const confirmDelete = async () => {
@@ -111,8 +143,48 @@ export default function InventoryPage() {
       await deleteMedicine(deleteTarget.id);
       void refetch();
       setDeleteTarget(null);
-    } catch {
-      // error surfaced by api interceptor
+      toast({ title: "Success", message: "Medicine deleted", variant: "success" });
+    } catch (err) {
+      toast({ title: "Error", message: err instanceof Error ? err.message : "Failed to delete medicine", variant: "destructive" });
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      const blob = await exportInventoryExcel();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "inventory-export.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Success", message: "Inventory exported", variant: "success" });
+    } catch (err) {
+      toast({ title: "Error", message: err instanceof Error ? err.message : "Failed to export inventory", variant: "destructive" });
+    }
+  };
+
+  const handleImportExcel = async (file: File) => {
+    try {
+      const result = await importInventoryExcel(file);
+      const msg = `Imported: ${result.inserted}, Skipped: ${result.skipped}` +
+        (result.errors.length > 0 ? `\nErrors: ${result.errors.slice(0, 5).join("; ")}` : "");
+      toast({ title: "Import Complete", message: msg, variant: result.errors.length > 0 ? "destructive" : "success" });
+      void refetch();
+    } catch (err) {
+      toast({ title: "Error", message: err instanceof Error ? err.message : "Failed to import Excel", variant: "destructive" });
+    }
+  };
+
+  const handleImportCsv = async (file: File) => {
+    try {
+      const result = await importInventoryCsv(file);
+      const msg = `Imported: ${result.inserted}, Skipped: ${result.skipped}` +
+        (result.errors.length > 0 ? `\nErrors: ${result.errors.slice(0, 5).join("; ")}` : "");
+      toast({ title: "Import Complete", message: msg, variant: result.errors.length > 0 ? "destructive" : "success" });
+      void refetch();
+    } catch (err) {
+      toast({ title: "Error", message: err instanceof Error ? err.message : "Failed to import CSV", variant: "destructive" });
     }
   };
 
@@ -143,6 +215,20 @@ export default function InventoryPage() {
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium"
             >
               {t("inventory.addAdjustStock")}
+            </button>
+            {canExport && (
+              <button
+                onClick={handleExportExcel}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-sm font-medium"
+              >
+                {t("inventory.exportExcel") ?? "Export Excel"}
+              </button>
+            )}
+            <button
+              onClick={() => setImportWizardOpen(true)}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-sm font-medium"
+            >
+              {t("excel.importWizard") ?? "Import Wizard"}
             </button>
           </div>
         )}
@@ -202,7 +288,7 @@ export default function InventoryPage() {
           <option value="In Stock">{t("inventory.inStock")}</option>
           <option value="Expired">{t("inventory.expired")}</option>
         </select>
-        <label className="flex items-center gap-2 text-sm text-gray-300">
+        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
           <input
             type="checkbox"
             checked={filters.lowStockOnly}
@@ -239,17 +325,32 @@ export default function InventoryPage() {
             <table className="min-w-[720px] w-full table-fixed border-collapse text-sm">
               <thead className="bg-gray-800/60">
                 <tr>
+                  <th className="px-3 py-2 text-center font-medium text-gray-700 dark:text-gray-300 w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === rows.length && rows.length > 0}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedIds(new Set(rows.map((r) => r.id)));
+                        } else {
+                          setSelectedIds(new Set());
+                        }
+                      }}
+                      className="w-4 h-4 text-blue-600 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                      aria-label="Select all"
+                    />
+                  </th>
                   {[t("inventory.colMedicine"), t("inventory.colVendor"), t("inventory.colBarcode"), t("inventory.colExpiry"), t("inventory.colOnHand"), t("inventory.colThreshold"), t("inventory.colStatus")].map(
                 (h) => (
                   <th
                     key={h}
-                    className="px-3 py-2 text-left font-medium text-gray-300"
+                    className="px-3 py-2 text-left font-medium text-gray-700 dark:text-gray-300"
                   >
                     {h}
                   </th>
                 ),
               )}
-              <th className="px-3 py-2 text-right font-medium text-gray-300">
+              <th className="px-3 py-2 text-right font-medium text-gray-700 dark:text-gray-300">
                 {t("inventory.colActions")}
               </th>
             </tr>
@@ -262,10 +363,27 @@ export default function InventoryPage() {
                 </td>
               </tr>
             )}
-            {!isLoading &&
-              rows.map((r) => (
-                <tr key={r.id} className={r.isLow ? "bg-amber-900/10" : undefined}>
-                  <td className="px-3 py-2 truncate">{r.name}</td>
+{!isLoading &&
+               rows.map((r) => (
+                 <tr key={r.id} className={r.isLow ? "bg-amber-900/10" : undefined}>
+                   <td className="px-3 py-2 text-center">
+                     <input
+                       type="checkbox"
+                       checked={selectedIds.has(r.id)}
+                       onChange={(e) => {
+                         const newSelected = new Set(selectedIds);
+                         if (e.target.checked) {
+                           newSelected.add(r.id);
+                         } else {
+                           newSelected.delete(r.id);
+                         }
+                         setSelectedIds(newSelected);
+                       }}
+                       className="w-4 h-4 text-blue-600 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                       aria-label={`Select ${r.name}`}
+                     />
+                   </td>
+                   <td className="px-3 py-2 truncate">{r.name}</td>
                   <td className="px-3 py-2 truncate">{r.vendor_name}</td>
                   <td className="px-3 py-2 truncate">{r.internal_unique_barcode}</td>
                   <td className="px-3 py-2">{r.expiry_date || "—"}</td>
@@ -287,6 +405,13 @@ export default function InventoryPage() {
                     {canWrite && (
                       <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                         <button
+                          onClick={() => router.push(`/dashboard/label-engine?productId=${r.id}`)}
+                          className="text-xs text-purple-400 hover:text-purple-300"
+                          title="Send this product to the Label Engine"
+                        >
+                          Generate Label
+                        </button>
+                        <button
                           onClick={() => setEditTarget(r)}
                           className="text-xs text-blue-400 hover:text-blue-300"
                         >
@@ -306,8 +431,105 @@ export default function InventoryPage() {
           </tbody>
         </table>
       </div>
+
+        {/* Floating batch-action toolbar */}
+        {selectedIds.size > 0 && (
+          <div className="fixed bottom-4 right-4 z-40 animate-fade-in-up">
+            <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-3 flex items-center gap-2 min-w-[280px]">
+              <span className="text-sm font-medium text-gray-900 dark:text-white mr-2">
+                {selectedIds.size} selected
+              </span>
+              <button
+                onClick={() => {
+                  router.push(`/dashboard/label-engine?selected=${Array.from(selectedIds).join(",")}`);
+                }}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors flex items-center gap-1"
+              >
+                🏷️ Print Labels
+              </button>
+              <button
+                onClick={async () => {
+                  const ids = Array.from(selectedIds);
+                  try {
+                    await inventoryApi.batchExpire(ids);
+                    toast({ title: "Success", message: `Marked ${ids.length} batches as expired`, variant: "success" });
+                    void refetch();
+                    setSelectedIds(new Set());
+                  } catch (e) {
+                    toast({ title: "Error", message: e instanceof Error ? e.message : "Failed to mark expired", variant: "destructive" });
+                  }
+                }}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors flex items-center gap-1"
+                disabled={!canBatch}
+              >
+                ⏰ Mark Expired
+              </button>
+              <button
+                onClick={async () => {
+                  const pct = prompt("Enter price change % (e.g. 10 for +10%, -5 for -5%):");
+                  if (!pct) return;
+                  const priceChangePct = parseFloat(pct);
+                  if (isNaN(priceChangePct)) return;
+                  const ids = Array.from(selectedIds);
+                  try {
+                    await inventoryApi.batchPriceAdjust(ids, priceChangePct);
+                    toast({ title: "Success", message: `Adjusted price for ${ids.length} medicines by ${priceChangePct}%`, variant: "success" });
+                    void refetch();
+                    setSelectedIds(new Set());
+                  } catch (e) {
+                    toast({ title: "Error", message: e instanceof Error ? e.message : "Failed to adjust price", variant: "destructive" });
+                  }
+                }}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md transition-colors flex items-center gap-1"
+                disabled={!canBatch}
+              >
+                💰 Adjust Price
+              </button>
+              <button
+                onClick={() => {
+                  const selectedRows = rows.filter(r => selectedIds.has(r.id));
+                  if (selectedRows.length === 0) return;
+                  const csvRows = [
+                    ["ID", "Name", "Vendor", "Barcode", "Expiry", "On Hand", "Threshold", "Status"],
+                    ...selectedRows.map(r => [
+                      r.id,
+                      r.name,
+                      r.vendor_name,
+                      r.internal_unique_barcode,
+                      r.expiry_date || "—",
+                      r.on_hand,
+                      r.reorder_threshold ?? "—",
+                      r.status,
+                    ]),
+                  ];
+                  const csv = csvRows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+                  const blob = new Blob([csv], { type: "text/csv" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `inventory-selected-${new Date().toISOString().slice(0,10)}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast({ title: "Success", message: `Exported ${selectedRows.length} items`, variant: "success" });
+                  setSelectedIds(new Set());
+                }}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors flex items-center gap-1"
+                disabled={!canExport}
+              >
+                📤 Export
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="ml-auto px-2 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-200"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+
         {medicines && medicines.length === 0 && !isLoading && (
-          <p className="text-sm text-gray-400 mt-4">{t("inventory.noMatches")}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-4">{t("inventory.noMatches")}</p>
         )}
         </>
       )}
@@ -365,6 +587,17 @@ export default function InventoryPage() {
           }}
         />
       )}
+
+      {/* Import Wizard */}
+      {importWizardOpen && (
+        <ImportWizard
+          onClose={() => setImportWizardOpen(false)}
+          onSuccess={() => {
+            void refetch();
+            setImportWizardOpen(false);
+          }}
+        />
+      )}
     </main>
   );
 }
@@ -385,15 +618,16 @@ function StockModal({ onClose, onSuccess, suppliers, receiveBatch }: StockModalP
   const [err, setErr] = useState<string | null>(null);
 
   // Receive form
-  const [recvForm, setRecvForm] = useState({
-    product_name: "",
-    lot_number: "",
-    expiry_date: "",
-    quantity: 1,
-    unit_cost: 0,
-    supplier: suppliers[0] ?? "",
-    ndc_code: "",
-  });
+    const [recvForm, setRecvForm] = useState({
+      product_name: "",
+      lot_number: "",
+      expiry_date: "",
+      quantity: 1,
+      unit_cost: 0,
+      supplier: suppliers[0] ?? "",
+      ndc_code: "",
+      prefix: "",
+    });
 
   // Adjustment form
   const [adjProduct, setAdjProduct] = useState("");
@@ -405,12 +639,13 @@ function StockModal({ onClose, onSuccess, suppliers, receiveBatch }: StockModalP
     setSubmitting(true);
     setErr(null);
     try {
-      await receiveBatch({
-        ...recvForm,
-        quantity: Number(recvForm.quantity),
-        unit_cost: String(recvForm.unit_cost),
-        ndc_code: recvForm.ndc_code || undefined,
-      });
+        await receiveBatch({
+          ...recvForm,
+          quantity: Number(recvForm.quantity),
+          unit_cost: String(recvForm.unit_cost),
+          ndc_code: recvForm.ndc_code || undefined,
+          prefix: recvForm.prefix || undefined,
+        });
       onSuccess();
     } catch (err: unknown) {
       setErr(err instanceof Error ? err.message : "Failed to receive batch");
@@ -461,8 +696,8 @@ function StockModal({ onClose, onSuccess, suppliers, receiveBatch }: StockModalP
         {mode === "receive" ? (
           <form onSubmit={handleReceive} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300">{t("inventory.receiveProduct")}</label>
-              <input
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="page-field-1">{t("inventory.receiveProduct")}</label>
+              <input id="page-field-1"
                 type="text"
                 value={recvForm.product_name}
                 onChange={(e) => setRecvForm({ ...recvForm, product_name: e.target.value })}
@@ -471,8 +706,8 @@ function StockModal({ onClose, onSuccess, suppliers, receiveBatch }: StockModalP
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300">{t("inventory.lotNumber")}</label>
-              <input
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="page-field-2">{t("inventory.lotNumber")}</label>
+              <input id="page-field-2"
                 type="text"
                 value={recvForm.lot_number}
                 onChange={(e) => setRecvForm({ ...recvForm, lot_number: e.target.value })}
@@ -481,8 +716,8 @@ function StockModal({ onClose, onSuccess, suppliers, receiveBatch }: StockModalP
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300">{t("inventory.expiryDate")}</label>
-              <input
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="page-field-3">{t("inventory.expiryDate")}</label>
+              <input id="page-field-3"
                 type="date"
                 value={recvForm.expiry_date}
                 onChange={(e) => setRecvForm({ ...recvForm, expiry_date: e.target.value })}
@@ -492,8 +727,8 @@ function StockModal({ onClose, onSuccess, suppliers, receiveBatch }: StockModalP
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300">{t("inventory.quantity")}</label>
-                <input
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="page-field-4">{t("inventory.quantity")}</label>
+                <input id="page-field-4"
                   type="number"
                   min={1}
                   value={recvForm.quantity}
@@ -503,8 +738,8 @@ function StockModal({ onClose, onSuccess, suppliers, receiveBatch }: StockModalP
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300">{t("inventory.unitCost")}</label>
-                <input
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="page-field-5">{t("inventory.unitCost")}</label>
+                <input id="page-field-5"
                   type="number"
                   min={0}
                   step={0.01}
@@ -516,8 +751,8 @@ function StockModal({ onClose, onSuccess, suppliers, receiveBatch }: StockModalP
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300">{t("inventory.supplier")}</label>
-              <select
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="page-field-6">{t("inventory.supplier")}</label>
+              <select id="page-field-6"
                 value={recvForm.supplier}
                 onChange={(e) => setRecvForm({ ...recvForm, supplier: e.target.value })}
                 className="mt-1 block w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
@@ -529,8 +764,8 @@ function StockModal({ onClose, onSuccess, suppliers, receiveBatch }: StockModalP
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300">{t("inventory.ndcCodeOptional")}</label>
-              <input
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="page-field-7">{t("inventory.ndcCodeOptional")}</label>
+              <input id="page-field-7"
                 type="text"
                 value={recvForm.ndc_code}
                 onChange={(e) => setRecvForm({ ...recvForm, ndc_code: e.target.value })}
@@ -538,7 +773,7 @@ function StockModal({ onClose, onSuccess, suppliers, receiveBatch }: StockModalP
               />
             </div>
             <div className="mt-6 flex justify-end gap-3">
-              <button type="button" onClick={onClose} disabled={submitting} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-300">{t("common.cancel")}</button>
+              <button type="button" onClick={onClose} disabled={submitting} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-300">{t("common.cancel")}</button>
               <button type="submit" disabled={submitting} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-70">
                 {submitting ? t("inventory.receiving") : t("inventory.receive")}
               </button>
@@ -547,8 +782,8 @@ function StockModal({ onClose, onSuccess, suppliers, receiveBatch }: StockModalP
         ) : (
           <form onSubmit={handleAdjust} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300">{t("inventory.productId")}</label>
-              <input
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="page-field-8">{t("inventory.productId")}</label>
+              <input id="page-field-8"
                 type="number"
                 min={1}
                 value={adjProduct}
@@ -559,8 +794,8 @@ function StockModal({ onClose, onSuccess, suppliers, receiveBatch }: StockModalP
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300">{t("inventory.quantityChange")}</label>
-              <input
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="page-field-9">{t("inventory.quantityChange")}</label>
+              <input id="page-field-9"
                 type="number"
                 value={adjQty}
                 onChange={(e) => setAdjQty(Number(e.target.value))}
@@ -571,8 +806,8 @@ function StockModal({ onClose, onSuccess, suppliers, receiveBatch }: StockModalP
               <p className="mt-1 text-xs text-gray-500">Positive number adds stock, negative removes stock.</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300">{t("inventory.adjustReason")}</label>
-              <input
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="page-field-10">{t("inventory.adjustReason")}</label>
+              <input id="page-field-10"
                 type="text"
                 value={adjReason}
                 onChange={(e) => setAdjReason(e.target.value)}
@@ -582,7 +817,7 @@ function StockModal({ onClose, onSuccess, suppliers, receiveBatch }: StockModalP
               />
             </div>
             <div className="mt-6 flex justify-end gap-3">
-              <button type="button" onClick={onClose} disabled={submitting} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-300">{t("common.cancel")}</button>
+              <button type="button" onClick={onClose} disabled={submitting} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-300">{t("common.cancel")}</button>
               <button type="submit" disabled={submitting} className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700 disabled:opacity-70">
                 {submitting ? t("inventory.applying") : t("inventory.applyAdjustment")}
               </button>
@@ -616,8 +851,8 @@ function DeleteConfirm({ medicine, onClose, onConfirm }: DeleteConfirmProps) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="w-full max-w-sm rounded-lg bg-gray-800 p-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-gray-100 mb-2">{t("inventory.deleteTitle")}</h2>
-        <p className="text-sm text-gray-400 mb-4">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">{t("inventory.deleteTitle")}</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           <span className="font-medium">{medicine.name}</span> will be soft-deleted (hidden from
           inventory, but historical lots remain linkable).
         </p>
@@ -625,7 +860,7 @@ function DeleteConfirm({ medicine, onClose, onConfirm }: DeleteConfirmProps) {
           <button
             onClick={onClose}
             disabled={submitting}
-            className="px-4 py-2 text-sm text-gray-400 hover:text-gray-300"
+            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-300"
           >
             {t("common.cancel")}
           </button>
@@ -691,7 +926,7 @@ function MovementHistoryTab() {
   };
 
   if (!canRead) {
-    return <p className="text-sm text-gray-400">You do not have permission to view movement history.</p>;
+    return <p className="text-sm text-gray-600 dark:text-gray-400">You do not have permission to view movement history.</p>;
   }
 
   return (
@@ -741,13 +976,13 @@ function MovementHistoryTab() {
         <table className="min-w-[900px] w-full table-fixed border-collapse text-sm">
           <thead className="bg-gray-800/60">
             <tr>
-              <th className="px-3 py-2 text-left font-medium text-gray-300">{t("inventory.colDateTime")}</th>
-              <th className="px-3 py-2 text-left font-medium text-gray-300">{t("inventory.colMedicine")}</th>
-              <th className="px-3 py-2 text-left font-medium text-gray-300">{t("inventory.colBatchNdc")}</th>
-              <th className="px-3 py-2 text-center font-medium text-gray-300">{t("inventory.colType")}</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-300">{t("inventory.colQtyChange")}</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-300">{t("inventory.colOnHandMovements")}</th>
-              <th className="px-3 py-2 text-left font-medium text-gray-300">{t("inventory.colReference")}</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-700 dark:text-gray-300">{t("inventory.colDateTime")}</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-700 dark:text-gray-300">{t("inventory.colMedicine")}</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-700 dark:text-gray-300">{t("inventory.colBatchNdc")}</th>
+              <th className="px-3 py-2 text-center font-medium text-gray-700 dark:text-gray-300">{t("inventory.colType")}</th>
+              <th className="px-3 py-2 text-right font-medium text-gray-700 dark:text-gray-300">{t("inventory.colQtyChange")}</th>
+              <th className="px-3 py-2 text-right font-medium text-gray-700 dark:text-gray-300">{t("inventory.colOnHandMovements")}</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-700 dark:text-gray-300">{t("inventory.colReference")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
@@ -762,7 +997,7 @@ function MovementHistoryTab() {
               <tr key={item.id}>
                 <td className="px-3 py-2 truncate">{item.timestamp.slice(0, 19)}</td>
                 <td className="px-3 py-2 truncate">{item.product_name || "—"}</td>
-                <td className="px-3 py-2 truncate text-gray-400">
+                <td className="px-3 py-2 truncate text-gray-600 dark:text-gray-400">
                   {item.batch_number || item.ndc_code || "—"}
                 </td>
                 <td className="px-3 py-2 text-center">
@@ -783,10 +1018,10 @@ function MovementHistoryTab() {
                 >
                   {item.quantity_change > 0 ? "+" : ""}{item.quantity_change}
                 </td>
-                <td className="px-3 py-2 text-right text-gray-300">
+                <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">
                   {item.remaining_stock_snapshot ?? "—"}
                 </td>
-                <td className="px-3 py-2 truncate text-gray-400">
+                <td className="px-3 py-2 truncate text-gray-600 dark:text-gray-400">
                   {item.user_name ? `Txn #${item.reference_id}` : "—"}
                 </td>
               </tr>
@@ -837,7 +1072,8 @@ function DrugInformationTab({
     });
   };
 
-  const cancelEdit = () => { setEditing(null); setDraft({}); };
+  const cancelEdit = () => { setEditing(null); setDraft({});
+}
 
   const saveEdit = async (id: number) => {
     setSaving(true);
@@ -858,9 +1094,9 @@ function DrugInformationTab({
     opts?: { type?: string; min?: number; step?: number }
   ) => (
     <div className="flex flex-col gap-0.5">
-      <label className="text-[10px] text-gray-400 uppercase">{label}</label>
+      <label className="text-[10px] text-gray-600 dark:text-gray-400 uppercase" htmlFor="page-field-11">{label}</label>
       {editing !== null ? (
-        <input
+        <input id="page-field-11"
           type={opts?.type ?? "text"}
           min={opts?.min}
           step={opts?.step}
@@ -869,14 +1105,14 @@ function DrugInformationTab({
           onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
         />
       ) : (
-        <span className="text-xs text-gray-200">—</span>
+        <span className="text-xs text-gray-800 dark:text-gray-200">—</span>
       )}
     </div>
   );
 
   const toggleField = (label: string, key: keyof MedicineUpdate) => (
     <div className="flex flex-col gap-0.5">
-      <label className="text-[10px] text-gray-400 uppercase">{label}</label>
+      <span className="text-[10px] text-gray-600 dark:text-gray-400 uppercase">{label}</span>
       {editing !== null ? (
         <button
           type="button"
@@ -897,8 +1133,8 @@ function DrugInformationTab({
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-white">{t("inventory.drugInfo")}</h2>
-      <p className="text-xs text-gray-400">Drug file enrichment fields for each medicine. Click Edit to modify.</p>
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t("inventory.drugInfo")}</h2>
+      <p className="text-xs text-gray-600 dark:text-gray-400">Drug file enrichment fields for each medicine. Click Edit to modify.</p>
       <div className="overflow-x-auto rounded-lg border border-gray-700">
         <table className="w-full text-xs text-left">
           <thead className="bg-gray-800 text-gray-300">
@@ -928,22 +1164,22 @@ function DrugInformationTab({
                 key={med.id}
                 className={`border-t border-gray-700 ${editing === med.id ? "bg-gray-750" : "hover:bg-gray-800"}`}
               >
-                <td className="px-3 py-2 font-medium text-white max-w-[140px] truncate" title={med.name}>{med.name}</td>
-                <td className="px-3 py-2 text-gray-300">{editing === med.id ? field("NDC", "ndc_code") : (med.ndc_code || "—")}</td>
-                <td className="px-3 py-2 text-gray-300">{editing === med.id ? field(t("inventory.colForm"), "form") : (med.form || "—")}</td>
-                <td className="px-3 py-2 text-gray-300">{editing === med.id ? field(t("inventory.colStrength"), "strength") : (med.strength || "—")}</td>
-                <td className="px-3 py-2 text-gray-300">{editing === med.id ? field(t("inventory.colManufacturer"), "manufacturer_name") : (med.manufacturer_name || "—")}</td>
-                <td className="px-3 py-2 text-gray-300">{editing === med.id ? field(t("inventory.colClass"), "therapeutic_class") : (med.therapeutic_class || "—")}</td>
+                <td className="px-3 py-2 font-medium text-gray-900 dark:text-white max-w-[140px] truncate" title={med.name}>{med.name}</td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{editing === med.id ? field("NDC", "ndc_code") : (med.ndc_code || "—")}</td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{editing === med.id ? field(t("inventory.colForm"), "form") : (med.form || "—")}</td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{editing === med.id ? field(t("inventory.colStrength"), "strength") : (med.strength || "—")}</td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{editing === med.id ? field(t("inventory.colManufacturer"), "manufacturer_name") : (med.manufacturer_name || "—")}</td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{editing === med.id ? field(t("inventory.colClass"), "therapeutic_class") : (med.therapeutic_class || "—")}</td>
                 <td className="px-3 py-2">{editing === med.id ? toggleField(t("inventory.colGeneric"), "is_generic") : <span className={med.is_generic ? "text-green-400" : "text-gray-500"}>{med.is_generic ? "Yes" : "No"}</span>}</td>
                 <td className="px-3 py-2">{editing === med.id ? toggleField(t("inventory.colControlled"), "is_controlled") : <span className={med.is_controlled ? "text-red-400" : "text-gray-500"}>{med.is_controlled ? "Yes" : "No"}</span>}</td>
                 <td className="px-3 py-2">{editing === med.id ? toggleField(t("inventory.colMaintenance"), "maintenance_medication") : <span className={med.maintenance_medication ? "text-blue-400" : "text-gray-500"}>{med.maintenance_medication ? "Yes" : "No"}</span>}</td>
-                <td className="px-3 py-2 text-gray-300">{editing === med.id ? field(t("inventory.colDrugCost"), "drug_cost", { type: "number", step: 0.01 }) : (med.drug_cost ? formatMoney(parseMoney(med.drug_cost)) : "—")}</td>
-                <td className="px-3 py-2 text-gray-300">{editing === med.id ? field(t("inventory.colDefaultSig"), "default_sig_code") : (med.default_sig_code || "—")}</td>
-                <td className="px-3 py-2 text-gray-300">{editing === med.id ? field(t("inventory.colDefaultQty"), "default_qty", { type: "number", min: 1 }) : (med.default_qty ?? "—")}</td>
-                <td className="px-3 py-2 text-gray-300">{editing === med.id ? field(t("inventory.colDaysSupply"), "default_days_supply", { type: "number", min: 1 }) : (med.default_days_supply ?? "—")}</td>
-                <td className="px-3 py-2 text-gray-300">{editing === med.id ? field(t("inventory.colLot"), "lot_number") : (med.lot_number || "—")}</td>
-                <td className="px-3 py-2 text-gray-300">{editing === med.id ? field(t("inventory.colPackage"), "package_size") : (med.package_size || "—")}</td>
-                <td className="px-3 py-2 text-gray-300">{editing === med.id ? field(t("inventory.colUnit"), "unit_of_measure") : (med.unit_of_measure || "—")}</td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{editing === med.id ? field(t("inventory.colDrugCost"), "drug_cost", { type: "number", step: 0.01 }) : (med.drug_cost ? formatMoney(parseMoney(med.drug_cost)) : "—")}</td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{editing === med.id ? field(t("inventory.colDefaultSig"), "default_sig_code") : (med.default_sig_code || "—")}</td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{editing === med.id ? field(t("inventory.colDefaultQty"), "default_qty", { type: "number", min: 1 }) : (med.default_qty ?? "—")}</td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{editing === med.id ? field(t("inventory.colDaysSupply"), "default_days_supply", { type: "number", min: 1 }) : (med.default_days_supply ?? "—")}</td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{editing === med.id ? field(t("inventory.colLot"), "lot_number") : (med.lot_number || "—")}</td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{editing === med.id ? field(t("inventory.colPackage"), "package_size") : (med.package_size || "—")}</td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{editing === med.id ? field(t("inventory.colUnit"), "unit_of_measure") : (med.unit_of_measure || "—")}</td>
                 {canWrite && (
                   <td className="px-3 py-2">
                     {editing === med.id ? (
@@ -1050,7 +1286,7 @@ function CreateMedicineModal({ onClose, onSuccess }: { onClose: () => void; onSu
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="w-full max-w-lg rounded-lg bg-gray-800 p-6 shadow-xl max-h-[80vh] overflow-y-auto">
-        <h2 className="text-lg font-semibold text-gray-100 mb-4">{t("inventory.createNewMedicine")}</h2>
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">{t("inventory.createNewMedicine")}</h2>
         {error && <p className="text-sm text-red-400 mb-3">{error}</p>}
         <div className="grid grid-cols-2 gap-3">
           {([
@@ -1070,8 +1306,8 @@ function CreateMedicineModal({ onClose, onSuccess }: { onClose: () => void; onSu
             [t("inventory.fieldReorderThreshold"), "reorder_threshold", "number"],
           ] as const).map(([label, field, type]) => (
             <div key={field}>
-              <label className="block text-xs text-gray-400 mb-1">{label}</label>
-              <input
+              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1" htmlFor="page-field-12">{label}</label>
+              <input id="page-field-12"
                 type={type}
                 value={String(form[field])}
                 onChange={(e) => update(field, e.target.value)}
@@ -1081,7 +1317,7 @@ function CreateMedicineModal({ onClose, onSuccess }: { onClose: () => void; onSu
           ))}
         </div>
         <div className="flex justify-end gap-3 mt-4">
-          <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-300">{t("common.cancel")}</button>
+          <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-300">{t("common.cancel")}</button>
           <button onClick={() => void handleSave()} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-70">
             {saving ? "Creating..." : "Create"}
           </button>
@@ -1153,7 +1389,7 @@ function EditMedicineModal({ medicine, onClose, onSuccess }: { medicine: Medicin
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="w-full max-w-lg rounded-lg bg-gray-800 p-6 shadow-xl max-h-[80vh] overflow-y-auto">
-        <h2 className="text-lg font-semibold text-gray-100 mb-4">Edit Medicine: {medicine.name}</h2>
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Edit Medicine: {medicine.name}</h2>
         {error && <p className="text-sm text-red-400 mb-3">{error}</p>}
         <div className="grid grid-cols-2 gap-3">
           {([
@@ -1173,8 +1409,8 @@ function EditMedicineModal({ medicine, onClose, onSuccess }: { medicine: Medicin
             [t("inventory.fieldReorderThreshold"), "reorder_threshold", "number"],
           ] as const).map(([label, field, type]) => (
             <div key={field}>
-              <label className="block text-xs text-gray-400 mb-1">{label}</label>
-              <input
+              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1" htmlFor="page-field-13">{label}</label>
+              <input id="page-field-13"
                 type={type}
                 value={String(form[field])}
                 onChange={(e) => update(field, e.target.value)}
@@ -1184,7 +1420,7 @@ function EditMedicineModal({ medicine, onClose, onSuccess }: { medicine: Medicin
           ))}
         </div>
         <div className="flex justify-end gap-3 mt-4">
-          <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-300">{t("common.cancel")}</button>
+          <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-300">{t("common.cancel")}</button>
           <button onClick={() => void handleSave()} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-70">
             {saving ? "Saving..." : "Save"}
           </button>

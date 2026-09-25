@@ -59,8 +59,8 @@ export function NewRxModal() {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-          <h2 className="text-lg font-bold text-white">New Prescription</h2>
-          <button onClick={handleClose} className="text-gray-400 hover:text-white text-xl">&times;</button>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">New Prescription</h2>
+          <button onClick={handleClose} className="text-gray-600 dark:text-gray-400 hover:text-white text-xl">&times;</button>
         </div>
 
         {submitted && lastDispenseResult ? (
@@ -68,12 +68,12 @@ export function NewRxModal() {
           <div className="p-6">
             <div className="rounded-lg bg-emerald-900/30 border border-emerald-700/40 p-4 mb-4">
               <div className="text-emerald-300 font-semibold mb-1">Prescription Created</div>
-              <div className="text-white text-lg font-mono">Rx #{lastDispenseResult.rx_number}</div>
-              <div className="text-sm text-gray-400 mt-1">
+              <div className="text-gray-900 dark:text-white text-lg font-mono">Rx #{lastDispenseResult.rx_number}</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 {lastDispenseResult.product_name} &mdash; Qty {lastDispenseResult.quantity} &mdash; Sig: {lastDispenseResult.sig_code}
               </div>
               {lastDispenseResult.days_supply && (
-                <div className="text-sm text-gray-400">Days Supply: {lastDispenseResult.days_supply}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Days Supply: {lastDispenseResult.days_supply}</div>
               )}
             </div>
             <DurAlertPanel
@@ -102,7 +102,7 @@ export function NewRxModal() {
               renderItem={(p) => (
                 <div>
                   <span className="font-medium">{p.name}</span>
-                  <span className="text-gray-400 ml-2">DOB: {p.dob}</span>
+                  <span className="text-gray-600 dark:text-gray-400 ml-2">DOB: {p.dob}</span>
                   {p.insurance_plan_id && <span className="text-emerald-400 ml-2">(Ins)</span>}
                 </div>
               )}
@@ -125,7 +125,7 @@ export function NewRxModal() {
               renderItem={(d) => (
                 <div>
                   <span className="font-medium">{d.name}</span>
-                  {d.strength && <span className="text-gray-400 ml-1">{d.strength}</span>}
+                  {d.strength && <span className="text-gray-600 dark:text-gray-400 ml-1">{d.strength}</span>}
                   {d.form && <span className="text-gray-500 ml-1">{d.form}</span>}
                   {d.ndc_code && <span className="text-gray-600 ml-2 font-mono text-xs">{d.ndc_code}</span>}
                 </div>
@@ -152,7 +152,7 @@ export function NewRxModal() {
               renderItem={(s) => (
                 <div>
                   <span className="font-mono font-bold">{s.code}</span>
-                  <span className="text-gray-400 ml-2">{s.full_text}</span>
+                  <span className="text-gray-600 dark:text-gray-400 ml-2">{s.full_text}</span>
                   <span className="text-gray-600 ml-2 text-xs">
                     Lang: {s.language} | DA: {s.days_accumulated} | Off: {s.offset}
                   </span>
@@ -168,10 +168,11 @@ export function NewRxModal() {
             {/* Quantity + Days Supply + Refills */}
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+                <label htmlFor="new-rx-quantity" className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1">
                   Quantity <span className="text-red-400">*</span>
                 </label>
                 <input
+                  id="new-rx-quantity"
                   type="number"
                   min={1}
                   value={quantity || ""}
@@ -180,10 +181,10 @@ export function NewRxModal() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+                <label className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1" htmlFor="newrxmodal-field-1">
                   Days Supply
                 </label>
-                <input
+                <input id="newrxmodal-field-1"
                   type="number"
                   min={0}
                   value={daysSupply ?? ""}
@@ -192,10 +193,10 @@ export function NewRxModal() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+                <label className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1" htmlFor="newrxmodal-field-2">
                   Refills Authorized
                 </label>
-                <input
+                <input id="newrxmodal-field-2"
                   type="number"
                   min={0}
                   value={refillsAuthorized}
@@ -207,10 +208,10 @@ export function NewRxModal() {
 
             {/* Fill Date */}
             <div>
-              <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+              <label className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1" htmlFor="newrxmodal-field-3">
                 Fill Date
               </label>
-              <input
+              <input id="newrxmodal-field-3"
                 type="date"
                 value={fillDate}
                 onChange={(e) => setFillDate(e.target.value)}
@@ -229,7 +230,7 @@ export function NewRxModal() {
               renderItem={(p) => (
                 <div>
                   <span className="font-medium">{p.first_name} {p.last_name}</span>
-                  {p.npi && <span className="text-gray-400 ml-2">NPI: {p.npi}</span>}
+                  {p.npi && <span className="text-gray-600 dark:text-gray-400 ml-2">NPI: {p.npi}</span>}
                   {p.phone && <span className="text-gray-500 ml-2">{p.phone}</span>}
                 </div>
               )}
@@ -247,7 +248,7 @@ export function NewRxModal() {
                   />
                   Use Insurance
                 </label>
-                <span className="text-gray-400 text-sm">
+                <span className="text-gray-600 dark:text-gray-400 text-sm">
                   {selectedInsurancePlan.plan_name}
                   {selectedInsurancePlan.copay_amount !== "0" && ` — Copay: $${selectedInsurancePlan.copay_amount}`}
                 </span>
@@ -265,7 +266,7 @@ export function NewRxModal() {
             <div className="flex justify-end gap-3 mt-2">
               <button
                 onClick={handleClose}
-                className="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg text-sm hover:bg-white/5"
+                className="px-4 py-2 border border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-white/5"
               >
                 Cancel
               </button>

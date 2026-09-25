@@ -53,7 +53,7 @@ if not hasattr(ctk, "CTkSpinbox"):
     ctk.CTkSpinbox = _CTkSpinboxCompat
 
 import i18n
-import database
+import db
 import audit_log
 import auth_session
 import authz
@@ -760,7 +760,7 @@ class EnterprisePosFrame(ctk.CTkFrame):
         Uses ``SqliteWALConnection`` for WAL-mode reads with retry.
         """
         try:
-            db_path = database.get_db_path()
+            db_path = db.get_db_path()
             with SqliteWALConnection(db_path) as (conn, cur):
                 cur.execute(
                     "SELECT id, name, price, manufacturer_barcode, "
@@ -1077,7 +1077,7 @@ class EnterprisePosFrame(ctk.CTkFrame):
         """Open a patient selection dialog fetched asynchronously."""
         def _do_fetch_patients() -> list[tuple]:
             try:
-                db_path = database.get_db_path()
+                db_path = db.get_db_path()
                 with SqliteWALConnection(db_path) as (conn, cur):
                     cur.execute(
                         "SELECT id, name, phone, "
@@ -1295,7 +1295,7 @@ class EnterprisePosFrame(ctk.CTkFrame):
         last_error: Exception | None = None
         for attempt in range(max_retries):
             try:
-                receipt_id = database.checkout_cart_atomically(
+                receipt_id = db.checkout_cart_atomically(
                     payment_method=payment_method,
                     cart_entries=cart_entries,
                     patient_id=patient_id,

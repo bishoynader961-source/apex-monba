@@ -8,10 +8,15 @@ const LINKS = [
   { href: "/dashboard", labelKey: "nav.dashboard" },
   { href: "/pos", labelKey: "nav.pos" },
   { href: "/dashboard/inventory", labelKey: "nav.inventory" },
+  { href: "/dashboard/templates", labelKey: "nav.templates" },
+  { href: "/dashboard/bulk-import", labelKey: "nav.bulkImport" },
+  { href: "/dashboard/bulk-label-print", labelKey: "nav.bulkLabelPrint" },
+  { href: "/dashboard/gift-cards", labelKey: "nav.giftCards" },
   { href: "/patients", labelKey: "nav.patients" },
   { href: "/prescribers", labelKey: "nav.prescribers" },
   { href: "/dashboard/wc-claims", labelKey: "nav.wcClaims" },
   { href: "/dashboard/analytics/demand", labelKey: "nav.analytics" },
+  { href: "/dashboard/receiving-log", labelKey: "nav.receivingLog" },
   { href: "/dashboard/users", labelKey: "nav.users" },
   { href: "/dashboard/roles", labelKey: "nav.roles" },
   { href: "/dashboard/audit", labelKey: "nav.auditLog" },
@@ -23,15 +28,15 @@ const LINKS = [
 export function DashboardNav({ active }: { active?: string }) {
   const { t } = useI18n();
   return (
-    <nav className="flex flex-wrap gap-2 mb-4 border-b border-gray-700 pb-3">
+    <nav className="mb-4 flex flex-wrap gap-2 border-b border-border pb-3">
       {LINKS.map((link) => (
         <Link
           key={link.href}
           href={link.href}
-          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
             active === link.href
-              ? "bg-blue-600 text-white"
-              : "text-gray-300 hover:text-white hover:bg-gray-800"
+              ? "bg-primary text-white"
+              : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
           }`}
         >
           {t(link.labelKey)}

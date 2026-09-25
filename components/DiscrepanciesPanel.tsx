@@ -63,53 +63,53 @@ export function DiscrepanciesPanel() {
   };
 
   return (
-    <div>
-      <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
+    <div className="space-y-4">
+      <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-2">
         Pending offline sales
       </h3>
       {entries.length === 0 ? (
-        <div style={{ fontSize: 13, color: "#16a34a" }}>
+        <div className="text-sm text-green-600 dark:text-green-400">
           No pending offline discrepancies.
         </div>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: "0 0 12px" }}>
+        <ul className="list-none p-0 m-0 space-y-1">
           {entries.map((e) => (
             <li
               key={e.id ?? e.client_txn_id}
-              style={{ display: "flex", justifyContent: "space-between", padding: "0.4rem 0", borderBottom: "1px solid #e5e7eb", fontSize: 13 }}
+              className="flex justify-between py-1 border-b border-gray-200 dark:border-gray-700 text-sm"
             >
               <span>{e.type} · seq {e.local_seq}</span>
-              <span style={{ color: "#6b7280", fontFamily: "monospace" }}>{e.client_txn_id.slice(0, 8)}</span>
+              <span className="text-gray-500 dark:text-gray-400 font-mono">{e.client_txn_id.slice(0, 8)}</span>
             </li>
           ))}
         </ul>
       )}
 
-      <h3 style={{ fontSize: 15, fontWeight: 700, margin: "12px 0 8px" }}>
+      <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mt-3 mb-2">
         Synced discrepancies
       </h3>
       {error && (
-        <div style={{ fontSize: 13, color: "#dc2626", marginBottom: 8 }}>{error}</div>
+        <div className="text-sm text-red-600 dark:text-red-400 mb-2">{error}</div>
       )}
       {discrepancies.length === 0 ? (
-        <div style={{ fontSize: 13, color: "#16a34a" }}>No unresolved discrepancies.</div>
+        <div className="text-sm text-green-600 dark:text-green-400">No unresolved discrepancies.</div>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        <ul className="list-none p-0 m-0 space-y-1">
           {discrepancies.map((d) => (
             <li
               key={d.id}
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.4rem 0", borderBottom: "1px solid #e5e7eb", fontSize: 13 }}
+              className="flex justify-between items-center py-1 border-b border-gray-200 dark:border-gray-700 text-sm"
             >
               <span>
                 {d.reason} · {d.client_txn_id.slice(0, 8)}
-                {d.details ? <span style={{ color: "#6b7280" }}> — {d.details}</span> : null}
+                {d.details && <span className="text-gray-500 dark:text-gray-400 ml-2"> — {d.details}</span>}
               </span>
               {canResolve ? (
                 <button
                   type="button"
                   onClick={() => void handleResolve(d.id)}
                   disabled={busyId === d.id}
-                  style={{ fontSize: 12, padding: "0.2rem 0.5rem", cursor: busyId === d.id ? "default" : "pointer" }}
+                  className="px-2 py-0.5 text-xs rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
                 >
                   {busyId === d.id ? "…" : "Resolve"}
                 </button>

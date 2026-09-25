@@ -14,6 +14,12 @@ export const localeNames: Record<Locale, string> = {
   ar: "العربية",
 };
 
+export const rtlLocales: readonly Locale[] = ["ar"] as const;
+
+export function isRTL(locale: Locale): boolean {
+  return (rtlLocales as readonly string[]).includes(locale);
+}
+
 export function isLocale(value: unknown): value is Locale {
   return typeof value === "string" && (locales as readonly string[]).includes(value);
 }

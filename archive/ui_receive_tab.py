@@ -5,7 +5,7 @@ from datetime import datetime, date
 from collections import defaultdict
 import os
 
-import database
+import db
 import barcode_logic
 import i18n
 
@@ -426,9 +426,9 @@ def setup_receive_tab(self):
 def _on_vendor_change(self, event=None):
     vendor = self.vendor_entry.get().strip()
     if vendor:
-        names = database.get_products_by_vendor(vendor)
+        names = db.get_products_by_vendor(vendor)
     else:
-        names = database.get_unique_product_names()
+        names = db.get_unique_product_names()
     self.recv_product_combo.configure(values=names if names else [])
     current = self.recv_product_var.get()
     if current not in names:
@@ -449,7 +449,7 @@ def _on_product_change(self, choice):
         self._set_disabled_text(self.recv_mfg_barcode_display, "")
         return
     vendor = self.vendor_entry.get().strip()
-    template = database.get_product_template(choice, vendor_name=vendor)
+    template = db.get_product_template(choice, vendor_name=vendor)
     if template:
         tpl_name, tpl_price, tpl_mfg_barcode, tpl_expiry, tpl_mfg_date = template
         self._set_disabled_text(self.recv_mfg_date_display, tpl_mfg_date or "")
@@ -474,9 +474,9 @@ def _set_disabled_text(self, entry, text):
 def refresh_product_list(self):
     vendor = self.vendor_entry.get().strip()
     if vendor:
-        names = database.get_products_by_vendor(vendor)
+        names = db.get_products_by_vendor(vendor)
     else:
-        names = database.get_unique_product_names()
+        names = db.get_unique_product_names()
     self.recv_product_combo.configure(values=names if names else [])
     current = self.recv_product_var.get()
     if current not in names:
@@ -516,7 +516,7 @@ def _add_to_queue(self):
 
     product_name = product_display
 
-    template = database.get_product_template(product_name, vendor_name=vendor)
+    template = db.get_product_template(product_name, vendor_name=vendor)
     if not template:
         messagebox.showerror("Error", f"No existing product found named '{product_name}'.\nPlease add the product first via the Add Product tab.")
         return
@@ -668,7 +668,7 @@ def _commit_shipment(self):
         for vendor, data in self.receiving_session.items():
             for item in data["items"]:
                 pre_barcodes = item.get("pre_barcodes", [])
-                database.receive_inventory_atomically(
+                db.receive_inventory_atomically(
                     vendor, item["name"], item["date_received"],
                     item["qty"], item["cost"],
                     item["price"], item["mfg_barcode"],
@@ -711,7 +711,7 @@ def _load_shipment_history(self, filter_date=None):
         self.tree_history.delete(item)
 
     vendor_groups = defaultdict(list)
-    for row in database.get_all_receiving_log(filter_date=filter_date):
+    for row in db.get_all_receiving_log(filter_date=filter_date):
         vendor_groups[row[1]].append(row)
 
     suffix = f" \u2014 {filter_date}" if filter_date else ""
@@ -769,7 +769,7 @@ def calculate_vendor_owed(self):
     if not vendor:
         messagebox.showwarning("Missing Vendor", "Please enter a vendor name.")
         return
-    total = database.get_vendor_total_owed(vendor)
+    total = db.get_vendor_total_owed(vendor)
     self.vendor_owed_label.configure(text=f"Total Owed to {vendor}: {self.currency.fmt(total)}")
 
 
@@ -869,7 +869,7 @@ def _ai_add_selected_to_queue(self):
         batch = vals[4] if len(vals) > 4 else ""
         expiry = vals[5] if len(vals) > 5 else ""
 
-        template = database.get_product_template(product_name, vendor_name=vendor)
+        template = db.get_product_template(product_name, vendor_name=vendor)
         tpl_price = template[1] if template else 0.0
         tpl_mfg_barcode = template[2] if template else ""
         tpl_mfg_date = template[4] if template else ""

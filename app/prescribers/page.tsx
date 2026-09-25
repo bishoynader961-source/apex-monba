@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useI18n } from "@/components/I18nProvider";
 import { useAuthStore, useCan } from "@/stores/authStore";
+import { DataTable } from "@/components/DataTable";
+import type { Column } from "@/components/DataTable";
 import type { PrescriberCreate, PrescriberRead } from "@/types/contracts";
 import * as prescribersApi from "@/lib/api/prescribers";
 
@@ -118,10 +120,20 @@ export default function PrescribersPage() {
     }
   }
 
+  const columns = useMemo<Column<PrescriberRead>[]>(() => [
+    { key: "name", header: t("prescribers.colName"), render: (row: PrescriberRead) => `${row.last_name}, ${row.first_name}` },
+    { key: "npi", header: t("prescribers.colNpi"), render: (row: PrescriberRead) => row.npi || "—" },
+    { key: "dea_number", header: t("prescribers.colDea"), render: (row: PrescriberRead) => row.dea_number || "—" },
+    { key: "phone", header: t("prescribers.colPhone"), render: (row: PrescriberRead) => row.phone || "—" },
+    { key: "email", header: t("prescribers.colEmail"), render: (row: PrescriberRead) => row.email || "—" },
+    { key: "city", header: t("prescribers.colCity"), render: (row: PrescriberRead) => row.city || "—" },
+    { key: "state", header: t("prescribers.colState"), render: (row: PrescriberRead) => row.state || "—" },
+  ], [t]);
+
   if (!canRead) {
     return (
       <DashboardLayout>
-        <div className="text-gray-400">You do not have permission to view prescribers.</div>
+        <div className="text-gray-600 dark:text-gray-400">You do not have permission to view prescribers.</div>
       </DashboardLayout>
     );
   }
@@ -130,14 +142,14 @@ export default function PrescribersPage() {
     <DashboardLayout>
       <div className="p-6 max-w-[1200px] mx-auto">
         <div className="flex justify-between items-center mb-5">
-          <h1 className="text-2xl font-bold text-gray-100">{t("prescribers.title")}</h1>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">{t("prescribers.title")}</h1>
           <div className="flex gap-3">
             <input
               type="text"
               placeholder={t("prescribers.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-800 rounded-md w-[280px] bg-[#0d0d20] text-gray-100"
+              className="px-3 py-2 text-sm border border-gray-800 rounded-md w-[280px] bg-[#0d0d20] text-gray-800 dark:text-gray-100"
             />
             {canWrite && (
               <button
@@ -157,59 +169,33 @@ export default function PrescribersPage() {
         )}
 
         {loading ? (
-          <div className="text-center py-10 text-gray-400">{t("prescribers.loading")}</div>
+          <div className="text-center py-10 text-gray-600 dark:text-gray-400">{t("prescribers.loading")}</div>
         ) : prescribers.length === 0 ? (
-          <div className="text-center py-10 text-gray-400">
+          <div className="text-center py-10 text-gray-600 dark:text-gray-400">
             {t("prescribers.noResults")} {canWrite && t("prescribers.addHint")}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-[13px]">
-              <thead>
-                <tr className="border-b-2 border-gray-800 text-left">
-                  <th className="px-3 py-2">{t("prescribers.colName")}</th>
-                  <th className="px-3 py-2">{t("prescribers.colNpi")}</th>
-                  <th className="px-3 py-2">{t("prescribers.colDea")}</th>
-                  <th className="px-3 py-2">{t("prescribers.colPhone")}</th>
-                  <th className="px-3 py-2">{t("prescribers.colEmail")}</th>
-                  <th className="px-3 py-2">{t("prescribers.colCity")}</th>
-                  <th className="px-3 py-2">{t("prescribers.colState")}</th>
-                  {canWrite && <th className="px-3 py-2">{t("commonActions")}</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {prescribers.map((p) => (
-                  <tr key={p.id} className="border-b border-gray-800">
-                    <td className="px-3 py-2 font-medium text-gray-100">
-                      {p.last_name}, {p.first_name}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-gray-300">{p.npi || "—"}</td>
-                    <td className="px-3 py-2 font-mono text-gray-300">{p.dea_number || "—"}</td>
-                    <td className="px-3 py-2 text-gray-300">{p.phone || "—"}</td>
-                    <td className="px-3 py-2 text-gray-300">{p.email || "—"}</td>
-                    <td className="px-3 py-2 text-gray-300">{p.city || "—"}</td>
-                    <td className="px-3 py-2 text-gray-300">{p.state || "—"}</td>
-                    {canWrite && (
-                      <td className="px-3 py-2">
-                        <button
-                          onClick={() => openEdit(p)}
-                          className="mr-2 px-2 py-1 text-xs text-blue-400 border border-gray-700 rounded hover:bg-gray-800"
-                        >
-                          {t("prescribers.edit")}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(p.id)}
-                          className="px-2 py-1 text-xs text-red-400 border border-red-900 rounded hover:bg-red-900/30"
-                        >
-                          {t("prescribers.delete")}
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={columns}
+            data={prescribers}
+            keyExtractor={(row) => row.id}
+            loading={loading}
+            emptyMessage={t("prescribers.noResults")}
+            actions={canWrite ? {
+              header: t("commonActions"),
+              render: (row) => (
+                <div className="flex gap-2">
+                  <button onClick={() => openEdit(row)} className="text-xs text-blue-400 hover:text-blue-300">
+                    {t("prescribers.edit")}
+                  </button>
+                  <button onClick={() => handleDelete(row.id)} className="text-xs text-red-400 hover:text-red-300">
+                    {t("prescribers.delete")}
+                  </button>
+                </div>
+              )
+            } : undefined}
+            className="bg-[#111] border border-gray-800"
+          />
         )}
 
         {/* Create/Edit Modal */}
@@ -219,7 +205,7 @@ export default function PrescribersPage() {
             onClick={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}
           >
             <div className="w-[600px] max-h-[80vh] overflow-y-auto rounded-xl bg-[#111] p-6 border border-gray-800 shadow-xl">
-              <h2 className="text-lg font-bold mb-4 text-gray-100">
+              <h2 className="text-lg font-bold mb-4 text-gray-800 dark:text-gray-100">
                 {editingId ? t("prescribers.modalEdit") : t("prescribers.modalAdd")}
               </h2>
 
@@ -271,11 +257,11 @@ function FormField({ label, value, onChange, fullWidth }: {
 }) {
   return (
     <div className={`flex flex-col gap-1 ${fullWidth ? "col-span-2" : ""}`}>
-      <label className="text-xs font-semibold text-gray-400">{label}</label>
-      <input
+      <label className="text-xs font-semibold text-gray-600 dark:text-gray-400" htmlFor="page-field-1">{label}</label>
+      <input id="page-field-1"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="px-2 py-1.5 text-[13px] border border-gray-800 rounded-md w-full bg-[#0d0d20] text-gray-100"
+        className="px-2 py-1.5 text-[13px] border border-gray-800 rounded-md w-full bg-[#0d0d20] text-gray-800 dark:text-gray-100"
       />
     </div>
   );

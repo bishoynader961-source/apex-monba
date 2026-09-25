@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { getCurrentUser } from "@/lib/api/auth";
+import { initializeOfflineKey } from "@/lib/offlineKey";
 import type { CurrentUser, LoginRequest, Token } from "@/types/contracts";
 
 interface AuthState {
@@ -13,11 +14,16 @@ interface AuthState {
   logout: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
   isAuthenticated: () => boolean;
+  // For Stage 7 - permission refresh on navigation
+  lastPermissions: string[];
+  setLastPermissions: (perms: string[]) => void;
+  permissionsChanged: () => boolean;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   token: typeof window !== "undefined" ? localStorage.getItem("access_token") : null,
   user: null,
+  lastPermissions: [],
 
   setUser: (user: CurrentUser | null) => {
     set({ user });
@@ -30,9 +36,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   fetchCurrentUser: async () => {
     try {
       const user = await getCurrentUser();
-      set({ user });
+      set({ user, lastPermissions: user?.permissions ?? [] });
     } catch {
-      set({ user: null });
+      set({ user: null, lastPermissions: [] });
     }
   },
 
@@ -50,10 +56,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const token: Token = data;
-    if (typeof window !== "undefined") {
-      localStorage.setItem("access_token", token.access_token);
-      localStorage.setItem("refresh_token", token.refresh_token);
-    }
+      if (typeof window !== "undefined") {
+        localStorage.setItem("access_token", token.access_token);
+        localStorage.setItem("refresh_token", token.refresh_token);
+        // Initialize offline encryption key from token
+        initializeOfflineKey(token.access_token);
+      }
     set({ token: token.access_token });
     await get().fetchCurrentUser();
   },
@@ -64,17 +72,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
     }
-    set({ token: null, user: null });
+    set({ token: null, user: null, lastPermissions: [] });
   },
 
-  hasPermission: (permission: string) =>
-    (get().user?.permissions ?? []).includes(permission),
+  hasPermission: (permission: string) => {
+    const perms = get().user?.permissions ?? [];
+    return perms.includes("*") || perms.includes(permission);
+  },
 
   isAuthenticated: () => get().token !== null,
+
+  setLastPermissions: (perms: string[]) => {
+    set({ lastPermissions: perms });
+  },
+
+  permissionsChanged: () => {
+    const { user, lastPermissions } = get();
+    const current = user?.permissions ?? [];
+    return current.length !== lastPermissions.length ||
+      current.some((p) => !lastPermissions.includes(p)) ||
+      lastPermissions.some((p) => !current.includes(p));
+  },
 }));
 
-// Centralised, render-stable permission selector. Returns a boolean (not a new
-// array/function) so subscribed components only re-render when the *boolean*
-// flips — avoids the re-render churn of selecting the whole `permissions` array.
 export const useCan = (permission: string): boolean =>
-  useAuthStore((s) => (s.user?.permissions ?? []).includes(permission));
+  useAuthStore((s) => {
+    const perms = s.user?.permissions ?? [];
+    return perms.includes("*") || perms.includes(permission);
+  });

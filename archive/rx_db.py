@@ -39,7 +39,7 @@ except ImportError:
 from path_utils import get_resource_path
 
 try:
-    from database import get_db_path
+    from db import get_db_path
 except Exception:
     def get_db_path():
         env = os.environ.get("PHARMACY_DB_PATH")

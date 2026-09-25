@@ -140,8 +140,8 @@ export function DrugEvaluateButton({
                   <div>
                     <h2 className={`text-lg font-bold ${cfg.titleClass}`}>{cfg.label}</h2>
                     <p className="text-xs text-gray-500">
-                      Drug: <span className="text-gray-300 font-medium">{drugName}</span>
-                      {ndc && <> · NDC: <span className="text-gray-300">{ndc}</span></>}
+                      Drug: <span className="text-gray-700 dark:text-gray-300 font-medium">{drugName}</span>
+                      {ndc && <> · NDC: <span className="text-gray-700 dark:text-gray-300">{ndc}</span></>}
                       {result.cached && <> · <span className="text-blue-400">cached</span></>}
                     </p>
                   </div>
@@ -154,13 +154,13 @@ export function DrugEvaluateButton({
               </div>
 
               {/* Message */}
-              <p className="text-sm text-gray-300 mb-4 leading-relaxed">{result.message}</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-4 leading-relaxed">{result.message}</p>
 
               {/* Interactions */}
               {result.interactions.length > 0 && (
                 <ul className="mb-4 space-y-2">
                   {result.interactions.map((interaction, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs text-gray-400">
+                    <li key={i} className="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
                       <AlertTriangle className="w-3.5 h-3.5 text-yellow-500 flex-shrink-0 mt-0.5" />
                       {interaction}
                     </li>

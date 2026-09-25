@@ -41,7 +41,7 @@ router = APIRouter(prefix="/api/v1/vendors", tags=["vendors"])
 async def list_vendors(
     active_only: bool = Query(True),
     q: Optional[str] = Query(None),
-    _auth: CurrentUser = Depends(require_permission("inventory.read")),
+    _auth: CurrentUser = Depends(require_permission("vendors.read")),
     session: AsyncSession = Depends(get_session),
 ) -> list[VendorRead]:
     """List all vendors, optionally filtered by active status and search term."""
@@ -70,7 +70,7 @@ async def list_vendors(
 @router.post("", response_model=VendorRead, status_code=status.HTTP_201_CREATED)
 async def create_vendor(
     payload: VendorCreate,
-    _auth: CurrentUser = Depends(require_permission("inventory.write")),
+    _auth: CurrentUser = Depends(require_permission("vendors.write")),
     session: AsyncSession = Depends(get_session),
 ) -> VendorRead:
     """Create a new vendor."""
@@ -111,7 +111,7 @@ async def create_vendor(
 @router.get("/{vendor_id}", response_model=VendorRead)
 async def get_vendor(
     vendor_id: str,
-    _auth: CurrentUser = Depends(require_permission("inventory.read")),
+    _auth: CurrentUser = Depends(require_permission("vendors.read")),
     session: AsyncSession = Depends(get_session),
 ) -> VendorRead:
     row = await session.execute(
@@ -127,7 +127,7 @@ async def get_vendor(
 async def update_vendor(
     vendor_id: str,
     payload: VendorUpdate,
-    _auth: CurrentUser = Depends(require_permission("inventory.write")),
+    _auth: CurrentUser = Depends(require_permission("vendors.write")),
     session: AsyncSession = Depends(get_session),
 ) -> VendorRead:
     """Update vendor fields (partial — only sent fields are applied)."""
@@ -165,7 +165,7 @@ async def update_vendor(
 @router.get("/{vendor_id}/items", response_model=list[VendorItemRead])
 async def get_vendor_items(
     vendor_id: str,
-    _auth: CurrentUser = Depends(require_permission("inventory.read")),
+    _auth: CurrentUser = Depends(require_permission("vendors.read")),
     session: AsyncSession = Depends(get_session),
 ) -> list[VendorItemRead]:
     """List all products sourced from this vendor."""
@@ -184,7 +184,7 @@ async def get_vendor_items(
 async def get_vendor_purchases(
     vendor_id: str,
     limit: int = Query(50, ge=1, le=200),
-    _auth: CurrentUser = Depends(require_permission("inventory.read")),
+    _auth: CurrentUser = Depends(require_permission("vendors.read")),
     session: AsyncSession = Depends(get_session),
 ) -> list[PurchaseHistoryRead]:
     """Purchase history for a specific vendor."""
@@ -204,7 +204,7 @@ async def get_vendor_purchases(
 @router.post("/receive", status_code=status.HTTP_201_CREATED)
 async def receive_shipment(
     payload: ReceiveShipmentPayload,
-    current_user: CurrentUser = Depends(require_permission("inventory.write")),
+    current_user: CurrentUser = Depends(require_permission("vendors.write")),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Receive a supplier shipment.

@@ -61,16 +61,16 @@ export function RefundDialog({ open, onClose }: Props) {
           </>
         ) : (
           <>
-            <label style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Receipt ID</label>
-            <input
+            <label style={{ fontSize: 13, display: "block", marginBottom: 4 }} htmlFor="refunddialog-field-1">Receipt ID</label>
+            <input id="refunddialog-field-1"
               type="number"
               value={receiptId}
               onChange={(e) => setReceiptId(e.target.value)}
               style={{ width: "100%", padding: 8, border: "1px solid #d1d5db", borderRadius: 6, marginBottom: 12 }}
               placeholder="e.g. 12"
             />
-            <label style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Reason (optional)</label>
-            <input
+            <label style={{ fontSize: 13, display: "block", marginBottom: 4 }} htmlFor="refunddialog-field-2">Reason (optional)</label>
+            <input id="refunddialog-field-2"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               style={{ width: "100%", padding: 8, border: "1px solid #d1d5db", borderRadius: 6, marginBottom: 12 }}

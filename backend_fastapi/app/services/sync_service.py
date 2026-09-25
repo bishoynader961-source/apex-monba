@@ -13,9 +13,10 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.models import Discrepancy, SyncOutbox
+from app.core.models import Discrepancy, Product, SyncOutbox
 from app.core.repositories import SyncRepository
 from app.shared.exceptions import NotFoundError, ValidationError
 from app.shared.schemas import SyncPushEntry, SyncPushResult, DiscrepancyRead
@@ -30,6 +31,8 @@ class SyncService:
     async def push(self, entries: list[SyncPushEntry]) -> SyncPushResult:
         repo = SyncRepository(self.session)
         accepted = deduped = over_sells = 0
+        processed_ids: list[str] = []
+        skipped_ids: list[str] = []
         merge_seq = await repo.max_merge_seq()
 
         # Process in (device_id, local_seq) order so the global replay is stable
@@ -38,12 +41,14 @@ class SyncService:
         for e in ordered:
             if await repo.find_by_client_txn_id(e.client_txn_id) is not None:
                 deduped += 1  # exact-once: same sale already merged
+                skipped_ids.append(e.client_txn_id)
                 continue
             merge_seq += 1
             await repo.insert_merged(
                 e.device_id, e.local_seq, e.client_txn_id, json.dumps(e.payload), merge_seq
             )
             accepted += 1
+            processed_ids.append(e.client_txn_id)
             if await self._apply_deltas(repo, e.payload):
                 over_sells += 1
                 await repo.insert_discrepancy(
@@ -55,7 +60,12 @@ class SyncService:
                 )
         await self.session.commit()
         return SyncPushResult(
-            accepted=accepted, deduped=deduped, over_sells=over_sells, merge_seq_max=merge_seq
+            accepted=accepted,
+            deduped=deduped,
+            over_sells=over_sells,
+            merge_seq_max=merge_seq,
+            processed_client_txn_ids=processed_ids,
+            skipped_client_txn_ids=skipped_ids,
         )
 
     async def _apply_deltas(self, repo: SyncRepository, payload: Any) -> bool:
@@ -73,6 +83,12 @@ class SyncService:
             if on_hand < qty:
                 over = True
                 await repo.set_on_hand(name, 0)  # clamp; physical cannot go negative
+                # SPEC 07: Flag the Product for stock audit
+                await self.session.execute(
+                    update(Product)
+                    .where(Product.name == name)
+                    .values(requires_stock_audit=1)
+                )
             else:
                 await repo.set_on_hand(name, on_hand - qty)
         return over

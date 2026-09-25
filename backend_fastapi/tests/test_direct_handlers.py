@@ -14,7 +14,7 @@ from app.shared.schemas import CurrentUser
 
 
 def _admin_user() -> CurrentUser:
-    return CurrentUser(id=1, username="admin", role="admin", permissions=["*"])
+    return CurrentUser(id=1, username="admin", role="admin", role_id=1, permissions=["*"])
 
 
 def _make_session(**overrides) -> AsyncMock:
@@ -115,7 +115,7 @@ async def test_update_role_system_rejected():
     body = RoleUpdate(name="hacked")
     with pytest.raises(HTTPException) as exc:
         await update_role(role_id=1, body=body, _user=_admin_user(), session=session)
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == 403
 
 
 @pytest.mark.anyio
@@ -162,7 +162,7 @@ async def test_set_role_permissions_system_rejected():
     body = RolePermissionUpdate(permission_ids=[])
     with pytest.raises(HTTPException) as exc:
         await set_role_permissions(role_id=1, body=body, _user=_admin_user(), session=session)
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == 403
 
 
 @pytest.mark.anyio
@@ -187,6 +187,200 @@ async def test_list_all_permissions():
     out = await list_all_permissions(_user=_admin_user(), session=session)
     assert len(out) == 2
     assert out[0].feature_key == "inventory.read"
+
+
+@pytest.mark.anyio
+async def test_create_permission_owner():
+    from app.api.routers.roles_route import create_permission, PermissionCreate
+    from fastapi import HTTPException
+    session = _make_session(get=AsyncMock(return_value=None))  # no existing permission
+    body = PermissionCreate(feature_key="reports.view", description="View reports")
+    admin = _admin_user()
+    admin.role_id = 1  # owner
+    out = await create_permission(payload=body, _user=admin, session=session)
+    assert out.feature_key == "reports.view"
+    assert out.description == "View reports"
+    assert session.add.called
+    assert session.commit.called
+
+
+@pytest.mark.anyio
+async def test_create_permission_non_owner_rejected():
+    from app.api.routers.roles_route import create_permission, PermissionCreate
+    from fastapi import HTTPException
+    session = _make_session()
+    body = PermissionCreate(feature_key="reports.view", description="View reports")
+    non_owner = _admin_user()
+    non_owner.role_id = 2  # not owner
+    with pytest.raises(HTTPException) as exc:
+        await create_permission(payload=body, _user=non_owner, session=session)
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_create_permission_invalid_format():
+    from app.api.routers.roles_route import create_permission, PermissionCreate
+    from fastapi import HTTPException
+    session = _make_session()
+    body = PermissionCreate(feature_key="invalid", description="Invalid format")
+    admin = _admin_user()
+    admin.role_id = 1
+    with pytest.raises(HTTPException) as exc:
+        await create_permission(payload=body, _user=admin, session=session)
+    assert exc.value.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_create_permission_conflict():
+    from app.api.routers.roles_route import create_permission, PermissionCreate
+    from fastapi import HTTPException
+    existing = Permission(feature_key="reports.view", description="Existing")
+    session = _make_session(get=AsyncMock(return_value=existing))
+    body = PermissionCreate(feature_key="reports.view", description="Duplicate")
+    admin = _admin_user()
+    admin.role_id = 1
+    with pytest.raises(HTTPException) as exc:
+        await create_permission(payload=body, _user=admin, session=session)
+    assert exc.value.status_code == 409
+
+
+# ── Safety Rails (Stage 5.6) ────────────────────────────────────────────────
+
+@pytest.mark.anyio
+async def test_owner_role_cannot_be_deleted():
+    from app.api.routers.roles_route import delete_role
+    from fastapi import HTTPException
+    role = Role(id=1, name="Administrator", is_system=1)
+    session = _make_session(get=AsyncMock(return_value=role))
+    with pytest.raises(HTTPException) as exc:
+        await delete_role(role_id=1, _user=_admin_user(), session=session)
+    assert exc.value.status_code == 403
+    assert "immutable administrator role" in exc.value.detail
+
+
+@pytest.mark.anyio
+async def test_owner_role_cannot_be_modified():
+    from app.api.routers.roles_route import update_role, RoleUpdate
+    from fastapi import HTTPException
+    role = Role(id=1, name="Administrator", is_system=1)
+    session = _make_session(get=AsyncMock(return_value=role))
+    body = RoleUpdate(name="Hacked")
+    with pytest.raises(HTTPException) as exc:
+        await update_role(role_id=1, body=body, _user=_admin_user(), session=session)
+    assert exc.value.status_code == 403
+    assert "immutable administrator role" in exc.value.detail
+
+
+@pytest.mark.anyio
+async def test_owner_permissions_cannot_be_modified():
+    from app.api.routers.roles_route import set_role_permissions, RolePermissionUpdate
+    from fastapi import HTTPException
+    role = Role(id=1, name="Administrator", is_system=1)
+    session = _make_session(get=AsyncMock(return_value=role))
+    body = RolePermissionUpdate(permission_ids=[1, 2, 3])
+    with pytest.raises(HTTPException) as exc:
+        await set_role_permissions(role_id=1, body=body, _user=_admin_user(), session=session)
+    assert exc.value.status_code == 403
+    assert "immutable administrator role" in exc.value.detail
+
+
+@pytest.mark.anyio
+async def test_owner_bypasses_lock_check():
+    from app.api.deps import require_unlocked
+    from fastapi import HTTPException
+    from app.core.models import LockedFeature
+    
+    # Create a locked feature
+    locked = LockedFeature(feature_key="test.feature", is_locked=1)
+    session = _make_session(get=AsyncMock(return_value=locked))
+    
+    # Owner (role_id=1) should bypass lock
+    owner = _admin_user()
+    owner.role_id = 1
+    
+    check = require_unlocked("test.feature")
+    result = await check(user=owner, x_lock_password=None, session=session)
+    assert result.role_id == 1
+
+
+@pytest.mark.anyio
+async def test_non_owner_requires_lock_password():
+    from app.api.deps import require_unlocked
+    from fastapi import HTTPException
+    from app.core.models import LockedFeature
+    from app.shared.security import hash_password
+    
+    # Create a locked feature with password
+    locked = LockedFeature(feature_key="test.feature", is_locked=1, lock_password_hash=hash_password("secret123"))
+    session = _make_session(get=AsyncMock(return_value=locked))
+    
+    # Non-owner without password should be rejected
+    non_owner = _admin_user()
+    non_owner.role_id = 2
+    
+    check = require_unlocked("test.feature")
+    with pytest.raises(HTTPException) as exc:
+        await check(user=non_owner, x_lock_password=None, session=session)
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_non_owner_with_valid_lock_password():
+    from app.api.deps import require_unlocked
+    from fastapi import HTTPException
+    from app.core.models import LockedFeature
+    from app.shared.security import hash_password, verify_password
+    
+    # Create a locked feature with password
+    locked = LockedFeature(feature_key="test.feature", is_locked=1, lock_password_hash=hash_password("secret123"))
+    session = _make_session(get=AsyncMock(return_value=locked))
+    
+    # Non-owner with valid password should be allowed
+    non_owner = _admin_user()
+    non_owner.role_id = 2
+    
+    check = require_unlocked("test.feature")
+    result = await check(user=non_owner, x_lock_password="secret123", session=session)
+    assert result.role_id == 2
+
+
+@pytest.mark.anyio
+async def test_fresh_install_first_signup_owner_flow():
+    """Test the complete fresh install → first signup → full-access owner flow."""
+    from app.services.seed_service import seed_admin_role, seed_admin_if_absent, seed_clinical_defaults
+    from app.core.repositories import UserRepository
+    from app.shared.security import hash_password
+    from app.core.models import Role, User
+    
+    # Simulate fresh database - role_id=1 does NOT exist yet
+    role = Role(id=1, name="Administrator", is_system=1)
+    session = _make_session(get=AsyncMock(return_value=None))  # No existing role
+    
+    # 1. Seed admin role (id=1)
+    created = await seed_admin_role(session)
+    assert created is True
+    
+    # 2. Seed clinical defaults (permissions)
+    await seed_clinical_defaults(session)
+    
+    # 3. First signup creates admin user
+    # Mock UserRepository.get_by_username to return the created user
+    created_user = User(id=1, username="owner", display_name="Owner", role_id=1, is_active=1)
+    repo = UserRepository(session)
+    repo.get_by_username = AsyncMock(return_value=created_user)
+    await repo.create(
+        username="owner",
+        display_name="Owner",
+        password_hash=hash_password("securepassword"),
+        role_id=1,
+    )
+    
+    # 4. Verify user has role_id=1 and all permissions
+    user = await repo.get_by_username("owner")
+    assert user is not None
+    assert user.role_id == 1
+    assert user.username == "owner"
+    assert user.display_name == "Owner"
 
 
 # ── settings_route ────────────────────────────────────────────────────────────

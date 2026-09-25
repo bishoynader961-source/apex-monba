@@ -1,0 +1,37 @@
+MAIN get_auth_service called
+MAIN login START: username=admin
+MAIN login: user.id=1, user.role_id=1
+MAIN get_auth_service called
+MAIN login START: username=admin
+MAIN login: user.id=1, user.role_id=1
+MAIN get_auth_service called
+MAIN login START: username=admin
+MAIN login: user.id=1, user.role_id=1
+MAIN get_auth_service called
+MAIN get_auth_service called
+MAIN login START: username=admin
+MAIN login: user.id=1, user.role_id=1
+MAIN get_auth_service called
+MAIN login START: username=admin
+MAIN login: user.id=1, user.role_id=1
+MAIN get_auth_service called
+MAIN login START: username=admin
+MAIN login: user.id=1, user.role_id=1
+MAIN get_auth_service called
+MAIN login START: username=admin
+MAIN login START: username=admin
+MAIN login: user.id=1, user.role_id=1
+MAIN get_auth_service called
+MAIN login START: username=admin
+MAIN login: user.id=1, user.role_id=1
+MAIN get_auth_service called
+MAIN login START: username=admin
+MAIN login: user.id=1, user.role_id=1
+MAIN get_auth_service called
+MAIN login START: username=testowner
+MAIN get_auth_service called
+MAIN login START: username=testowner
+MAIN login: user.id=1, user.role_id=1
+MAIN get_auth_service called
+MAIN login START: username=testowner
+MAIN login: user.id=1, user.role_id=1

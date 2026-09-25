@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { loginAction } from "@/app/login/actions";
 import { useAuthStore } from "@/stores/authStore";
@@ -15,6 +15,30 @@ export default function LoginPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const token = useAuthStore((s) => s.token);
   const { t } = useI18n();
+
+  const [setupComplete, setSetupComplete] = useState(false);
+
+  // Check setup status on load
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("setup=complete")) {
+      setSetupComplete(true);
+    }
+    const checkSetup = async () => {
+      try {
+        const res = await fetch("/api/v1/setup/status");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.setup_required) {
+            router.replace("/setup");
+            return;
+          }
+        }
+      } catch {
+        // If setup check fails, stay on login page
+      }
+    };
+    checkSetup();
+  }, [router]);
 
   useEffect(() => {
     if (state?.success && state.access_token) {
@@ -42,6 +66,15 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {setupComplete && !state?.error && (
+          <div
+            role="status"
+            className="rounded-md bg-green-100 p-4 text-sm text-green-800"
+          >
+            Setup complete! Sign in with the credentials you just created.
+          </div>
+        )}
+
         {state?.error && (
           <div
             role="alert"
@@ -53,10 +86,11 @@ export default function LoginPage() {
 
         <form action={formAction} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor="login-username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               {t("login.username")}
             </label>
             <input
+              id="login-username"
               type="text"
               name="username"
               required
@@ -65,10 +99,11 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               {t("login.password")}
             </label>
             <input
+              id="login-password"
               type="password"
               name="password"
               required

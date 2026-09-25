@@ -71,28 +71,3 @@ async def test_list_settings(
     settings = resp.json()
     assert any(s["key"] == "tax_rate" and s["value"] == "0.14" for s in settings)
 
-
-# ── License proxy (R1/R6): 502 when Flask license service is unreachable ────────
-
-async def test_license_status_502_when_unreachable(
-    client: AsyncClient, session: AsyncSession, auth: dict[str, str], monkeypatch
-) -> None:
-    from app.shared import config as config_mod
-    monkeypatch.setattr(config_mod.settings, "license_gate_url", "http://127.0.0.1:1")
-    resp = await client.get("/api/v1/license/status", headers=auth)
-    assert resp.status_code == 502
-    assert resp.json()["error"]["code"] == "license_unreachable"
-
-
-async def test_license_validate_502_when_unreachable(
-    client: AsyncClient, session: AsyncSession, auth: dict[str, str], monkeypatch
-) -> None:
-    from app.shared import config as config_mod
-    monkeypatch.setattr(config_mod.settings, "license_gate_url", "http://127.0.0.1:1")
-    resp = await client.post(
-        "/api/v1/license/validate",
-        json={"license_key": "PHARM-0000-0000-0000", "hardware_id": "hwid-1"},
-        headers=auth,
-    )
-    assert resp.status_code == 502
-    assert resp.json()["error"]["code"] == "license_unreachable"

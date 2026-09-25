@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.models import DrugDictionary, Permission, RolePermission, SigCode, PriceCode
+from app.core.models import DrugDictionary, LockedFeature, Permission, ProductTemplate, RolePermission, Role, SigCode, PriceCode, SystemSetting
 from app.core.repositories import UserRepository
 from app.shared.logging_config import get_logger
 from app.shared.security import hash_password
@@ -20,6 +20,10 @@ DEFAULT_ADMIN_PASSWORD = os.getenv("INITIAL_ADMIN_PASSWORD", "admin123")
 DEFAULT_ADMIN_DISPLAY_NAME = "Admin User"
 DEFAULT_ADMIN_ROLE_ID = 1
 
+# Immutable admin role name
+ADMIN_ROLE_NAME = "Administrator"
+
+
 # Canonical permission surface: existing platform perms + the new clinical perms
 # (decision 6). Upserted + granted to the admin role so a fresh DB is usable.
 _ALL_PERMISSIONS = [
@@ -30,8 +34,13 @@ _ALL_PERMISSIONS = [
     "pos.checkout",
     "pos.drawer",
     "pos.pepper.rotate",
+    "pos.price_override",
+    "pos.void_item",
+    "pos.write",
     "users.read",
     "users.write",
+    "settings.read",
+    "settings.manage",
     # clinical / patient management (new)
     "patients.read",
     "patients.write",
@@ -42,9 +51,34 @@ _ALL_PERMISSIONS = [
     "members.write",
     "dictionaries.read",
     "dictionaries.write",
-     "dispense.create",
-     "analytics.read",
-     "backup.create",
+    "dispense.create",
+    "analytics.read",
+    "backup.create",
+    "coupons.manage",
+    # rx queue management
+    "rx.queue.read",
+    "rx.queue.transition",
+    "rx.queue.bulk",
+    # region strategy management
+    "region.strategy.read",
+    "region.strategy.write",
+    # compound prescriptions
+    "compounds.read",
+    "compounds.write",
+    "compounds.dispense",
+    # prior authorization
+    "prior_auth.create",
+    "prior_auth.read",
+    "prior_auth.write",
+    "prior_auth.review",
+    # epcs (controlled substances)
+    "epcs.create",
+    "epcs.read",
+    "epcs.write",
+    "epcs.review",
+    "epcs.sign",
+    "epcs.transmit",
+    "epcs.identity_proofing",
 ]
 
 _DEFAULT_SIG_CODES = [
@@ -131,7 +165,17 @@ async def seed_admin_if_absent(session: AsyncSession) -> bool:
 
     Returns True if a new admin was created, False if it already existed.
     Never raises — all errors are logged and swallowed so startup is not blocked.
+    
+    Only runs when APP_ENV=development to ensure fresh installs get a clean slate.
     """
+    # Only seed default admin in development environment
+    # Default to "production" for safety — must explicitly set APP_ENV=development
+    app_env = os.getenv("APP_ENV", "production")
+    logger.info("seed_admin_check", app_env=app_env, will_seed=app_env == "development")
+    if app_env != "development":
+        logger.info("seed_admin_skipped", reason="not_development_env", app_env=app_env)
+        return False
+        
     try:
         repo = UserRepository(session)
         existing = await repo.get_by_username(DEFAULT_ADMIN_USERNAME)
@@ -139,14 +183,6 @@ async def seed_admin_if_absent(session: AsyncSession) -> bool:
             logger.info("seed_admin_skipped", reason="user_exists", username=DEFAULT_ADMIN_USERNAME)
             return False
 
-        if (
-            os.getenv("APP_ENV", "development") == "production"
-            and DEFAULT_ADMIN_PASSWORD == "admin123"
-        ):
-            logger.warning(
-                "seed_admin_using_default_credentials_in_production",
-                hint="set INITIAL_ADMIN_USER/INITIAL_ADMIN_PASSWORD env to override",
-            )
         password_hash = hash_password(DEFAULT_ADMIN_PASSWORD)
         await repo.create(
             username=DEFAULT_ADMIN_USERNAME,
@@ -166,6 +202,43 @@ async def seed_admin_if_absent(session: AsyncSession) -> bool:
         return False
     except Exception as exc:  # noqa: BLE001 — last line of defense for startup safety
         logger.error("seed_admin_unexpected_error", error=str(exc), username=DEFAULT_ADMIN_USERNAME)
+        return False
+
+
+async def seed_admin_role(session: AsyncSession) -> bool:
+    """Seed the immutable Administrator role (id=1, is_system=1) if absent.
+
+    Returns True if created, False if already exists.
+    """
+    try:
+        existing = await session.get(Role, DEFAULT_ADMIN_ROLE_ID)
+        if existing is not None:
+            # Ensure it's marked as system role
+            if not existing.is_system:
+                existing.is_system = 1
+                session.add(existing)
+                await session.commit()
+                logger.info("seed_admin_role_updated_system_flag", role_id=DEFAULT_ADMIN_ROLE_ID)
+            else:
+                logger.info("seed_admin_role_skipped", reason="role_exists", role_id=DEFAULT_ADMIN_ROLE_ID)
+            return False
+
+        admin_role = Role(
+            id=DEFAULT_ADMIN_ROLE_ID,
+            name=ADMIN_ROLE_NAME,
+            description="Full system access - immutable administrator role",
+            is_system=1,
+        )
+        session.add(admin_role)
+        await session.commit()
+        logger.info("seed_admin_role_created", role_id=DEFAULT_ADMIN_ROLE_ID, name=ADMIN_ROLE_NAME)
+        return True
+    except SQLAlchemyError as exc:
+        logger.error("seed_admin_role_db_error", error=str(exc))
+        await session.rollback()
+        return False
+    except Exception as exc:
+        logger.error("seed_admin_role_unexpected_error", error=str(exc))
         return False
 
 
@@ -217,3 +290,116 @@ async def seed_clinical_defaults(session: AsyncSession) -> None:
         await session.rollback()
     except Exception as exc:  # noqa: BLE001 — startup safety
         logger.error("seed_clinical_unexpected_error", error=str(exc))
+
+
+_DEFAULT_SESSION_SETTINGS = {
+    "session_idle_minutes": "15",
+    "session_absolute_minutes": "480",
+    "alert_check_enabled": "true",
+    "alert_expiry_critical_days": "30",
+    "alert_expiry_warning_days": "90",
+}
+
+
+async def seed_session_settings(session: AsyncSession) -> None:
+    """Idempotently seed default session timeout settings.
+
+    Values are stored in the ``system_settings`` key-value table.  Existing
+    keys are never overwritten so administrators can customize them.
+    """
+    try:
+        for key, value in _DEFAULT_SESSION_SETTINGS.items():
+            exists = await session.get(SystemSetting, key)
+            if exists is None:
+                session.add(SystemSetting(key=key, value=value.encode("utf-8")))
+        await session.commit()
+        logger.info("seed_session_settings_complete")
+    except SQLAlchemyError as exc:
+        logger.error("seed_session_settings_db_error", error=str(exc))
+        await session.rollback()
+    except Exception as exc:  # noqa: BLE001 — startup safety
+        logger.error("seed_session_settings_unexpected_error", error=str(exc))
+
+
+_DEFAULT_TEMPLATES = [
+    ("Aspirin", 5.99, "Generic", "OTC"),
+    ("Band-Aids", 3.49, "Generic", "OTC"),
+    ("Ibuprofen", 7.99, "Generic", "OTC"),
+    ("Cough Syrup", 9.99, "Generic", "OTC"),
+]
+
+
+async def seed_product_templates(session: AsyncSession) -> None:
+    """Idempotently seed default product templates for quick-add."""
+    try:
+        for name, price, category, dea in _DEFAULT_TEMPLATES:
+            exists = await session.scalar(
+                select(ProductTemplate.id).where(ProductTemplate.name == name)
+            )
+            if exists is None:
+                session.add(ProductTemplate(
+                    name=name, price=price, category=category,
+                    dea_schedule=dea,
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                ))
+        await session.commit()
+        logger.info("seed_product_templates_complete")
+    except SQLAlchemyError as exc:
+        logger.error("seed_product_templates_db_error", error=str(exc))
+        await session.rollback()
+    except Exception as exc:  # noqa: BLE001 — startup safety
+        logger.error("seed_product_templates_unexpected_error", error=str(exc))
+
+
+async def seed_default_locked_features(session: AsyncSession) -> None:
+    """Seed default locked features (Section 5.4).
+    
+    By default, only 'users.password.change_other' is locked.
+    This requires the owner's lock password to change another user's password.
+    """
+    try:
+        default_locked = ["users.password.change_other"]
+        for feature_key in default_locked:
+            existing = await session.get(LockedFeature, feature_key)
+            if existing is None:
+                session.add(LockedFeature(
+                    feature_key=feature_key,
+                    description=f"Lock: {feature_key}",
+                    is_locked=1,
+                    locked_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                ))
+        await session.commit()
+        logger.info("seed_default_locked_features_complete", count=len(default_locked))
+    except SQLAlchemyError as exc:
+        logger.error("seed_default_locked_features_db_error", error=str(exc))
+        await session.rollback()
+    except Exception as exc:
+        logger.error("seed_default_locked_features_unexpected_error", error=str(exc))
+
+
+async def seed_default_settings(session: AsyncSession) -> None:
+    """Idempotently seed default system settings including support email.
+    
+    Values are stored in the ``system_settings`` key-value table.  Existing
+    keys are never overwritten so administrators can customize them.
+    """
+    defaults = [
+        ("support_email", "pharmacypro.support@gmail.com"),
+        ("support_name", "PharmacySuite Support"),
+        ("support_message", "For feature requests, technical issues, or questions, email us anytime."),
+        ("pharmacy_name", ""),
+        ("session_idle_minutes", "15"),
+        ("session_absolute_minutes", "480"),
+    ]
+    try:
+        for key, value in defaults:
+            existing = await session.get(SystemSetting, key)
+            if not existing:
+                session.add(SystemSetting(key=key, value=value.encode("utf-8")))
+        await session.commit()
+        logger.info("seed_default_settings_complete")
+    except SQLAlchemyError as exc:
+        logger.error("seed_default_settings_db_error", error=str(exc))
+        await session.rollback()
+    except Exception as exc:  # noqa: BLE001 — startup safety
+        logger.error("seed_default_settings_unexpected_error", error=str(exc))

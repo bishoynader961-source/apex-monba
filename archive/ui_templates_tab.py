@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from tkinter import ttk, messagebox
 
-import database
+import db
 import currency
 
 
@@ -58,7 +58,7 @@ def load_templates_grid(self):
     for item in self.tree_tpl.get_children():
         self.tree_tpl.delete(item)
 
-    templates = database.get_templates()
+    templates = db.get_templates()
     for tpl in templates:
         self.tree_tpl.insert("", "end", values=(tpl[0], tpl[1], currency.fmt(tpl[2])))
 
@@ -92,7 +92,7 @@ def add_template_gui(self):
         messagebox.showwarning("Warning", "Price must be a number.")
         return
 
-    database.add_template(name, price)
+    db.add_template(name, price)
     self.tpl_name_entry.delete(0, 'end')
     self.tpl_price_entry.delete(0, 'end')
     self.load_templates_grid()
@@ -135,6 +135,6 @@ def delete_template_gui(self):
 
     item = selected[0]
     tpl_id = self.tree_tpl.item(item, 'values')[0]
-    database.delete_template(tpl_id)
+    db.delete_template(tpl_id)
     self.load_templates_grid()
     self.refresh_add_tab_templates()

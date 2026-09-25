@@ -34,6 +34,14 @@ if not defined SIGNTOOL (
   for /f "delims=" %%i in ('where signtool 2^>nul') do set "SIGNTOOL=%%i"
 )
 if not defined SIGNTOOL (
+  if exist "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe" ^
+    set "SIGNTOOL=C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe"
+)
+if not defined SIGNTOOL (
+  if exist "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x86\signtool.exe" ^
+    set "SIGNTOOL=C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x86\signtool.exe"
+)
+if not defined SIGNTOOL (
   if exist "C:\Program Files (x86)\Windows Kits\10\bin\x64\signtool.exe" ^
     set "SIGNTOOL=C:\Program Files (x86)\Windows Kits\10\bin\x64\signtool.exe"
 )
@@ -42,7 +50,7 @@ if not defined SIGNTOOL (
   exit /b 1
 )
 
-echo [sign.cmd] Signing %1 with %SIGNTOOL% (timestamp: %TS%)
+echo [sign.cmd] Signing "%~1" with %SIGNTOOL% (timestamp: %TS%)
 "%SIGNTOOL%" sign /f "%CERT%" /p "%PASS%" /tr "%TS%" /td sha256 /fd sha256 /d "Pharmacy Suite" "%~1"
 if errorlevel 1 (
   echo [sign.cmd] signtool failed

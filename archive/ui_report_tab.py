@@ -4,7 +4,7 @@ from datetime import datetime, date, timedelta
 from collections import defaultdict
 import csv
 import os
-import database
+import db
 import barcode_logic
 import currency
 import i18n
@@ -165,7 +165,7 @@ def load_sales_report(self):
 
     def _load():
         try:
-            return database.get_receipt_items_grouped_by_date()
+            return db.get_receipt_items_grouped_by_date()
         except Exception as e:
             return {"error": str(e)}
 
@@ -196,7 +196,7 @@ def load_sales_report(self):
                     r[8], r[9], r[10], time_part, r[7],
                 ))
 
-        today_sales = database.get_receipts_total_for_date(date.today().strftime("%Y-%m-%d"))
+        today_sales = db.get_receipts_total_for_date(date.today().strftime("%Y-%m-%d"))
         self.report_count_label.configure(text=f"Total Items Sold: {total_items}")
         self.report_revenue_label.configure(text=f"Total Revenue: {self.currency.fmt(total_revenue)}")
 
@@ -212,7 +212,7 @@ def _search_for_refund(self):
     for item in self.tree_report.get_children():
         self.tree_report.delete(item)
 
-    all_items = database.get_all_receipt_items_flat()
+    all_items = db.get_all_receipt_items_flat()
     matches = [r for r in all_items if query.lower() in (r[8] or "").lower()]
 
     if not matches:
@@ -267,7 +267,7 @@ def calculate_custom_date_sales(self):
         messagebox.showerror("Invalid Date", "Please enter a valid date in YYYY-MM-DD format.")
         return
 
-    rows = database.get_receipt_items_for_date(raw)
+    rows = db.get_receipt_items_for_date(raw)
     date_total = sum(r[5] for r in rows)
     self.report_custom_date_label.configure(text=f"Sales for {raw}: {self.currency.fmt(date_total)}")
 
@@ -291,7 +291,7 @@ def refund_item(self):
     qty = int(values[1])
     barcode = values[4]
 
-    all_items = database.get_all_receipt_items_flat()
+    all_items = db.get_all_receipt_items_flat()
     target_item = None
     for ri in all_items:
         if ri[2] == product_name and ri[3] == qty and ri[8] == barcode:
@@ -314,7 +314,7 @@ def refund_item(self):
         return
 
     try:
-        database.reverse_receipt_item(receipt_item_id)
+        db.reverse_receipt_item(receipt_item_id)
         self.load_sales_report()
         self.load_inventory()
         self._refresh_checkout_stock_dropdown()
@@ -468,7 +468,7 @@ def load_analytics(self):
 
     def _load():
         try:
-            return database.get_sales_analytics(start, end)
+            return db.get_sales_analytics(start, end)
         except Exception as e:
             return {"error": str(e)}
 
@@ -549,7 +549,7 @@ def _export_sales_report_csv(self):
             writer.writerow(["Date", "Product", "Qty", "Unit Price", "Total",
                              "Barcode", "Vendor", "Expiry", "Time", "Payment"])
 
-            grouped = database.get_receipt_items_grouped_by_date()
+            grouped = db.get_receipt_items_grouped_by_date()
             for date_str, rows in sorted(grouped.items(), reverse=True):
                 for r in rows:
                     time_part = r[6][11:19] if len(r[6]) > 11 else ""

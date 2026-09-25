@@ -25,7 +25,7 @@ import customtkinter as ctk
 from tkinter import ttk, messagebox
 
 import i18n
-import database
+import db
 import barcode_logic
 import audit_log
 from ui_helpers import apply_treeview_style
@@ -58,6 +58,12 @@ class PosTerminalFrame(ctk.CTkFrame):
 
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
+
+        # Walk up the widget tree to find the PharmacyApp root
+        widget = master
+        while widget is not None and not hasattr(widget, 'currency'):
+            widget = getattr(widget, 'master', None)
+        self.app = widget
 
         self.cart = []          # list of dicts: {ndc, name, strength, awp, qty}
         self._tx_counter = 0
@@ -364,7 +370,7 @@ class PosTerminalFrame(ctk.CTkFrame):
                 log.warning("rx_db.search_inventory failed: %s, falling back to sqlite3", e)
 
         # Fallback: direct sqlite3 query on inventory_extended
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         like = f"%{query}%"
@@ -597,7 +603,7 @@ class PosTerminalFrame(ctk.CTkFrame):
                     self._fallback_update_on_hand(item["ndc"], updated)
 
             # Create receipt in the standard database (for transaction log)
-            conn = sqlite3.connect(database.get_db_path())
+            conn = sqlite3.connect(db.get_db_path())
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO receipts (timestamp, total_amount, payment_method)
@@ -649,7 +655,7 @@ class PosTerminalFrame(ctk.CTkFrame):
             except Exception:
                 pass
         # Fallback: sqlite3
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         try:
@@ -665,7 +671,7 @@ class PosTerminalFrame(ctk.CTkFrame):
 
     def _fallback_update_on_hand(self, ndc_code, new_on_hand):
         """Direct sqlite3 update when rx_db is unavailable."""
-        db_path = database.get_db_path()
+        db_path = db.get_db_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         try:
@@ -699,7 +705,7 @@ class PosTerminalFrame(ctk.CTkFrame):
     def _load_recent_transactions(self):
         """Load recent transactions from the receipts table."""
         try:
-            conn = sqlite3.connect(database.get_db_path())
+            conn = sqlite3.connect(db.get_db_path())
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT id, timestamp, total_amount, payment_method

@@ -8,6 +8,8 @@ their bodies are counted and measured coverage can reach the >=90% gate.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import os
 
 import pytest
@@ -145,7 +147,7 @@ async def test_skew_bad_timestamp(session):
         line_items=[CheckoutLineIn(product_name="Paracetamol", quantity=1)],
         client_timestamp="not-a-real-timestamp",
     )
-    user = CurrentUser(id=1, username="adminroot", role="admin", permissions=["pos.checkout"])
+    user = CurrentUser(id=1, username="adminroot", role="admin", role_id=1, permissions=["pos.checkout"])
     result = await PosService(session).process_checkout(payload, user)
     assert result.receipt_number.startswith("RCP-")
 
@@ -157,7 +159,7 @@ async def test_pos_checkout_success(session):
         line_items=[CheckoutLineIn(product_name="Paracetamol", quantity=2)],
         payment_method="Cash",
     )
-    user = CurrentUser(id=1, username="adminroot", role="admin", permissions=["pos.checkout"])
+    user = CurrentUser(id=1, username="adminroot", role="admin", role_id=1, permissions=["pos.checkout"])
     result = await PosService(session).process_checkout(payload, user)
     assert result.net_total == Decimal("20.00")
     assert result.tax_total == Decimal("2.80")
@@ -169,7 +171,7 @@ async def test_pos_checkout_not_found(session):
     payload = CheckoutRequest(
         line_items=[CheckoutLineIn(product_name="Nosuch", quantity=1)], payment_method="Cash"
     )
-    user = CurrentUser(id=1, username="adminroot", role="admin", permissions=["pos.checkout"])
+    user = CurrentUser(id=1, username="adminroot", role="admin", role_id=1, permissions=["pos.checkout"])
     with pytest.raises(NotFoundError):
         await PosService(session).process_checkout(payload, user)
 
@@ -186,14 +188,14 @@ async def test_pos_checkout_multi_terminal(monkeypatch, session):
     payload = CheckoutRequest(
         line_items=[CheckoutLineIn(product_name="Paracetamol", quantity=1)], payment_method="Cash"
     )
-    user = CurrentUser(id=1, username="adminroot", role="admin", permissions=["pos.checkout"])
+    user = CurrentUser(id=1, username="adminroot", role="admin", role_id=1, permissions=["pos.checkout"])
     result = await PosService(session).process_checkout(payload, user)
     assert result.receipt_number.startswith("RCP-")
 
 
 async def test_pos_record_drawer_movement(session, admin_user):
     payload = DrawerMovementCreate(amount=Decimal("50.00"), reason="cash-in", cashier="adminroot")
-    user = CurrentUser(id=1, username="adminroot", role="admin", permissions=["pos.drawer"])
+    user = CurrentUser(id=1, username="adminroot", role="admin", role_id=1, permissions=["pos.drawer"])
     await session.commit()
     result = await PosService(session).record_drawer_movement(payload, user)
     assert result.amount == Decimal("50.00")
@@ -201,14 +203,14 @@ async def test_pos_record_drawer_movement(session, admin_user):
 
 
 async def test_pos_open_shift(session, admin_user):
-    user = CurrentUser(id=1, username="adminroot", role="admin", permissions=["pos.drawer"])
+    user = CurrentUser(id=1, username="adminroot", role="admin", role_id=1, permissions=["pos.drawer"])
     result = await PosService(session).open_shift(ShiftOpenRequest(opening_float=Decimal("100.00")), user)
     assert result.opening_float == Decimal("100.00")
     assert result.status == "open"
 
 
 async def _open_and_seed_sales(session, admin_user, opening=Decimal("100.00")):
-    user = CurrentUser(id=1, username="adminroot", role="admin", permissions=["pos.drawer"])
+    user = CurrentUser(id=1, username="adminroot", role="admin", role_id=1, permissions=["pos.drawer"])
     shift = await PosService(session).open_shift(ShiftOpenRequest(opening_float=opening), user)
     session.add(
         Receipt(
@@ -303,13 +305,13 @@ async def test_pos_refund_not_found(session, admin_user):
     with pytest.raises(NotFoundError):
         await PosService(session).refund(
             RefundRequest(receipt_id=9999, reason="x"),
-            CurrentUser(id=1, username="adminroot", role="admin", permissions=["pos.checkout"]),
+            CurrentUser(id=1, username="adminroot", role="admin", role_id=1, permissions=["pos.checkout"]),
         )
 
 
 async def test_pos_refund_already_refunded(session, admin_user):
     receipt = await _seed_receipt_for_refund(session)
-    user = CurrentUser(id=1, username="adminroot", role="admin", permissions=["pos.checkout"])
+    user = CurrentUser(id=1, username="adminroot", role="admin", role_id=1, permissions=["pos.checkout"])
     await PosService(session).refund(RefundRequest(receipt_id=receipt.id, reason="bad"), user)
     with pytest.raises(AppException):
         await PosService(session).refund(RefundRequest(receipt_id=receipt.id, reason="bad2"), user)
@@ -317,7 +319,7 @@ async def test_pos_refund_already_refunded(session, admin_user):
 
 async def test_pos_refund_success(session, admin_user):
     receipt = await _seed_receipt_for_refund(session)
-    user = CurrentUser(id=1, username="adminroot", role="admin", permissions=["pos.checkout"])
+    user = CurrentUser(id=1, username="adminroot", role="admin", role_id=1, permissions=["pos.checkout"])
     result = await PosService(session).refund(RefundRequest(receipt_id=receipt.id, reason="bad"), user)
     assert result.total_amount == Decimal("-10.00")
     assert await BatchRepository(session).sum_on_hand("Paracetamol") == 2
@@ -408,7 +410,7 @@ async def test_login_success(session, admin_user):
 async def test_refresh_wrong_type(session, admin_user):
     from app.shared.security import create_access_token
 
-    bad = create_access_token("1", "admin", [], username="adminroot")
+    bad = create_access_token("1", "admin", 1, [], username="adminroot")
     with pytest.raises(UnauthorizedError):
         await AuthService(session).refresh(bad)
 

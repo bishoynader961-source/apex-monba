@@ -12,7 +12,7 @@ import re
 import sqlite3
 import sys
 import barcode_logic
-import database
+import db
 
 VALID_BARCODE_PATTERN = re.compile(r"^[A-Z]{3}-[A-Z0-9]{6}$")
 
@@ -23,7 +23,7 @@ def main():
     print("=" * 60)
     print()
 
-    db_path = database.get_db_path()
+    db_path = db.get_db_path()
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 

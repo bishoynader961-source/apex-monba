@@ -94,6 +94,25 @@ export async function createAdjustment(
   return data;
 }
 
+export async function batchExpire(batchIds: number[]): Promise<{ updated: number; total_requested: number }> {
+  const { data } = await api.post<{ updated: number; total_requested: number }>(
+    `${BASE}/batches/batch-expire`,
+    batchIds
+  );
+  return data;
+}
+
+export async function batchPriceAdjust(
+  medicineIds: number[],
+  priceChangePct: number
+): Promise<{ updated: number; total_requested: number; price_change_pct: number }> {
+  const { data } = await api.post<{ updated: number; total_requested: number; price_change_pct: number }>(
+    `${BASE}/medicines/batch-price-adjust`,
+    { medicine_ids: medicineIds, price_change_pct: priceChangePct }
+  );
+  return data;
+}
+
 // ── Missing CRUD endpoints ───────────────────────────────────────────────────
 
 export async function createMedicine(payload: MedicineCreate): Promise<Medicine> {

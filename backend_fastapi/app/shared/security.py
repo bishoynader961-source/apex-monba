@@ -134,6 +134,7 @@ def validate_password_complexity(password: str) -> None:
 def create_access_token(
     subject: str,
     role: str,
+    role_id: int,
     permissions: list[str],
     username: Optional[str] = None,
     expires_minutes: int | None = None,
@@ -143,6 +144,7 @@ def create_access_token(
         "sub": subject,
         "username": username,
         "role": role,
+        "role_id": role_id,
         "permissions": permissions,
         "type": "access",
         "iat": datetime.now(timezone.utc),

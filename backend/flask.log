@@ -1,0 +1,152 @@
+2026-09-12 09:03:03,140 [INFO] license_db: Database initialized: E:\my progam pharmacy\backend\license_db.sqlite
+ * Serving Flask app 'app'
+ * Debug mode: off
+2026-09-12 09:03:03,160 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.4:5000
+2026-09-12 09:03:03,160 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-09-12 09:03:52,949 [INFO] license_db: Bound hardware_id=test-har*** to license=PHARM-F0***
+2026-09-12 09:03:52,949 [INFO] lemon_squeezy_webhook: Validate: device bound key=PHARM-F0*** hwid=test-har***
+2026-09-12 09:03:52,951 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:03:52] "POST /api/validate HTTP/1.1" 200 -
+2026-09-12 09:04:43,945 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:04:43,946 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:04:43] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:04:46,057 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:04:46,058 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:04:46] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:04:50,706 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:04:50,706 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:04:50] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:04:52,769 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:04:52,770 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:04:52] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:04:57,635 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:04:57,635 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:04:57] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:04:59,589 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:04:59,589 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:04:59] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:05:04,793 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:05:04,793 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:05:04] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:05:06,833 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:05:06,833 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:05:06] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:05:11,573 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:05:11,573 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:05:11] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:05:13,617 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:05:13,618 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:05:13] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:05:50,278 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:05:50,278 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:05:50] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:05:57,845 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:05:57,845 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:05:57] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:05:59,835 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:05:59,836 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:05:59] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:06:05,140 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:06:05,140 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:06:05] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:06:12,874 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:06:12,874 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:06:12] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:06:14,941 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:06:14,941 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:06:14] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:06:20,066 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:06:20,066 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:06:20] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:06:22,149 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:06:22,149 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:06:22] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:06:59,070 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:06:59,071 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:06:59] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:07:01,025 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:07:01,026 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:07:01] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:07:05,339 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:07:05,339 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:07:05] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:07:07,335 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:07:07,335 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:07:07] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:07:14,443 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:07:14,443 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:07:14] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:07:16,486 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:07:16,487 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:07:16] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:07:23,168 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:07:23,169 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:07:23] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:07:25,181 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:07:25,182 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:07:25] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:07:32,338 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:07:32,339 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:07:32] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:07:34,299 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:07:34,299 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:07:34] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:08:18,750 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:08:18,751 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:08:18] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:08:20,725 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:08:20,725 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:08:20] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:08:27,611 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:08:27,611 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:08:27] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:08:29,672 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:08:29,673 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:08:29] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:08:36,442 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:08:36,442 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:08:36] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:08:38,464 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:08:38,464 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:08:38] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:08:45,625 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:08:45,625 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:08:45] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:08:47,699 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:08:47,699 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:08:47] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:08:54,475 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:08:54,475 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:08:54] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:08:56,485 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:08:56,486 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:08:56] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:17:09,793 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:17:09,794 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:17:09] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:17:14,831 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:17:14,832 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:17:14] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:17:21,598 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:17:21,599 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:17:21] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:17:26,570 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:17:26,570 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:17:26] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:17:33,363 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:17:33,363 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:17:33] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:17:45,845 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:17:45,845 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:17:45] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:17:50,844 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:17:50,845 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:17:50] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:17:57,651 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:17:57,651 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:17:57] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:18:10,073 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:18:10,073 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:18:10] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:18:15,072 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:18:15,072 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:18:15] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:18:21,816 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:18:21,817 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:18:21] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:18:26,942 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:18:26,943 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:18:26] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:18:34,033 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:18:34,033 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:18:34] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:18:39,020 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:18:39,021 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:18:39] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:18:46,239 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:18:46,239 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:18:46] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:18:51,202 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:18:51,203 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:18:51] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:21:43,165 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:21:43,165 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:21:43] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:21:48,204 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:21:48,205 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:21:48] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:21:55,024 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:21:55,024 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:21:55] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:22:00,052 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:22:00,052 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:22:00] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:22:06,905 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:22:06,906 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:22:06] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:22:19,570 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:22:19,571 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:22:19] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:22:24,599 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:22:24,600 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:22:24] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:22:31,485 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:22:31,485 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:22:31] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:22:44,426 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:22:44,426 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:22:44] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:22:49,572 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:22:49,573 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:22:49] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:22:56,314 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:22:56,315 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:22:56] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:23:01,301 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:23:01,302 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:23:01] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:23:08,611 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:23:08,612 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:23:08] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:23:13,664 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:23:13,665 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:23:13] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:23:20,410 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:23:20,411 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:23:20] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-12 09:23:25,367 [WARNING] lemon_squeezy_webhook: Validate: invalid or missing JSON body
+2026-09-12 09:23:25,368 [INFO] werkzeug: 127.0.0.1 - - [12/Sep/2026 09:23:25] "[31m[1mPOST /api/validate HTTP/1.1[0m" 400 -
+2026-09-13 05:28:12,376 [INFO] werkzeug: 127.0.0.1 - - [13/Sep/2026 05:28:12] "[33mGET /api/health HTTP/1.1[0m" 404 -

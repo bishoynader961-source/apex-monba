@@ -31,7 +31,7 @@ try:
     _USE_SQLA = True
 except ImportError:
     _USE_SQLA = False
-    from database import get_db_path
+    from db import get_db_path
 
 try:
     import native_accel

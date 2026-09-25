@@ -80,7 +80,7 @@ def get_region_info(code):
 
 def _load_config():
     try:
-        import database as db
+        import db
         return db.load_config()  # if exists; else fallback
     except Exception:
         pass

@@ -10,12 +10,10 @@ from PIL import Image, ImageTk
 import tempfile
 from collections import defaultdict
 import i18n
-import database
+import db
 import barcode_logic
 from barcode_listener import BarcodeListener
 
-import database
-import barcode_logic
 import audit_log
 from path_utils import get_resource_path
 
@@ -181,11 +179,11 @@ class PharmacyApp(ctk.CTk):
         """Calculate low-stock and expiring alert counts."""
         config = barcode_logic.load_config()
         low_stock_threshold = config.get("low_stock_threshold", 5)
-        low_stock = database.get_low_stock_products(threshold=low_stock_threshold)
+        low_stock = db.get_low_stock_products(threshold=low_stock_threshold)
 
         expiring_30 = 0
         try:
-            batches = database.get_expiring_batches()
+            batches = db.get_expiring_batches()
             today = date.today()
             cutoff = today + timedelta(days=30)
             for exp_date, _row in batches:
@@ -335,9 +333,9 @@ class PharmacyApp(ctk.CTk):
 
         elif active_tab == i18n.t("receive_inventory"):
             # Receiving: auto-fill vendor from scanned product
-            product = database.get_product_by_internal_barcode(barcode)
+            product = db.get_product_by_internal_barcode(barcode)
             if not product:
-                product = database.get_product_by_barcode(barcode)
+                product = db.get_product_by_barcode(barcode)
             if product and hasattr(self, "vendor_entry"):
                 vendor_name = product[5] if len(product) > 5 else ""
                 if vendor_name and vendor_name != "N/A":
@@ -346,9 +344,9 @@ class PharmacyApp(ctk.CTk):
 
         else:
             # Default: search inventory regardless of active tab
-            product = database.get_product_by_internal_barcode(barcode)
+            product = db.get_product_by_internal_barcode(barcode)
             if not product:
-                product = database.get_product_by_barcode(barcode)
+                product = db.get_product_by_barcode(barcode)
             if product:
                 messagebox.showinfo(
                     i18n.t("info"),
@@ -365,7 +363,7 @@ class PharmacyApp(ctk.CTk):
         if not isinstance(ignore_list, list):
             ignore_list = []
 
-        batches = database.get_expiring_batches(exclude_names=ignore_list)
+        batches = db.get_expiring_batches(exclude_names=ignore_list)
         today = date.today()
         critical_cutoff = today + timedelta(days=min(7, alarm_days // 5))
 

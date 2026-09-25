@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 interface Props<T> {
   label: string;
@@ -30,6 +30,8 @@ export function SearchableInput<T>({
   const [loading, setLoading] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+  // Stable id so the visible label is programmatically linked to the input.
+  const inputId = useId();
 
   const search = useCallback(
     async (q: string) => {
@@ -70,11 +72,12 @@ export function SearchableInput<T>({
 
   return (
     <div ref={wrapRef} className={`relative ${className}`}>
-      <label className="block text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">
+      <label htmlFor={inputId} className="block text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium mb-1">
         {label} {required && <span className="text-red-400">*</span>}
       </label>
       <div className="relative">
         <input
+          id={inputId}
           type="text"
           value={value}
           onChange={(e) => handleChange(e.target.value)}

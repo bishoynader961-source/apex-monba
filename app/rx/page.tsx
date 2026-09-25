@@ -11,7 +11,12 @@ import { NewRxModal } from "@/components/rx/NewRxModal";
 import { PriceCheckModal } from "@/components/rx/PriceCheckModal";
 import { RefillModal } from "@/components/rx/RefillModal";
 import { ReverseRxModal } from "@/components/rx/ReverseRxModal";
+import { RxQueueDashboard } from "@/components/rx/RxQueueDashboard";
 import { TransferRxModal } from "@/components/rx/TransferRxModal";
+import { EpcsDashboard } from "@/components/epcs/EpcsDashboard";
+import { PriorAuthDashboard } from "@/components/priorAuth/PriorAuthDashboard";
+import { CompoundDashboard } from "@/components/compound/CompoundDashboard";
+import ClinicalWorkflowPanel from "@/components/rx/ClinicalWorkflowPanel";
 import { useRxStore } from "@/stores/rxStore";
 import { getDispenseLabel } from "@/lib/api/dispense";
 
@@ -25,13 +30,17 @@ const RX_RIBBON = [
   { label: "New Rx", color: "bg-blue-600 hover:bg-blue-500", key: "newRx" as const },
   { label: "Refill", color: "bg-emerald-600 hover:bg-emerald-500", key: "refill" as const },
   { label: "Edit", color: "bg-amber-600 hover:bg-amber-500", key: "editRx" as const },
+  { label: "Rx Queue", color: "bg-purple-600 hover:bg-purple-500", key: "rxQueue" as const },
+  { label: "EPCS", color: "bg-violet-600 hover:bg-violet-500", key: "epcs" as const },
+  { label: "Prior Auth", color: "bg-indigo-600 hover:bg-indigo-500", key: "priorAuth" as const },
+  { label: "Compounding", color: "bg-orange-600 hover:bg-orange-500", key: "compounding" as const },
+  { label: "Clinical", color: "bg-cyan-700 hover:bg-cyan-600", key: "clinical" as const },
   { label: "Rx Processing", color: "bg-purple-600 hover:bg-purple-500", key: null },
   { label: "DUR", color: "bg-red-600 hover:bg-red-500", key: "dur" as const },
   { label: "Reverse Rx", color: "bg-red-800 hover:bg-red-700", key: "reverseRx" as const },
   { label: "Drug Education", color: "bg-teal-600 hover:bg-teal-500", key: "drugEducation" as const },
   { label: "Eligibility", color: "bg-cyan-600 hover:bg-cyan-500", key: "eligibility" as const },
   { label: "COB", color: "bg-indigo-600 hover:bg-indigo-500", key: null },
-  { label: "Compound", color: "bg-orange-600 hover:bg-orange-500", key: null },
   { label: "Claim Response", color: "bg-violet-600 hover:bg-violet-500", key: null },
   { label: "Fills for Rx", color: "bg-green-700 hover:bg-green-600", key: "fillsForRx" as const },
   { label: "Transfer Rx", color: "bg-sky-600 hover:bg-sky-500", key: "transferRx" as const },
@@ -50,9 +59,14 @@ const QUICK_LAUNCH = [
 
 export default function RxProcessingPage() {
   const router = useRouter();
-  const { fillDate, rxNumber, setFillDate, setRxNumber, openModal, lastDispenseResult } = useRxStore();
+  const { fillDate, rxNumber, setFillDate, setRxNumber, openModal, lastDispenseResult, selectedPatient } = useRxStore();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [rxQueueOpen, setRxQueueOpen] = useState(false);
+const [epcsOpen, setEpcsOpen] = useState(false);
+const [priorAuthOpen, setPriorAuthOpen] = useState(false);
+const [compoundingOpen, setCompoundingOpen] = useState(false);
+const [clinicalOpen, setClinicalOpen] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -62,6 +76,26 @@ export default function RxProcessingPage() {
   const handleRibbonClick = async (key: string | null, label: string) => {
     if (!key) {
       showToast(`${label} — coming soon`);
+      return;
+    }
+    if (key === "rxQueue") {
+      setRxQueueOpen(true);
+      return;
+    }
+    if (key === "epcs") {
+      setEpcsOpen(true);
+      return;
+    }
+    if (key === "priorAuth") {
+      setPriorAuthOpen(true);
+      return;
+    }
+    if (key === "compounding") {
+      setCompoundingOpen(true);
+      return;
+    }
+    if (key === "clinical") {
+      setClinicalOpen(true);
       return;
     }
     if (key === "reprint") {
@@ -155,13 +189,13 @@ export default function RxProcessingPage() {
       {/* Metadata Bar */}
       <div className="flex items-center gap-6 bg-gray-900/50 border-b border-gray-800 px-4 py-2 shrink-0">
         <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Fill Date</label>
-          <input type="date" value={fillDate} onChange={e => setFillDate(e.target.value)}
+          <label className="text-xs text-gray-600 dark:text-gray-400 font-medium uppercase tracking-wider" htmlFor="page-field-1">Fill Date</label>
+          <input id="page-field-1" type="date" value={fillDate} onChange={e => setFillDate(e.target.value)}
             className="bg-black/40 border border-white/10 rounded px-3 py-1.5 text-sm focus:border-blue-500 outline-none" />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Rx Number</label>
-          <input type="text" value={rxNumber ?? ""} onChange={e => setRxNumber(e.target.value || null)} placeholder="Enter Rx #"
+          <label className="text-xs text-gray-600 dark:text-gray-400 font-medium uppercase tracking-wider" htmlFor="page-field-2">Rx Number</label>
+          <input id="page-field-2" type="text" value={rxNumber ?? ""} onChange={e => setRxNumber(e.target.value || null)} placeholder="Enter Rx #"
             className="bg-black/40 border border-white/10 rounded px-3 py-1.5 text-sm w-40 focus:border-blue-500 outline-none font-mono" />
         </div>
       </div>
@@ -176,7 +210,7 @@ export default function RxProcessingPage() {
               <button
                 key={btn.label}
                 onClick={() => void handleRibbonClick(btn.key, btn.label)}
-                className={`${btn.color} text-white px-3 py-4 rounded-lg text-sm font-medium transition-colors shadow-md hover:shadow-lg`}
+                className={`${btn.color} text-gray-900 dark:text-white px-3 py-4 rounded-lg text-sm font-medium transition-colors shadow-md hover:shadow-lg`}
               >
                 {btn.label}
               </button>
@@ -189,11 +223,11 @@ export default function RxProcessingPage() {
             {lastDispenseResult ? (
               <div className="space-y-1 text-sm">
                 <div className="font-mono text-blue-400 text-lg">Rx #{lastDispenseResult.rx_number}</div>
-                <div className="text-gray-300">{lastDispenseResult.product_name}</div>
-                <div className="text-gray-400">Qty: {lastDispenseResult.quantity} | Sig: {lastDispenseResult.sig_code}</div>
-                <div className="text-gray-400">Fill: {lastDispenseResult.fill_date} | Refill #{lastDispenseResult.refill_count}/{lastDispenseResult.refills_authorized}</div>
+                <div className="text-gray-700 dark:text-gray-300">{lastDispenseResult.product_name}</div>
+                <div className="text-gray-600 dark:text-gray-400">Qty: {lastDispenseResult.quantity} | Sig: {lastDispenseResult.sig_code}</div>
+                <div className="text-gray-600 dark:text-gray-400">Fill: {lastDispenseResult.fill_date} | Refill #{lastDispenseResult.refill_count}/{lastDispenseResult.refills_authorized}</div>
                 {lastDispenseResult.days_supply && (
-                  <div className="text-gray-400">Days Supply: {lastDispenseResult.days_supply}</div>
+                  <div className="text-gray-600 dark:text-gray-400">Days Supply: {lastDispenseResult.days_supply}</div>
                 )}
                 {lastDispenseResult.allergy_flags.length > 0 && (
                   <div className="text-amber-400 text-xs">Allergy Flags: {lastDispenseResult.allergy_flags.join(", ")}</div>
@@ -203,7 +237,7 @@ export default function RxProcessingPage() {
                 )}
               </div>
             ) : rxNumber ? (
-              <div className="text-center text-gray-400 py-8">
+              <div className="text-center text-gray-600 dark:text-gray-400 py-8">
                 <div className="text-lg font-mono text-blue-400">Rx #{rxNumber}</div>
                 <div className="text-sm mt-2">Fill Date: {fillDate}</div>
                 <div className="text-sm mt-4 italic">Select an action from the ribbon above</div>
@@ -221,7 +255,7 @@ export default function RxProcessingPage() {
           </div>
           <div className="flex-1 flex flex-col p-2 gap-1">
             {QUICK_LAUNCH.map(item => (
-              <button key={item} className="w-full text-left px-3 py-2.5 rounded-md text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
+              <button key={item} onClick={() => showToast(`${item} — coming soon`)} className="w-full text-left px-3 py-2.5 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
                 {item}
               </button>
             ))}
@@ -244,6 +278,100 @@ export default function RxProcessingPage() {
       <PriceCheckModal />
       <FillsForRxModal />
       <DrugEducationModal />
+      {rxQueueOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-6xl h-[90vh] rounded-lg bg-gray-900 border border-gray-700 shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Rx Queue</h2>
+              <button
+                onClick={() => setRxQueueOpen(false)}
+                className="text-gray-600 dark:text-gray-400 hover:text-white text-xl p-1"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <RxQueueDashboard />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {epcsOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-6xl h-[90vh] rounded-lg bg-gray-900 border border-gray-700 shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">EPCS (Controlled Substances)</h2>
+              <button
+                onClick={() => setEpcsOpen(false)}
+                className="text-gray-600 dark:text-gray-400 hover:text-white text-xl p-1"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <EpcsDashboard />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {priorAuthOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-6xl h-[90vh] rounded-lg bg-gray-900 border border-gray-700 shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Prior Authorization</h2>
+              <button
+                onClick={() => setPriorAuthOpen(false)}
+                className="text-gray-600 dark:text-gray-400 hover:text-white text-xl p-1"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <PriorAuthDashboard />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {compoundingOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-6xl h-[90vh] rounded-lg bg-gray-900 border border-gray-700 shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Compounding</h2>
+              <button
+                onClick={() => setCompoundingOpen(false)}
+                className="text-gray-600 dark:text-gray-400 hover:text-white text-xl p-1"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <CompoundDashboard />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {clinicalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-6xl h-[90vh] rounded-lg bg-gray-900 border border-gray-700 shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Clinical Workflow</h2>
+              <button
+                onClick={() => setClinicalOpen(false)}
+                className="text-gray-600 dark:text-gray-400 hover:text-white text-xl p-1"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <ClinicalWorkflowPanel patientId={selectedPatient?.id ?? 0} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (

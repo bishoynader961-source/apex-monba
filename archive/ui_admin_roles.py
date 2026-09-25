@@ -13,7 +13,7 @@ import customtkinter as ctk
 import auth_session
 import authz
 import audit_log
-import database as db
+import db
 
 
 def _prompt_new_override(parent) -> str | None:

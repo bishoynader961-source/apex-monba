@@ -8,7 +8,7 @@ Provides:
   - auto_map_to_products(rows, mapping): Convert staged rows to product dicts
 
 Integrates with:
-  - database.add_product, database.update_product_full
+  - db.add_product, db.update_product_full
   - openpyxl (for .xlsx lazy loading)
   - csv (for .csv)
 """
@@ -17,6 +17,7 @@ import os
 import logging
 
 import openpyxl
+import db
 
 try:
     import native_accel
@@ -265,9 +266,9 @@ def commit_staged_products(table: StagingTable) -> dict:
                 continue
 
             # Check if product already exists
-            existing = database.get_product_by_internal_barcode(internal_barcode)
+            existing = db.get_product_by_internal_barcode(internal_barcode)
             if existing:
-                database.update_product_full(
+                db.update_product_full(
                     product_id=existing[0] if isinstance(existing, (list, tuple)) else existing.id,
                     name=name,
                     price=price,
@@ -282,7 +283,7 @@ def commit_staged_products(table: StagingTable) -> dict:
                     reorder_threshold=product.get("reorder_threshold", 0),
                 )
             else:
-                database.add_product(
+                db.add_product(
                     name=name,
                     price=price,
                     manufacturer_barcode=mfg_barcode,

@@ -238,7 +238,7 @@ async def test_dispense_service_label_not_found(session):
 async def test_settings_list_direct(session):
     from app.api.routers.settings_route import list_settings
     from app.shared.schemas import CurrentUser
-    user = CurrentUser(id=1, username="admin", role="admin", permissions=[])
+    user = CurrentUser(id=1, username="admin", role="admin", role_id=1, permissions=[])
     result = await list_settings(_user=user, session=session)
     assert isinstance(result, list)
 
@@ -251,7 +251,7 @@ async def test_users_list_direct(session):
     from app.shared.schemas import CurrentUser
     from app.services.seed_service import seed_admin_if_absent
     await seed_admin_if_absent(session)
-    user = CurrentUser(id=1, username="admin", role="admin", permissions=[])
+    user = CurrentUser(id=1, username="admin", role="admin", role_id=1, permissions=[])
     result = await list_users(_user=user, session=session)
     assert isinstance(result, list)
 
@@ -262,7 +262,7 @@ async def test_users_get_direct(session):
     from app.shared.schemas import CurrentUser
     from app.services.seed_service import seed_admin_if_absent
     await seed_admin_if_absent(session)
-    user = CurrentUser(id=1, username="admin", role="admin", permissions=[])
+    user = CurrentUser(id=1, username="admin", role="admin", role_id=1, permissions=[])
     result = await get_user(user_id=1, _user=user, session=session)
     assert result.username == "admin"
 
@@ -273,7 +273,7 @@ async def test_users_get_direct(session):
 async def test_inventory_search_direct(session):
     from app.api.routers.inventory_route import search_medicines
     from app.shared.schemas import CurrentUser
-    user = CurrentUser(id=1, username="admin", role="admin", permissions=[])
+    user = CurrentUser(id=1, username="admin", role="admin", role_id=1, permissions=[])
     result = await search_medicines(q="test", _auth=user, session=session)
     assert isinstance(result, list)
 

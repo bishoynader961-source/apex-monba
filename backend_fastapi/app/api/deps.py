@@ -19,13 +19,16 @@ from typing import Optional
 from fastapi import Depends, Header, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
+from app.core.models import LockedFeature, Role
 from app.core.repositories import UserRepository
+from app.core.ttl_cache import cache_get, cache_invalidate_prefix, cache_set
 from app.shared.exceptions import AppException, ForbiddenError
 from app.shared.schemas import CurrentUser, TokenPayload
-from app.shared.security import consume_approval_token, decode_token
+from app.shared.security import consume_approval_token, decode_token, verify_password
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
@@ -88,14 +91,29 @@ async def get_current_user(
     if user is None or user.is_active != 1:
         raise HTTPException(status_code=401, detail="User not found or inactive")
 
-    # ``role`` and ``permissions`` are sourced from the JWT claims (the
-    # signed session artifact), not the database. The DB lookup above
-    # validates *existence* and *active status* only.
+    # Source role name and permissions from the database (not JWT claims)
+    # to ensure they reflect current DB state after role/permission changes.
+    # Role name + permissions are read per request but change rarely; cache
+    # them briefly and invalidate from the roles/permissions write paths.
+    perm_cache_key = f"perms:{user.role_id}"
+    cached = cache_get(perm_cache_key)
+    if cached is not None:
+        role_name, permissions = cached
+    else:
+        async with session.begin():
+            role_result = await session.execute(
+                select(Role.name).where(Role.id == user.role_id)
+            )
+            role_name = role_result.scalar_one_or_none() or "unknown"
+            permissions = await UserRepository(session).permissions_for_role(user.role_id)
+        cache_set(perm_cache_key, (role_name, permissions), ttl_seconds=15.0)
+
     return CurrentUser(
         id=user.id,
         username=user.username,
-        role=payload.role,
-        permissions=payload.permissions,
+        role=role_name,
+        role_id=user.role_id,
+        permissions=permissions,
     )
 
 
@@ -103,6 +121,12 @@ def require_permission(permission: str) -> Callable[[CurrentUser], CurrentUser]:
     """Return a dependency that enforces ``permission`` on the current user."""
 
     def _check(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+        # Admin root users bypass permission checks – they have implicit full access.
+        # Priority: role_id == 1 (owner) -> wildcard "*" permission -> explicit permission.
+        if user.role_id == 1:
+            return user
+        if "*" in user.permissions:
+            return user
         if permission not in user.permissions:
             raise ForbiddenError(f"Missing required permission: {permission}")
         return user
@@ -128,4 +152,54 @@ def require_approval_token(scope: str) -> Callable[..., dict[str, object]]:
             raise ForbiddenError(f"Approval token scope mismatch: expected {scope}")
         return claims
 
+    return _check
+
+
+async def _check_feature_lock(
+    feature_key: str,
+    x_lock_password: Optional[str],
+    session: AsyncSession,
+) -> bool:
+    """Check if a feature is locked and if the provided password is valid.
+    
+    Returns True if access is allowed (not locked or valid password).
+    """
+    locked = await session.get(LockedFeature, feature_key)
+    if not locked or not locked.is_locked:
+        return True
+    
+    if not x_lock_password:
+        return False
+    
+    if not locked.lock_password_hash:
+        return False
+    
+    from app.shared.security import verify_password
+    return verify_password(x_lock_password, locked.lock_password_hash)
+
+
+def require_unlocked(feature_key: str):
+    """Return a dependency that enforces feature lock check.
+    
+    If the feature is locked, requires a valid X-Lock-Password header
+    (unless the user is role_id=1, which is handled at the route level).
+    """
+    async def _check(
+        user: CurrentUser = Depends(get_current_user),
+        x_lock_password: Optional[str] = Header(default=None, alias="X-Lock-Password"),
+        session: AsyncSession = Depends(get_session),
+    ) -> CurrentUser:
+        # role_id=1 (owner) bypasses lock checks entirely
+        if user.role_id == 1:
+            return user
+        
+        allowed = await _check_feature_lock(feature_key, x_lock_password, session)
+        if not allowed:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=403,
+                detail=f"Feature '{feature_key}' is locked. Lock password required.",
+            )
+        return user
+    
     return _check

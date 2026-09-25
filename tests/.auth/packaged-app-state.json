@@ -1,0 +1,39 @@
+{
+  "cookies": [
+    {
+      "name": "access_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJ1bmtub3duIiwicGVybWlzc2lvbnMiOlsiaW52ZW50b3J5LnJlYWQiLCJpbnZlbnRvcnkud3JpdGUiLCJpbnZlbnRvcnkucmVwb3J0cyIsInBvcy5jaGVja291dCIsInBvcy5kcmF3ZXIiLCJwb3MucGVwcGVyLnJvdGF0ZSIsInVzZXJzLnJlYWQiLCJ1c2Vycy53cml0ZSIsInBhdGllbnRzLnJlYWQiLCJwYXRpZW50cy53cml0ZSIsInBhdGllbnRzLmRlbGV0ZSIsImluc3VyYW5jZS5yZWFkIiwiaW5zdXJhbmNlLndyaXRlIiwibWVtYmVycy5yZWFkIiwibWVtYmVycy53cml0ZSIsImRpY3Rpb25hcmllcy5yZWFkIiwiZGljdGlvbmFyaWVzLndyaXRlIiwiZGlzcGVuc2UuY3JlYXRlIiwiYW5hbHl0aWNzLnJlYWQiLCJiYWNrdXAuY3JlYXRlIl0sInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3ODkxOTgzMTQsImV4cCI6MTc4OTIyNzExNH0.s2qst5EOKklro0bV2HsvqHaSXezUuBzZNLtpcF-O9lY",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1789227114.58042,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Strict"
+    },
+    {
+      "name": "refresh_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidHlwZSI6InJlZnJlc2giLCJpYXQiOjE3ODkxOTgzMTQsImV4cCI6MTc5MTc5MDMxNH0.ljmmMczGNflzT8mZ3c7Nf7Jf4OcYl0qUl1t1AEtYwtU",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1791790314.580626,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Strict"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "pp_device_id",
+          "value": "f5a6d837-2789-49e8-8742-31667af97de4"
+        },
+        {
+          "name": "access_token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJ1bmtub3duIiwicGVybWlzc2lvbnMiOlsiaW52ZW50b3J5LnJlYWQiLCJpbnZlbnRvcnkud3JpdGUiLCJpbnZlbnRvcnkucmVwb3J0cyIsInBvcy5jaGVja291dCIsInBvcy5kcmF3ZXIiLCJwb3MucGVwcGVyLnJvdGF0ZSIsInVzZXJzLnJlYWQiLCJ1c2Vycy53cml0ZSIsInBhdGllbnRzLnJlYWQiLCJwYXRpZW50cy53cml0ZSIsInBhdGllbnRzLmRlbGV0ZSIsImluc3VyYW5jZS5yZWFkIiwiaW5zdXJhbmNlLndyaXRlIiwibWVtYmVycy5yZWFkIiwibWVtYmVycy53cml0ZSIsImRpY3Rpb25hcmllcy5yZWFkIiwiZGljdGlvbmFyaWVzLndyaXRlIiwiZGlzcGVuc2UuY3JlYXRlIiwiYW5hbHl0aWNzLnJlYWQiLCJiYWNrdXAuY3JlYXRlIl0sInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3ODkxOTgzMTQsImV4cCI6MTc4OTIyNzExNH0.s2qst5EOKklro0bV2HsvqHaSXezUuBzZNLtpcF-O9lY"
+        }
+      ]
+    }
+  ]
+}

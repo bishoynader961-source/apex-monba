@@ -18,43 +18,14 @@ export interface ErrorResponse {
   error: ErrorDetail;
 }
 
-// ── Creem MoR — Checkout & License ──────────────────────────────────────────
-export interface CreemCheckoutRequest {
-  product_id?: string;
-  success_url?: string;
-  cancel_url?: string;
-  metadata?: Record<string, string>;
-}
-
-export interface CreemCheckoutResponse {
-  checkout_id: string;
-  checkout_url: string;
-}
-
-export interface LicenseValidationResult {
-  license_key: string;
-  status: string; // 'active' | 'revoked' | 'expired' | 'grace'
-  email?: string;
-  expires_at?: string;
-  offline_until?: string; // ISO datetime
-  hardware_id?: string;
-}
-
-// Request body for offline license file import (POST /api/v1/licenses/activate-file).
-// Mirrors the backend LicenseFileRequest Pydantic schema.
-export interface LicenseFileRequest {
-  hardware_id: string;
-  file_content: string; // raw JSON text of the .json/.lic license file
-}
-
-// Response shape is identical to LicenseValidationResult.
-export type LicenseFileResponse = LicenseValidationResult
-
 export interface CurrentUser {
   id: number;
   username: string;
   role: string;
+  role_id: number;
   permissions: string[];
+  display_name?: string | null;
+  is_active?: number | null;
 }
 
 export interface UserPublic {
@@ -231,7 +202,7 @@ export interface ReceiveBatch {
   expiry_date: string;
   quantity: number;
   unit_cost: Money;
-  supplier: string;
+  prefix?: string; // optional vendor prefix for barcode generation
   ndc_code?: string | null;
 }
 
@@ -292,6 +263,23 @@ export interface SupplierCreate {
   sku?: string | null;
   min_stock_level?: number | null;
   lead_time_days?: number | null;
+  edi_endpoint?: string | null;
+  performance_notes?: string | null;
+}
+
+export interface SupplierUpdate {
+  name?: string;
+  contact_name?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  address?: string | null;
+  tax_id?: string | null;
+  preferred?: number;
+  sku?: string | null;
+  min_stock_level?: number | null;
+  lead_time_days?: number | null;
+  edi_endpoint?: string | null;
+  performance_notes?: string | null;
 }
 
 export interface ReceiptItemRead {
@@ -318,6 +306,22 @@ export interface ReceiptRead {
   items: ReceiptItemRead[];
 }
 
+export interface ReceiptPrintResponse {
+  receipt_id: number;
+  receipt_number: string;
+  receipt_text: string;
+  printable_html: string;
+  items: ReceiptItemRead[];
+  total_amount: Money;
+  payment_method: string;
+  timestamp: string;
+  cashier_attribution?: string | null;
+  patient_name?: string | null;
+  sale_type?: string | null;
+  tax_total?: Money | null;
+  subtotal?: Money | null;
+}
+
 export interface CheckoutLineIn {
   product_name: string;
   quantity: number;
@@ -331,10 +335,35 @@ export interface CheckoutItemRead {
   tax: Money;
 }
 
+export interface PaymentSplit {
+  method: string;
+  amount: Money;
+}
+
+export interface CardTransactionPayload {
+  amount: Money;
+  auth_reference: string; // ^[A-Z0-9]{6,12}$
+  card_network: string;
+  last_four: string; // 4 digits
+  terminal_id?: string;
+  timestamp: string; // ISO8601
+}
+
 export interface CheckoutRequest {
+  card_info?: CardTransactionPayload;
+
   line_items: CheckoutLineIn[];
   payment_method?: string;
   patient_id?: number | null;
+  // Discount: one-time percentage or flat-dollar reduction applied before tax.
+  discount_type?: "%" | "$" | null;
+  discount_value?: Money | null;
+  // Tax exemption: skips sales tax when true (permission-gated server-side).
+  tax_exempt?: boolean;
+  // Price override: map of product_name → new unit price (permission-gated).
+  price_overrides?: Record<string, Money> | null;
+  // Split payment: when present, overrides payment_method. Amounts must sum ≥ total.
+  payments?: PaymentSplit[] | null;
   // B.7/B.8: client-supplied (untrusted) cashier token + ISO timestamp so the
   // server can attribute the sale and measure clock skew.
   cashier_token?: string | null;
@@ -358,6 +387,7 @@ export interface CheckoutResult {
   net_total: Money;
   tax_total: Money;
   total_amount: Money;
+  discount_total: Money;
   server_created_at?: string | null;
   ts_skew_confidence?: number | null;
   cashier_attribution?: string | null;
@@ -446,6 +476,225 @@ export interface SalesReport {
   by_payment_method: Record<string, Money>;
 }
 
+export interface EODReceiptLine {
+  product_name: string;
+  quantity: number;
+  price_at_time: Money;
+}
+
+export interface EODReceiptSummary {
+  receipt_id: number;
+  receipt_number: string;
+  timestamp: string;
+  total_amount: Money;
+  payment_method: string;
+  items: EODReceiptLine[];
+}
+
+export interface EODSummary {
+  date: string;
+  total_revenue: Money;
+  transaction_count: number;
+  items_sold: number;
+  by_payment_method: Record<string, Money>;
+  receipts: EODReceiptSummary[];
+}
+
+export interface VoidItemRequest {
+  receipt_item_id: number;
+  reason?: string;
+}
+
+export interface VoidItemResult {
+  receipt_id: number;
+  restocked_product: string;
+  quantity_restocked: number;
+  refund_amount: Money;
+}
+
+export interface CouponCreate {
+  code: string;
+  description?: string;
+  discount_type?: "%" | "$";
+  discount_value: Money;
+  min_purchase?: Money;
+  max_uses?: number;
+  expires_at?: string | null;
+}
+
+export interface CouponUpdate {
+  description?: string | null;
+  discount_type?: "%" | "$" | null;
+  discount_value?: Money | null;
+  min_purchase?: Money | null;
+  max_uses?: number | null;
+  is_active?: number | null;
+  expires_at?: string | null;
+}
+
+export interface CouponRead {
+  id: number;
+  code: string;
+  description: string;
+  discount_type: string;
+  discount_value: Money;
+  min_purchase: Money;
+  max_uses: number;
+  used_count: number;
+  is_active: number;
+  expires_at?: string | null;
+  created_at?: string | null;
+}
+
+export interface CouponValidateResult {
+  valid: boolean;
+  coupon_id?: number | null;
+  code: string;
+  discount_type: string;
+  discount_value: Money;
+  message: string;
+}
+
+export interface QuickSigTemplateCreate {
+  name: string;
+  drug_name?: string;
+  dose?: string;
+  route?: string;
+  frequency?: string;
+  duration?: string;
+  directions?: string;
+}
+
+export interface QuickSigTemplateUpdate {
+  name?: string | null;
+  drug_name?: string | null;
+  dose?: string | null;
+  route?: string | null;
+  frequency?: string | null;
+  duration?: string | null;
+  directions?: string | null;
+  is_favorite?: number | null;
+}
+
+export interface QuickSigTemplateRead {
+  id: number;
+  name: string;
+  drug_name: string;
+  dose: string;
+  route: string;
+  frequency: string;
+  duration: string;
+  directions: string;
+  is_favorite: number;
+  usage_count: number;
+  created_at?: string | null;
+}
+
+export interface PurchaseOrderItemCreate {
+  product_name: string;
+  vendor_sku?: string;
+  quantity: number;
+  unit_price: Money;
+}
+
+export interface PurchaseOrderItemRead {
+  id: number;
+  po_id: number;
+  line_number: number;
+  product_name: string;
+  vendor_sku: string;
+  quantity: number;
+  unit_price: Money;
+  line_total: Money;
+  status: string;
+  received_qty: number;
+  received_at?: string | null;
+}
+
+export interface PurchaseOrderCreate {
+  vendor_id?: string | null;
+  vendor_name?: string;
+  notes?: string;
+  items?: PurchaseOrderItemCreate[];
+}
+
+export interface PurchaseOrderUpdate {
+  vendor_id?: string | null;
+  vendor_name?: string | null;
+  notes?: string | null;
+}
+
+export interface PurchaseOrderRead {
+  id: number;
+  po_number: string;
+  vendor_id?: string | null;
+  vendor_name: string;
+  status: string;
+  notes: string;
+  subtotal: Money;
+  tax_amount: Money;
+  total_cost: Money;
+  created_at?: string | null;
+  submitted_at?: string | null;
+  received_at?: string | null;
+  closed_at?: string | null;
+  created_by?: string | null;
+  items: PurchaseOrderItemRead[];
+}
+
+export interface ReceiptTemplateSection {
+  type: string;
+  content: string;
+  align?: "left" | "center" | "right";
+  font_bold?: boolean;
+  visible?: boolean;
+}
+
+export interface ReceiptTemplateCreate {
+  name: string;
+  template_type?: string;
+  paper_width?: number;
+  is_default?: number;
+  sections?: ReceiptTemplateSection[];
+}
+
+export interface ReceiptTemplateUpdate {
+  name?: string | null;
+  template_type?: string | null;
+  paper_width?: number | null;
+  is_default?: number | null;
+  sections?: ReceiptTemplateSection[] | null;
+}
+
+export interface ReceiptTemplateRead {
+  id: number;
+  name: string;
+  template_type: string;
+  paper_width: number;
+  is_default: number;
+  sections: ReceiptTemplateSection[];
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface DrugInteractionResult {
+  drug_a: string;
+  drug_b: string;
+  severity: string;
+  description: string;
+  recommendation: string;
+}
+
+export interface DrugInteractionRead {
+  id: number;
+  drug_a: string;
+  drug_b: string;
+  severity: string;
+  description: string;
+  recommendation: string;
+  is_active: number;
+}
+
 // ── Audit log (B2/B5) ──
 export interface AuditLogRead {
   id: number;
@@ -474,8 +723,6 @@ export interface SystemSettingRead {
   key: string;
   value?: string | null;
 }
-
-export type LicenseStatus = LicenseValidationResult;
 
 // ── Manager approval (Concern 1) ──
 export interface ApprovalRequest {
@@ -587,6 +834,7 @@ export interface PatientBase {
   last_fill_date?: string | null;
   prescriber_id?: number | null;
   primary_care_physician?: string | null;
+  custom_fields?: string | null;
 }
 
 export type PatientCreate = PatientBase;
@@ -651,6 +899,7 @@ export interface PatientUpdate {
   pharmacy_home_id?: string | null;
   last_fill_date?: string | null;
   prescriber_id?: number | null;
+  custom_fields?: string | null;
 }
 
 export interface PaginatedPatients {
@@ -1022,6 +1271,33 @@ export interface MovementFilters {
   limit?: number;
 }
 
+// ── Receiving Log ──────────────────────────────────────────────────────────────
+
+export interface ReceivingLogRead {
+  id: number;
+  vendor_name: string;
+  product_name: string;
+  date_received: string;
+  quantity: number;
+  total_cost: Money;
+  barcode: string;
+  lot_number: string;
+}
+
+export interface PaginatedReceivingLog {
+  items: ReceivingLogRead[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface ReceivingLogFilters {
+  date?: string;
+  vendor?: string;
+  page?: number;
+  page_size?: number;
+}
+
 // ── Demand Analytics (M99) ────────────────────────────────────────────────────
 
 export type VelocityCategory = "FAST_MOVING" | "MODERATE_MOVING" | "SLOW_MOVING" | "NON_MOVING";
@@ -1187,4 +1463,689 @@ export interface WCClaimUpdate {
   insurance_paid?: Money;
   patient_responsibility?: Money;
   notes?: string | null;
+}
+
+// ── Rx Queue Management ────────────────────────────────────────────────────────
+// Status constants mirror backend rx_strategies.RX_STATUSES
+export const RX_STATUSES = ["Pending", "Billed", "Verified", "Filled", "Will Call", "Rejected"] as const;
+export const RX_QUEUE_GROUPS = {
+  processing: ["Pending", "Billed", "Verified"],
+  rejects: ["Rejected"],
+  ready: ["Filled", "Will Call"],
+} as const;
+
+// Valid status transitions
+export const RX_STATUS_TRANSITIONS: Record<string, string[]> = {
+  Pending: ["Billed", "Verified", "Rejected"],
+  Billed: ["Verified", "Rejected"],
+  Verified: ["Filled", "Will Call", "Rejected"],
+  Filled: ["Rejected"],
+  "Will Call": ["Filled", "Rejected"],
+  Rejected: [],
+};
+
+export interface RxQueueFilters {
+  status?: string;
+  prescriber_id?: number | null;
+  patient_id?: number | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  page?: number;
+  page_size?: number;
+}
+
+export interface RxQueueItem {
+  id: number;
+  rx_number?: string | null;
+  patient_id: number;
+  patient_name: string;
+  product_name: string;
+  ndc_code?: string | null;
+  quantity: number;
+  fill_date: string;
+  status: string;
+  prescriber_id?: number | null;
+  prescriber_name?: string | null;
+  refill_count: number;
+  refills_authorized: number;
+  server_created_at?: string | null;
+  fill_date_iso?: string | null;
+}
+
+export interface PaginatedRxQueue {
+  items: RxQueueItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface RxQueueCounts {
+  processing: number;
+  rejects: number;
+  ready: number;
+}
+
+export interface RxStatusTransition {
+  status: "Pending" | "Billed" | "Verified" | "Filled" | "Will Call" | "Rejected";
+}
+
+export interface RxBulkStatusRequest {
+  rx_ids: number[];
+  status: "Pending" | "Billed" | "Verified" | "Filled" | "Will Call" | "Rejected";
+}
+
+export interface RxBulkStatusResult {
+  updated: number;
+  failed: number;
+  errors: string[];
+}
+
+// ── Region Billing Strategies ──────────────────────────────────────────────────
+// Mirrors backend region_strategy_service.py / rx_strategies.py
+
+export interface InsuranceCoverage {
+  coinsurance_rate?: number | null;
+  copay?: number | null;
+  vat_rate?: number | null;
+  patient_contribution?: number | null;
+  coverage_percentage?: number | null;
+}
+
+export interface PatientCostRequest {
+  unit_price: number;
+  quantity: number;
+  insurance_coverage?: InsuranceCoverage | null;
+  region: "US" | "GB" | "DE" | "MOCK";
+}
+
+export interface PatientCostResult {
+  patient_pays: number;
+  insurance_pays: number;
+  total_cost: number;
+  breakdown: Record<string, number>;
+  region: string;
+}
+
+export interface ClaimGenerationRequest {
+  region: "US" | "GB" | "DE" | "MOCK";
+  drug_name: string;
+  ndc?: string | null;
+  quantity: number;
+  days_supply?: number | null;
+  prescriber_npi?: string | null;
+  prescriber_ods?: string | null;
+  insurance_id?: string | null;
+  pharmacy_npi?: string | null;
+  amts_code?: string | null;
+  bnf_code?: string | null;
+  nhs_number?: string | null;
+}
+
+export interface ClaimGenerationResult {
+  region: string;
+  claim: Record<string, unknown>;
+}
+
+export interface PrescriptionValidationRequest {
+  region: "US" | "GB" | "DE" | "MOCK";
+  drug_name: string;
+  dosage: string;
+  quantity: number;
+  prescriber_npi?: string | null;
+  prescriber_ods?: string | null;
+}
+
+export interface PrescriptionValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+export interface CredentialValidationRequest {
+  region: "US" | "GB" | "DE" | "MOCK";
+  credentials: Record<string, string>;
+}
+
+export interface CredentialValidationResult {
+  success: boolean;
+  message: string;
+}
+
+
+// ── Compound Prescriptions ────────────────────────────────────────────────────
+// Mirrors backend compound_service.py
+
+export interface CompoundIngredientCreate {
+  product_name: string;
+  quantity: number;
+  unit: string;
+  strength?: string | null;
+  sequence: number;
+}
+
+export interface CompoundIngredientRead extends CompoundIngredientCreate {
+  id: number;
+  compound_id: number;
+  ingredient_price: number;
+}
+
+export interface CompoundCreate {
+  name: string;
+  description?: string | null;
+  total_quantity: number;
+  total_quantity_unit: string;
+  ingredients: CompoundIngredientCreate[];
+  sig_code: string;
+  days_supply: number;
+  refills_authorized: number;
+  prescriber_id?: number | null;
+  price_code?: string | null;
+}
+
+export interface CompoundUpdate {
+  name?: string | null;
+  description?: string | null;
+  total_quantity?: number | null;
+  total_quantity_unit?: string | null;
+  ingredients?: CompoundIngredientCreate[] | null;
+  sig_code?: string | null;
+  days_supply?: number | null;
+  refills_authorized?: number | null;
+  prescriber_id?: number | null;
+  price_code?: string | null;
+}
+
+export interface CompoundRead {
+  id: number;
+  name: string;
+  description?: string | null;
+  total_quantity: number;
+  total_quantity_unit: string;
+  sig_code: string;
+  days_supply: number;
+  refills_authorized: number;
+  refill_count: number;
+  last_fill_date?: string | null;
+  prescriber_id?: number | null;
+  prescriber_name?: string | null;
+  price_code?: string | null;
+  created_at?: string | null;
+  ingredients: CompoundIngredientRead[];
+  calculated_price?: number | null;
+}
+
+export interface CompoundDispenseRequest {
+  compound_id: number;
+  patient_id: number;
+  quantity: number;
+  fill_date: string;
+  insurance_copay: number;
+  insurance_amount: number;
+  insurance_plan_id?: number | null;
+  price_code?: string | null;
+  client_tx_id: string;
+}
+
+export interface CompoundDispenseResult {
+  dispense_id: number;
+  compound_id: number;
+  compound_name: string;
+  quantity_dispensed: number;
+  total_price: number;
+  insurance_copay: number;
+  insurance_amount: number;
+  client_tx_id: string;
+  server_created_at: string;
+  ingredient_lots: Array<Record<string, unknown>>;
+}
+
+export interface CompoundPriceCalculationRequest {
+  compound_id: number;
+  quantity: number;
+  price_code?: string | null;
+}
+
+export interface CompoundPriceCalculationResult {
+  compound_id: number;
+  compound_name: string;
+  ingredient_cost: number;
+  dispensing_fee: number;
+  markup: number;
+  total_price: number;
+  per_unit_price: number;
+  ingredient_breakdown: CompoundIngredientBreakdown[];
+}
+
+export interface CompoundIngredientBreakdown {
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  total_cost: number;
+}
+
+
+// ── Prior Authorization ──────────────────────────────────────────────────────
+// Mirrors backend prior_auth_service.py state machine
+
+export const PA_STATUS_VALUES = [
+  "SUBMITTED",
+  "PENDING_REVIEW",
+  "APPROVED",
+  "DENIED",
+  "EXPIRED",
+  "WITHDRAWN",
+] as const;
+
+export const PA_STATUS_TRANSITIONS: Record<string, string[]> = {
+  SUBMITTED: ["PENDING_REVIEW", "WITHDRAWN"],
+  PENDING_REVIEW: ["APPROVED", "DENIED", "WITTHDRAWN"],
+  APPROVED: ["EXPIRED"],
+  DENIED: ["SUBMITTED"],
+  EXPIRED: ["SUBMITTED"],
+  WITHDRAWN: ["SUBMITTED"],
+};
+
+export interface PriorAuthCreate {
+  patient_id: number;
+  prescriber_id: number;
+  product_name: string;
+  ndc_code?: string | null;
+  quantity: number;
+  days_supply: number;
+  sig_code: string;
+  diagnosis_codes: string[];
+  clinical_rationale: string;
+  prior_therapy_failed?: string[] | null;
+  insurance_plan_id?: number | null;
+  payer_specific_data?: Record<string, unknown>;
+}
+
+export interface PriorAuthUpdate {
+  clinical_rationale?: string | null;
+  diagnosis_codes?: string[] | null;
+  prior_therapy_failed?: string[] | null;
+  payer_specific_data?: Record<string, unknown> | null;
+}
+
+export interface PriorAuthStatusTransition {
+  status: "PENDING_REVIEW" | "APPROVED" | "DENIED" | "WITHDRAWN";
+  reviewer_notes?: string | null;
+  denial_reason?: string | null;
+  approval_duration_days?: number | null;
+  prior_auth_number?: string | null;
+}
+
+export interface PriorAuthRead {
+  id: number;
+  patient_id: number;
+  patient_name: string;
+  prescriber_id: number;
+  prescriber_name: string;
+  product_name: string;
+  ndc_code?: string | null;
+  quantity: number;
+  days_supply: number;
+  sig_code: string;
+  diagnosis_codes: string[];
+  clinical_rationale: string;
+  prior_therapy_failed: string[];
+  insurance_plan_id?: number | null;
+  status: string;
+  prior_auth_number?: string | null;
+  denial_reason?: string | null;
+  approval_duration_days?: number | null;
+  expires_at?: string | null;
+  submitted_at: string;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  reviewer_notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PriorAuthListResponse {
+  items: PriorAuthRead[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface PriorAuthFilters {
+  status?: string;
+  patient_id?: number | null;
+  prescriber_id?: number | null;
+  product_name?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  page?: number;
+  page_size?: number;
+}
+
+
+// ── EPCS (Electronic Prescribing for Controlled Substances) ────────────────────
+// Mirrors backend EPCS schemas (DEA CFR 1311 compliant)
+
+export type EPCSSchedule = "C-II" | "C-III" | "C-IV" | "C-V";
+export type EPCSStatus = "DRAFT" | "PENDING_SIGNATURE" | "SIGNED" | "TRANSMITTED" | "REJECTED" | "ARCHIVED";
+
+export const EPCS_SCHEDULES: EPCSSchedule[] = ["C-II", "C-III", "C-IV", "C-V"];
+export const EPCS_STATUS_VALUES: EPCSStatus[] = ["DRAFT", "PENDING_SIGNATURE", "SIGNED", "TRANSMITTED", "REJECTED", "ARCHIVED"];
+
+export const EPCS_STATUS_TRANSITIONS: Record<EPCSStatus, EPCSStatus[]> = {
+  DRAFT: ["PENDING_SIGNATURE", "ARCHIVED"],
+  PENDING_SIGNATURE: ["SIGNED", "REJECTED", "DRAFT"],
+  SIGNED: ["TRANSMITTED", "REJECTED"],
+  TRANSMITTED: ["ARCHIVED"],
+  REJECTED: ["PENDING_SIGNATURE"],
+  ARCHIVED: [],
+};
+
+export interface EPCSPrescriptionCreate {
+  patient_id: number;
+  prescriber_id: number;
+  product_name: string;
+  ndc_code?: string | null;
+  schedule: "C-II" | "C-III" | "C-IV" | "C-V";
+  quantity: number;
+  days_supply: number;
+  sig_code: string;
+  diagnosis_codes: string[];
+  refills: number;
+  daw_code: string;
+  notes: string;
+}
+
+export interface EPCSPrescriptionUpdate {
+  product_name?: string | null;
+  schedule?: "C-II" | "C-III" | "C-IV" | "C-V" | null;
+  quantity?: number | null;
+  days_supply?: number | null;
+  sig_code?: string | null;
+  diagnosis_codes?: string[] | null;
+  refills?: number | null;
+  daw_code?: string | null;
+  notes?: string | null;
+}
+
+export interface EPCSIdentityProofingRequest {
+  prescriber_id: number;
+  credential_type: "password" | "totp" | "fido2" | "smartcard";
+  credential_data: Record<string, unknown>;
+  attestation: boolean;
+}
+
+export interface EPCSIdentityProofingResult {
+  verified: boolean;
+  prescriber_id: number;
+  credential_id?: string | null;
+  expires_at?: string | null;
+  message: string;
+}
+
+export interface EPCSSignRequest {
+  prescription_id: number;
+  prescriber_id: number;
+  otp_code?: string | null;
+  fido2_assertion?: Record<string, unknown> | null;
+  smartcard_pin?: string | null;
+  biometric_assertion?: string | null;
+}
+
+export interface EPCSSignResult {
+  signed: boolean;
+  prescription_id: number;
+  signed_at?: string | null;
+  signature_hash?: string | null;
+  message: string;
+}
+
+export interface EPCSTransmitRequest {
+  prescription_id: number;
+  pharmacy_npi?: string | null;
+  pharmacy_ncpdp?: string | null;
+  transmit_method: "ncpdp_script" | "fax" | "print";
+}
+
+export interface EPCSTransmitResult {
+  transmitted: boolean;
+  prescription_id: number;
+  transmission_id?: string | null;
+  transmitted_at?: string | null;
+  message: string;
+}
+
+export interface EPCSPrescriptionRead {
+  id: number;
+  patient_id: number;
+  patient_name: string;
+  prescriber_id: number;
+  prescriber_name: string;
+  product_name: string;
+  ndc_code?: string | null;
+  schedule: string;
+  quantity: number;
+  days_supply: number;
+  sig_code: string;
+  diagnosis_codes: string[];
+  refills: number;
+  daw_code: string;
+  notes: string;
+  status: string;
+  signed_at?: string | null;
+  signature_hash?: string | null;
+  transmitted_at?: string | null;
+  transmission_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: number;
+}
+
+export interface EPCSPrescriptionListResponse {
+  items: EPCSPrescriptionRead[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface EPCSFilters {
+  status?: string | null;
+  schedule?: string | null;
+  patient_id?: number | null;
+  prescriber_id?: number | null;
+  product_name?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  page?: number;
+  page_size?: number;
+}
+
+export interface EPCSIdentityProofingStatus {
+  prescriber_id: number;
+  prescriber_name: string;
+  has_totp: boolean;
+  has_fido2: boolean;
+  has_smartcard: boolean;
+  identity_verified: boolean;
+  last_verified_at?: string | null;
+  credentials: Array<Record<string, unknown>>;
+}
+
+// ── Clinical Workflow Types ──────────────────────────────────────────────────
+
+export interface ClinicalNoteCreate {
+  patient_id: number;
+  dispense_id?: number | null;
+  content: string;
+  category?: "general" | "allergy" | "interaction" | "assessment";
+}
+
+export interface ClinicalNoteUpdate {
+  content?: string;
+  category?: "general" | "allergy" | "interaction" | "assessment";
+}
+
+export interface ClinicalNoteRead {
+  id: number;
+  patient_id: number;
+  dispense_id?: number | null;
+  content: string;
+  category: string;
+  created_by: number;
+  created_at: string;
+  updated_at?: string | null;
+}
+
+export interface AllergyRecordCreate {
+  patient_id: number;
+  drug_name: string;
+  reaction?: string;
+  severity?: "mild" | "moderate" | "severe" | "life-threatening" | "unknown";
+}
+
+export interface AllergyRecordUpdate {
+  drug_name?: string;
+  reaction?: string;
+  severity?: "mild" | "moderate" | "severe" | "life-threatening" | "unknown";
+}
+
+export interface AllergyRecordRead {
+  id: number;
+  patient_id: number;
+  drug_name: string;
+  reaction: string;
+  severity: string;
+  recorded_by: number;
+  created_at: string;
+  updated_at?: string | null;
+}
+
+export interface ClinicalAttachmentRead {
+  id: number;
+  patient_id: number;
+  dispense_id?: number | null;
+  filename: string;
+  content_type: string;
+  file_size: number;
+  storage_path: string;
+  description: string;
+  uploaded_by: number;
+  created_at: string;
+}
+
+export interface ClinicalReviewSummary {
+  patient_id: number;
+  patient_name: string;
+  allergies: AllergyRecordRead[];
+  recent_notes: ClinicalNoteRead[];
+  active_prescriptions: number;
+  pending_refills: number;
+}
+
+// ── Excel Import Wizard ────────────────────────────────────────────────────────
+
+export interface ExcelImportAnalyzeResult {
+  headers: string[];
+  normalized_headers: string[];
+  row_count: number;
+  mapping: Record<string, number>;
+  unmatched: [number, string][];
+  db_fields: ExcelImportDbField[];
+}
+
+export interface ExcelImportDbField {
+  key: string;
+  label: string;
+  required: boolean;
+  default: string | number | boolean | null;
+}
+
+export interface ExcelImportPreviewResult {
+  rows: ExcelImportPreviewRow[];
+  total_rows: number;
+}
+
+export interface ExcelImportPreviewRow {
+  row_index: number;
+  _missing_required: string[];
+  [key: string]: unknown;
+}
+
+export interface ExcelImportCommitResult {
+  inserted: number;
+  skipped: number;
+  errors: string[];
+  message: string;
+}
+
+export interface ExcelImportResult {
+  inserted: number;
+  skipped: number;
+  errors: string[];
+  message?: string;
+}
+
+// ── Receipt History ─────────────────────────────────────────────────────────────
+
+export interface Receipt {
+  id: number;
+  receipt_number: string;
+  type: string;
+  total_amount: string;
+  payment_method: string;
+  user_id: number | null;
+  created_at: string;
+  expires_at: string | null;
+}
+
+export interface ReceiptItem {
+  id: number;
+  receipt_id: number;
+  product_name: string;
+  quantity: number;
+  price_at_time: string;
+  internal_barcode: string;
+  vendor: string;
+  expiry_date: string;
+}
+
+// ── Receipt History ─────────────────────────────────────────────────────────────
+
+export interface ReceiptListItem {
+  id: number;
+  receipt_number: string;
+  type: string;
+  total_amount: string;
+  payment_method: string;
+  user_id: number | null;
+  created_at: string;
+  expires_at: string | null;
+}
+
+export interface ReceiptDetail {
+  id: number;
+  receipt_number: string;
+  type: string;
+  total_amount: string;
+  payment_method: string;
+  user_id: number | null;
+  created_at: string;
+  expires_at: string | null;
+  items: ReceiptDetailItem[];
+}
+
+export interface ReceiptDetailItem {
+  id: number;
+  product_name: string;
+  quantity: number;
+  price_at_time: string;
+  internal_barcode: string;
+  vendor: string;
+  expiry_date: string;
+}
+
+export interface ReceiptSettingsRead {
+  retention_days: number | null;
+}
+
+export interface ReceiptSettingsUpdate {
+  retention_days: number | null;
 }

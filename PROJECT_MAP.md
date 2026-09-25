@@ -293,3 +293,30 @@ Tauri IPC: invoke("command", { snake_case_params }) -> src-tauri/src/lib.rs
 - `npm run build`: PASSING (exit 0, 48/48 routes)
 - `npm run tauri build`: PASSING — NSIS + MSI bundles created
 
+
+## [SPEC 09 — 2026-09-25] Back Nav, Remote Fix Delivery, Security, Launch Readiness — COMPLETE
+### Parts 1–3 (code)
+- app/patients/page.tsx: verified DashboardLayout-wrapped (Issue 1A — no change needed)
+- app/dashboard/label-engine/page.tsx: inline "← Dashboard" button in toolbar (Issue 1B)
+- app/dashboard/purchase-orders/page.tsx: Suppliers modal X already bound to setSupplierModalMode("list") (Issue 1C — no change needed)
+- app/dashboard/support/page.tsx: Technician Fix section (Stage 2.3) + openSupportEmail() pre-filled mail (Stage 2.4), both gated on user?.role_id === 1
+- backend_fastapi/app/api/routers/support_fix_route.py: NEW — POST /api/v1/support/fix-code/verify, HMAC-SHA256 over sort_keys payload, 403 on tamper, settings.write permission
+- backend_fastapi/app/shared/config.py: fix_code_secret field (FIX_CODE_SECRET env, distinct from SECRET_KEY)
+- backend_fastapi/app/main.py: include_router(support_fix_router) — was MISSING, endpoint 404'd; fixed + verified via TestClient (401 unauth / route live)
+### Git hygiene
+- tauri-build-target/ untracked (2810 artifacts) + .gitignore entry — commit c16a830
+- docs/KNOWN_ISSUES.md created (7 items incl. check-contracts drift) — commits c16a830, 734f852
+- fix-code router registration hotfix — commit 61dcb8a
+### Verification (all run, not assumed)
+- npm run build: PASS (exit 0, all routes prerendered)
+- pytest: 746 passed / 1 skipped (0 failed) — note: pyproject requires 90% coverage, actual 74.91% → coverage gate FAILS independently of test outcomes
+- vitest: 54/54 PASS
+- audit-labels: PASS (190 labels, 0 missing/dangling)
+- audit-backnav: PASS (0 missing)
+- check-contracts: FAIL (18 schemas: Vendor*/SyncLock*/Mobile*/License* etc.) — pre-existing, documented as KNOWN_ISSUES #7
+- npm run tauri build: PASS — NSIS + MSI at src-tauri/target/release/bundle/
+### New scripts
+- scripts/kill-servers.ps1 (-Check flag): kills project-owned node.exe/backend.exe/fresh.exe only (command-line scoped, safe for unrelated node tooling)
+### Orphans & pending
+- Support-page TechnFix section calls the (now registered) endpoint; end-to-end HMAC round-trip with a real signed code is untested manually
+- tsconfig.tsbuildinfo remains a tracked build artifact (pre-existing)

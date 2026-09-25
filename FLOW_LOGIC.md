@@ -669,3 +669,25 @@ Success. Committed config change: `pyproject.toml` `fail_under` 0 ? 90.
 * **Update flow (audit OBJ2):** Settings → App Updates → `components/UpdateChecker` (Tauri webview only) → `check()` against `plugins.updater.endpoints` (GitHub Releases latest.json) → user confirms → `downloadAndInstall()` — the updater plugin verifies the artifact's Ed25519 signature against the pubkey embedded in `tauri.conf.json` BEFORE applying; unsigned/mismatched = rejected → `relaunch()` (process plugin). The relaunch restart re-spawns sidecars, which re-runs `run_migrations` (PRAGMA user_version, idempotent) — see docs/UPDATE_STRATEGY.md for the key ceremony, release runbook, and the additive-only migration contract. Store-channel builds must disable this component (channel flag) so only the Store updates the app.
 * **Support anti-phishing contract (audit OBJ3):** `GET /api/v1/support/contact` returns `security_notice` (authoritative text); the Support tab renders it in a persistent notice card with a hardcoded client fallback — the notice must survive backend outage because impersonation spikes when "the server is down". The support email itself can only be anti-spoofed at DNS level once moved to an owned domain (docs/SUPPORT_EMAIL_SECURITY.md); gmail.com cannot carry our DMARC policy.
 
+
+## 19. Remote Fix Delivery (SPEC-09 Part 2)
+
+**Purpose:** deliver support fixes without remote access. Two channels: (a) auto-updater (existing, see docs/UPDATE_STRATEGY.md), (b) signed fix codes pasted into the Support tab by an admin.
+
+**Fix-code data flow:**
+1. Support team generates the code OFFLINE with the server-side `FIX_CODE_SECRET`: HMAC-SHA256 over `json.dumps(payload, sort_keys=True).encode("utf-8")`, hex digest. Code format: `{"action": ..., "payload": {...}, "sig": "<hex>"}`.
+2. Admin (role_id=1 only) pastes the code into Support → "Technician Fix" and clicks Apply.
+3. Frontend POSTs `{action, payload, sig}` → `POST /api/v1/support/fix-code/verify` (registered in `main.py` via `include_router(support_fix_router)` — do not remove, the endpoint silently 404s otherwise).
+4. Backend re-computes the HMAC with `hmac.compare_digest` and matches `sig`.
+   - mismatch → **403** "Invalid fix code signature" (forgery-proof; no code is ever applied)
+   - valid + `update_setting` → updates the `SystemSetting` row (404 if key unknown), returns the applied payload
+   - valid + `reload_permissions` → no DB change (client refreshes)
+   - unknown action → **400**
+5. Frontend toasts success/failure. Restart may be required for some settings.
+
+**Trust boundaries:**
+- `FIX_CODE_SECRET` lives only in the backend `.env` (gitignored); distinct from the JWT `SECRET_KEY` — different owners, rotated separately.
+- Route is gated by `require_permission("settings.write")` on top of the admin-only UI gate (`user?.role_id === 1`).
+- Empty/missing `FIX_CODE_SECRET` → `_verify_fix_signature` returns False → every code 403s (fail-closed; the feature simply does not work until configured).
+
+**Known limitation:** the backend currently supports `update_setting` and `reload_permissions` actions only. New actions require a backend deploy — by design, since arbitrary code execution via fix codes would defeat the signature model.

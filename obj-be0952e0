@@ -1,0 +1,31 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "enables the default permissions",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "updater:default",
+    "process:allow-restart",
+    "shell:allow-execute",
+    "shell:allow-spawn",
+    "shell:allow-stdin-write",
+    "dialog:allow-open",
+    "fs:allow-read-text-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$DOWNLOAD/*" },
+        { "path": "$DESKTOP/*" },
+        { "path": "$DOCUMENT/*" }
+      ]
+    },
+    "allow-setup-main-device",
+    "allow-start-udp-broadcast",
+    "allow-stop-udp-broadcast",
+    "allow-scan-udp-broadcast",
+    "allow-open-label-window"
+  ]
+}

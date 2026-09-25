@@ -1,0 +1,11 @@
+E:\tauri-build-target\release\deps\tauri_plugin-0c7e7cd452782624.d: C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-2.6.3\src\lib.rs C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-2.6.3\src\build\mod.rs C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-2.6.3\src\build\mobile.rs
+
+E:\tauri-build-target\release\deps\libtauri_plugin-0c7e7cd452782624.rlib: C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-2.6.3\src\lib.rs C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-2.6.3\src\build\mod.rs C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-2.6.3\src\build\mobile.rs
+
+E:\tauri-build-target\release\deps\libtauri_plugin-0c7e7cd452782624.rmeta: C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-2.6.3\src\lib.rs C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-2.6.3\src\build\mod.rs C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-2.6.3\src\build\mobile.rs
+
+C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-2.6.3\src\lib.rs:
+C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-2.6.3\src\build\mod.rs:
+C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tauri-plugin-2.6.3\src\build\mobile.rs:
+
+# env-dep:CARGO_PKG_NAME=tauri-plugin

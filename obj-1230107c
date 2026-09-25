@@ -1,0 +1,27 @@
+=== PharmacySuite Diagnostic Report ===
+Generated: 2026-09-24T04:13:59.971Z
+
+--- App Info ---
+App Version: 1.0.0
+Platform: Win32
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.34 Safari/537.36
+
+--- Pharmacy Info ---
+Pharmacy Name: E2E Test Pharmacy
+Admin Username: e2ebuyer (ID: 1)
+
+--- Backend Health ---
+API Status: Connected (127.0.0.1:8000)
+Database Size: 0 MB
+User Count: 1
+Medicine Count: 0
+Environment: production
+
+--- Recent Errors (last 5) ---
+(no recent errors logged)
+
+--- System Settings ---
+Support Email: pharmacypro.support@gmail.com
+Language: en-US
+
+=== End of Report ===

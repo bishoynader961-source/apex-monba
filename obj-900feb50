@@ -1,0 +1,11 @@
+E:\tauri-build-target\release\deps\web_atoms-f33db14a5fdb0c41.d: C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\web_atoms-0.2.6\lib.rs E:\tauri-build-target\release\build\web_atoms-23db9244c7e9fb48\out/named_entities.rs E:\tauri-build-target\release\build\web_atoms-23db9244c7e9fb48\out/generated.rs
+
+E:\tauri-build-target\release\deps\libweb_atoms-f33db14a5fdb0c41.rlib: C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\web_atoms-0.2.6\lib.rs E:\tauri-build-target\release\build\web_atoms-23db9244c7e9fb48\out/named_entities.rs E:\tauri-build-target\release\build\web_atoms-23db9244c7e9fb48\out/generated.rs
+
+E:\tauri-build-target\release\deps\libweb_atoms-f33db14a5fdb0c41.rmeta: C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\web_atoms-0.2.6\lib.rs E:\tauri-build-target\release\build\web_atoms-23db9244c7e9fb48\out/named_entities.rs E:\tauri-build-target\release\build\web_atoms-23db9244c7e9fb48\out/generated.rs
+
+C:\Users\Online\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\web_atoms-0.2.6\lib.rs:
+E:\tauri-build-target\release\build\web_atoms-23db9244c7e9fb48\out/named_entities.rs:
+E:\tauri-build-target\release\build\web_atoms-23db9244c7e9fb48\out/generated.rs:
+
+# env-dep:OUT_DIR=E:\\tauri-build-target\\release\\build\\web_atoms-23db9244c7e9fb48\\out

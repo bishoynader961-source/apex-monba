@@ -1,0 +1,194 @@
+[
+  {
+    "file": "app\\api\\auth\\login\\route.ts",
+    "line": 20,
+    "method": "POST",
+    "path": "${API_BASE}/api/v1/auth/login"
+  },
+  {
+    "file": "app\\api\\auth\\refresh\\route.ts",
+    "line": 14,
+    "method": "POST",
+    "path": "${API_BASE}/api/v1/auth/refresh"
+  },
+  {
+    "file": "app\\api\\webhooks\\paddle\\route.ts",
+    "line": 58,
+    "method": "POST",
+    "path": "${serverUrl}/api/webhook/paddle"
+  },
+  {
+    "file": "app\\dashboard\\analytics\\page.tsx",
+    "line": 43,
+    "method": "GET",
+    "path": "/api/v1/analytics/top-selling?period=${p}&limit=20"
+  },
+  {
+    "file": "app\\dashboard\\analytics\\demand\\page.tsx",
+    "line": 49,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "app\\dashboard\\analytics\\demand\\page.tsx",
+    "line": 58,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "app\\dashboard\\analytics\\demand\\page.tsx",
+    "line": 66,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "app\\dashboard\\inventory\\page.tsx",
+    "line": 106,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "app\\dashboard\\inventory\\page.tsx",
+    "line": 115,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "app\\dashboard\\inventory\\page.tsx",
+    "line": 142,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "app\\dashboard\\inventory\\page.tsx",
+    "line": 154,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "app\\dashboard\\inventory\\page.tsx",
+    "line": 382,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "app\\dashboard\\inventory\\page.tsx",
+    "line": 404,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "app\\dashboard\\inventory\\page.tsx",
+    "line": 416,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "app\\dashboard\\settings\\page.tsx",
+    "line": 177,
+    "method": "GET",
+    "path": "/api/v1/region/detect"
+  },
+  {
+    "file": "app\\dashboard\\settings\\page.tsx",
+    "line": 200,
+    "method": "GET",
+    "path": "/api/v1/region/${code}"
+  },
+  {
+    "file": "app\\login\\actions.ts",
+    "line": 29,
+    "method": "POST",
+    "path": "${API_BASE}/api/v1/auth/login"
+  },
+  {
+    "file": "components\\BootGuard.tsx",
+    "line": 43,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "components\\DrugEvaluateButton.tsx",
+    "line": 76,
+    "method": "POST",
+    "path": "/api/v1/drugs/evaluate"
+  },
+  {
+    "file": "components\\ErrorBoundary.tsx",
+    "line": 37,
+    "method": "POST",
+    "path": "/api/v1/crash-report"
+  },
+  {
+    "file": "components\\OcrUploadDropzone.tsx",
+    "line": 72,
+    "method": "POST",
+    "path": "/api/v1/ocr"
+  },
+  {
+    "file": "stores\\alertStore.ts",
+    "line": 42,
+    "method": "GET",
+    "path": "/api/v1/alerts"
+  },
+  {
+    "file": "stores\\authStore.ts",
+    "line": 40,
+    "method": "POST",
+    "path": "/api/auth/login"
+  },
+  {
+    "file": "stores\\authStore.ts",
+    "line": 62,
+    "method": "POST",
+    "path": "/api/auth/logout"
+  },
+  {
+    "file": "stores\\inventoryStore.ts",
+    "line": 107,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "stores\\inventoryStore.ts",
+    "line": 113,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "stores\\inventoryStore.ts",
+    "line": 119,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "stores\\inventoryStore.ts",
+    "line": 125,
+    "method": "GET",
+    "path": ""
+  },
+  {
+    "file": "stores\\regionStore.ts",
+    "line": 80,
+    "method": "GET",
+    "path": "/api/v1/region/detect"
+  },
+  {
+    "file": "stores\\regionStore.ts",
+    "line": 99,
+    "method": "GET",
+    "path": "/api/v1/region/${code}"
+  },
+  {
+    "file": "stores\\sessionStore.ts",
+    "line": 53,
+    "method": "GET",
+    "path": "/api/v1/settings/session_idle_minutes"
+  },
+  {
+    "file": "stores\\sessionStore.ts",
+    "line": 61,
+    "method": "GET",
+    "path": "/api/v1/settings/session_absolute_minutes"
+  }
+]

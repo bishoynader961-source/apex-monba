@@ -1,0 +1,30 @@
+# ── Core ──
+APP_ENV=development
+DEBUG=true
+
+# ── Database (existing legacy schemas, preserved) ──
+PHARMACY_DB_URL=sqlite+aiosqlite:///./pharmacy.db
+
+# ── JWT / Auth ──
+SECRET_KEY=replace-with-a-64-char-random-secret-key-in-production
+ACCESS_TOKEN_EXPIRE_MINUTES=480
+REFRESH_TOKEN_EXPIRE_DAYS=30
+
+# ── FastAPI Backend ──
+FASTAPI_HOST=0.0.0.0
+FASTAPI_PORT=8000
+
+# ── CORS ──
+FRONTEND_URL=http://localhost:3000
+
+# ── Rate Limiting (F.1: network-layer brute-force protection) ──
+POS_AUTH_RATE_LIMIT=5/minute
+POS_PIN_RATE_LIMIT=5/minute
+
+# ── POS ──
+TAX_RATE=0.14
+
+# ── Support fix codes (SPEC-09 Stage 2.3) ──
+# HMAC-SHA256 key for signing support fix codes (generate: openssl rand -hex 32).
+# Distinct from SECRET_KEY. Empty/missing → every fix code is rejected (fail-closed).
+FIX_CODE_SECRET=

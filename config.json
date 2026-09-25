@@ -1,8 +1,0 @@
-{
-    "pharmacy_name": "My Pharmacy",
-    "font_size": 20,
-    "include_price": true,
-    "db_path": "pharmacy.db",
-    "database_url": "",
-    "ndc_dictionary_path": "ndc_dictionary.db"
-}

@@ -1,0 +1,85 @@
+[Console info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[Console log] [HMR] connected
+[Console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[Console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[Console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[Console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+Logging in...
+[Console debug] [API] Request: http://localhost:8000/api/v1/auth/me
+[Console log] [Fast Refresh] rebuilding
+[Console log] [Fast Refresh] done in 516ms
+[Console debug] [API] Request: http://localhost:8000/api/v1/health
+[Console debug] [API] Request: http://localhost:8000/api/v1/rx-queue/counts
+[Console debug] [API] Request: http://localhost:8000/api/v1/rx-queue
+[Console debug] [API] Request: http://localhost:8000/api/v1/dashboard/metrics
+[Console debug] [API] Request: http://localhost:8000/api/v1/health
+[Console debug] [API] Request: http://localhost:8000/api/v1/rx-queue/counts
+[Console debug] [API] Request: http://localhost:8000/api/v1/rx-queue
+[Console debug] [API] Request: http://localhost:8000/api/v1/dashboard/metrics
+[Console error] Access to XMLHttpRequest at 'http://localhost:8000/api/v1/rx-queue/counts' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+[Console error] Failed to fetch Rx queue counts: Error: Unable to reach the server
+    at http://localhost:3000/_next/static/chunks/_0ya35i5._.js:2564:31
+    at async Axios.request (http://localhost:3000/_next/static/chunks/node_modules_04dyl9c._.js:6546:20)
+    at async Module.getRxQueueCounts (http://localhost:3000/_next/static/chunks/_0ayvf5z._.js:3078:22)
+    at async refreshCounts (http://localhost:3000/_next/static/chunks/_0ayvf5z._.js:4355:32)
+[RequestFailed] http://localhost:8000/api/v1/rx-queue/counts net::ERR_FAILED
+[Console error] Failed to load resource: net::ERR_FAILED
+[Console error] Access to XMLHttpRequest at 'http://localhost:8000/api/v1/rx-queue?page=1&status=Pending' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+[Console error] Failed to fetch processing queue: Error: Unable to reach the server
+    at http://localhost:3000/_next/static/chunks/_0ya35i5._.js:2564:31
+    at async Axios.request (http://localhost:3000/_next/static/chunks/node_modules_04dyl9c._.js:6546:20)
+    at async Module.listRxQueue (http://localhost:3000/_next/static/chunks/_0ayvf5z._.js:3072:22)
+    at async fetchTab (http://localhost:3000/_next/static/chunks/_0ayvf5z._.js:4320:32)
+[RequestFailed] http://localhost:8000/api/v1/rx-queue?page=1&status=Pending net::ERR_FAILED
+[Console error] Failed to load resource: net::ERR_FAILED
+[Console error] Access to XMLHttpRequest at 'http://localhost:8000/api/v1/rx-queue?page=1&status=Pending' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+[Console error] Failed to fetch processing queue: Error: Unable to reach the server
+    at http://localhost:3000/_next/static/chunks/_0ya35i5._.js:2564:31
+    at async Axios.request (http://localhost:3000/_next/static/chunks/node_modules_04dyl9c._.js:6546:20)
+    at async Module.listRxQueue (http://localhost:3000/_next/static/chunks/_0ayvf5z._.js:3072:22)
+    at async fetchTab (http://localhost:3000/_next/static/chunks/_0ayvf5z._.js:4320:32)
+[RequestFailed] http://localhost:8000/api/v1/rx-queue?page=1&status=Pending net::ERR_FAILED
+[Console error] Failed to load resource: net::ERR_FAILED
+[Console error] Access to XMLHttpRequest at 'http://localhost:8000/api/v1/rx-queue/counts' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+[Console error] Failed to fetch Rx queue counts: Error: Unable to reach the server
+    at http://localhost:3000/_next/static/chunks/_0ya35i5._.js:2564:31
+    at async Axios.request (http://localhost:3000/_next/static/chunks/node_modules_04dyl9c._.js:6546:20)
+    at async Module.getRxQueueCounts (http://localhost:3000/_next/static/chunks/_0ayvf5z._.js:3078:22)
+    at async refreshCounts (http://localhost:3000/_next/static/chunks/_0ayvf5z._.js:4355:32)
+[RequestFailed] http://localhost:8000/api/v1/rx-queue/counts net::ERR_FAILED
+[Console error] Failed to load resource: net::ERR_FAILED
+[Console error] Access to XMLHttpRequest at 'http://localhost:8000/api/v1/dashboard/metrics' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+[RequestFailed] http://localhost:8000/api/v1/dashboard/metrics net::ERR_FAILED
+[Console error] Failed to load resource: net::ERR_FAILED
+[Console error] Access to XMLHttpRequest at 'http://localhost:8000/api/v1/dashboard/metrics' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+[RequestFailed] http://localhost:8000/api/v1/dashboard/metrics net::ERR_FAILED
+[Console error] Failed to load resource: net::ERR_FAILED
+Wait for URL failed: page.waitForURL: Timeout 10000ms exceeded.
+=========================== logs ===========================
+waiting for navigation to "**/dashboard/label-engine" until "load"
+  navigated to "http://localhost:3000/login"
+  navigated to "http://localhost:3000/dashboard"
+============================================================
+[Console log] [Fast Refresh] rebuilding
+[Console log] [Fast Refresh] done in 568ms
+[Console info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[Console log] [HMR] connected
+[Console debug] [API] Request: http://localhost:8000/api/v1/auth/me
+[Console debug] [API] Request: http://localhost:8000/api/v1/label-templates
+[Console debug] [API] Request: http://localhost:8000/api/v1/label-templates
+[Console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[Console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[Console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[Console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[Console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[Console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[Console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[Console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[Console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[Console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+--- Testing Export PNG ---
+--- Testing Print ---
+--- Testing Open Standalone ---
+--- Testing Save Tpl ---
+[Console debug] [API] Request: http://localhost:8000/api/v1/label-templates
+[Console debug] [API] Request: http://localhost:8000/api/v1/label-templates

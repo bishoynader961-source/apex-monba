@@ -337,7 +337,6 @@ Tauri IPC: invoke("command", { snake_case_params }) -> src-tauri/src/lib.rs
 - pytest tests/test_make_fix_code.py: 20 passed. Full suite: 775 passed / 1 skipped / 1 failed — the failure is `test_invoice_parse.py::test_hardware_status_endpoint` because `psutil` is not installed in this worktree (declared in pyproject; environment gap, not a regression).
 - vitest: 28 passed. check-contracts: PASS (0 gaps). tsc: no new errors (mobile/ failures pre-existing — React Native deps not installed in this worktree).
 - npm run build / npm run tauri build: NOT RUNNABLE in this isolated worktree — it has no `node_modules` (only `.vite`) and installing is disallowed; Turbopack refuses to resolve `next` from the parent repo ("Could not find the Next.js package", hermetic root). tsc/vitest succeed because Node resolves the parent tree. Re-run the build gate from the main checkout.
->>>>>>> freebuff/sponsored-infisical-961f96db-4173-4151-969d-abab429c8324
 
 ## [MERGE + CLOSE-OUT — 2026-09-25] sponsored-infisical branch merged to master
 - Merge 726e44b (parents 905a67f x ee5f7d0): parallel sessions had both built the fix-code CLI and the contract parity. Resolution: kept the CLI with the test-proof chain, kept contracts-parity.ts split (contracts.ts over editor limit), removed 25 duplicate interfaces from contracts.ts, consolidated CLI tests into tests/test_make_fix_code.py (39 cases incl. JSON round-trip stability + tampered-code 403), ported utf-8-sig BOM-safe env parsing.
@@ -347,3 +346,9 @@ Tauri IPC: invoke("command", { snake_case_params }) -> src-tauri/src/lib.rs
   * Label Engine back link: NEVER existed in any commit; added (app/dashboard/label-engine/page.tsx:4,204,704-707)
   * Suppliers modal: mode union had no closed state — list modal rendered unclosably on page load, X was a no-op; added "closed" state (app/dashboard/purchase-orders/page.tsx:47,70,450,454)
 - Full gate from main working copy: build 0, tauri build 0 (NSIS+MSI), pytest 795 passed/1 skipped, vitest 82/82, check-contracts 0 gaps, tsc clean.
+
+## [PUSH STATE — 2026-09-25] remote backup status
+- Remote master (origin = github.com/bishoynader961-source/apex-monba) = 7676e0f — 11 of the session commits pushed (e29c241..7676e0f, 27.26 MiB pack, HTTP/1.1 + http.postBuffer=157286400 via gh credential helper).
+- Remaining 14 commits (7676e0f..d3baf15) are BLOCKED by one commit: 2082ad6 accidentally committed tauri-build-target/ (~1.5 GB raw / ~507 MB packed despite .gitignore:47 — was force-added). A ref push must carry the full object closure, so no batch split shrinks it; the connection's upload window kills any single POST that large. Finish with a normal terminal: `git push origin master && git push origin v1.0.0-store-candidate` (tag v1.0.0-store-candidate -> d3baf15 exists locally only; remote default branch is `main`, an unrelated July line — master is the real line).
+- Installer backup (independent of the push): GitHub Release msi-v1.0.0-f884983 on the same repo — MSI shipped as 8 split assets (part00–part07; single 88.9 MB upload exceeded the window), SHA256 f4b78625ffd2f9eb334af97019cf7afa523868bc4a8f8f78f5e2113fb43da436, reassembly + hash verified by round-trip download. Artifact = f884983 code state.
+- Residual: leftover merge-conflict marker line removed from this file (was committed in 726e44b).

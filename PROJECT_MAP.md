@@ -338,3 +338,12 @@ Tauri IPC: invoke("command", { snake_case_params }) -> src-tauri/src/lib.rs
 - vitest: 28 passed. check-contracts: PASS (0 gaps). tsc: no new errors (mobile/ failures pre-existing — React Native deps not installed in this worktree).
 - npm run build / npm run tauri build: NOT RUNNABLE in this isolated worktree — it has no `node_modules` (only `.vite`) and installing is disallowed; Turbopack refuses to resolve `next` from the parent repo ("Could not find the Next.js package", hermetic root). tsc/vitest succeed because Node resolves the parent tree. Re-run the build gate from the main checkout.
 >>>>>>> freebuff/sponsored-infisical-961f96db-4173-4151-969d-abab429c8324
+
+## [MERGE + CLOSE-OUT — 2026-09-25] sponsored-infisical branch merged to master
+- Merge 726e44b (parents 905a67f x ee5f7d0): parallel sessions had both built the fix-code CLI and the contract parity. Resolution: kept the CLI with the test-proof chain, kept contracts-parity.ts split (contracts.ts over editor limit), removed 25 duplicate interfaces from contracts.ts, consolidated CLI tests into tests/test_make_fix_code.py (39 cases incl. JSON round-trip stability + tampered-code 403), ported utf-8-sig BOM-safe env parsing.
+- KNOWN_ISSUES.md: added items 8-11 (field-level contract check, oversized files, local pre-build gate, FIX_CODE_SECRET rotation runbook).
+- Part 1 RE-VERIFIED against master — prior claims did not hold; both fixed in commit f884983:
+  * Patients: was already correct (DashboardLayout at app/patients/page.tsx:29,1040)
+  * Label Engine back link: NEVER existed in any commit; added (app/dashboard/label-engine/page.tsx:4,204,704-707)
+  * Suppliers modal: mode union had no closed state — list modal rendered unclosably on page load, X was a no-op; added "closed" state (app/dashboard/purchase-orders/page.tsx:47,70,450,454)
+- Full gate from main working copy: build 0, tauri build 0 (NSIS+MSI), pytest 795 passed/1 skipped, vitest 82/82, check-contracts 0 gaps, tsc clean.

@@ -44,7 +44,7 @@ const EMPTY_SUPPLIER: SupplierCreate = {
   lead_time_days: 0,
 };
 
-type SupplierModalMode = "list" | "create" | "edit";
+type SupplierModalMode = "closed" | "list" | "create" | "edit";
 
 export default function PurchaseOrdersPage() {
   const { t } = useI18n();
@@ -63,7 +63,11 @@ export default function PurchaseOrdersPage() {
   const [itemPrice, setItemPrice] = useState("0");
 
   const [suppliers, setSuppliers] = useState<SupplierRead[]>([]);
-  const [supplierModalMode, setSupplierModalMode] = useState<SupplierModalMode>("list");
+  // Issue 1C (SPEC-09): the mode union previously had no closed state, so the
+  // Suppliers list modal rendered as an unclosable overlay on page load and its
+  // X set "list" (already the state) — a no-op. "closed" is now the initial and
+  // dismiss state; the list X/backdrop close it, the inner form returns to it.
+  const [supplierModalMode, setSupplierModalMode] = useState<SupplierModalMode>("closed");
   const [editingSupplier, setEditingSupplier] = useState<SupplierRead | null>(null);
   const [supplierForm, setSupplierForm] = useState<SupplierCreate>({ ...EMPTY_SUPPLIER });
   const [supplierSearch, setSupplierSearch] = useState("");
@@ -379,8 +383,8 @@ export default function PurchaseOrdersPage() {
         </div>
   );
 
-      {/* Supplier Modal */}
-      {supplierModalMode !== "list" && (
+      {/* Supplier Modal (create/edit) — X and backdrop return to the list */}
+      {supplierModalMode !== "closed" && supplierModalMode !== "list" && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setSupplierModalMode("list")}>
           <div className="bg-[#1a1a2e] border border-gray-800 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-gray-800">
@@ -443,11 +447,11 @@ export default function PurchaseOrdersPage() {
 
       {/* Supplier List Modal */}
       {supplierModalMode === "list" && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setSupplierModalMode("list")}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setSupplierModalMode("closed")}>
           <div className="bg-[#1a1a2e] border border-gray-800 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-gray-800">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Suppliers</h3>
-              <button onClick={() => setSupplierModalMode("list")} className="text-gray-600 dark:text-gray-400 hover:text-white text-xl p-1">×</button>
+              <button onClick={() => setSupplierModalMode("closed")} className="text-gray-600 dark:text-gray-400 hover:text-white text-xl p-1">×</button>
             </div>
             <div className="p-4 border-b border-gray-800 flex gap-2">
               <input value={supplierSearch} onChange={(e) => setSupplierSearch(e.target.value)} placeholder="Search suppliers..." className="flex-1 rounded bg-gray-700 border border-gray-600 px-3 py-2 text-sm text-gray-100" />

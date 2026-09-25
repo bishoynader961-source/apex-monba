@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import LabelCanvas, { type LabelElement, type LabelElementType } from "@/components/LabelCanvas";
 import LabelPropertiesPanel from "@/components/LabelPropertiesPanel";
 import type JsBarcodeType from "jsbarcode";
@@ -200,6 +201,7 @@ const ELEMENT_DEFS: Array<{ type: LabelElementType; icon: string; label: string;
 
 export default function LabelEnginePage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [canvasW, setCanvasW] = useState(400);
   const [canvasH, setCanvasH] = useState(300);
   const [canvasBg, setCanvasBg] = useState("#ffffff");
@@ -695,6 +697,15 @@ export default function LabelEnginePage() {
     <div className="flex flex-col h-screen bg-background dark:bg-[#0a0a1a] text-foreground dark:text-gray-100">
       {/* ── Header bar ── */}
       <header className="flex items-center gap-3 px-3 py-2 border-b border-border dark:border-gray-800 bg-surface dark:bg-[#111] flex-wrap">
+        {/* Issue 1B (SPEC-09): full-screen tool still needs a way back — sits
+            inline before the W/H inputs per the spec, without wrapping the
+            designer in the dashboard shell. */}
+        <button
+          onClick={() => router.push("/dashboard")}
+          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 mr-2 shrink-0"
+        >
+          ← Dashboard
+        </button>
         <div className="flex items-center gap-1.5">
           <label className="text-xs text-muted-foreground" htmlFor="page-field-1">W:</label>
           <input id="page-field-1"

@@ -321,3 +321,6 @@ Tauri IPC: invoke("command", { snake_case_params }) -> src-tauri/src/lib.rs
 ### Orphans & pending
 - Support-page fix-code feature: PROVEN end-to-end (10-test suite, tamper/fail-closed/registration-guard coverage); three bugs fixed post-audit (dropped sig, phantom settings.write permission, frontend envelope mishandling)
 - tsconfig.tsbuildinfo remains a tracked build artifact (pre-existing)
+- scripts/make-fix-code.py: support-side signing CLI — parity with backend verifier enforced by tests/test_make_fix_code_cli.py (36 tests incl. full CLI-to-HTTP round-trip); committed 04956c3
+- Contract drift RESOLVED: 25 interfaces added to types/contracts.ts (Vendor*/SyncLock*/Mobile*/License*/Creem*/Drug*/ChangePassword/IntegrationCreate/PaymentSplitIn/PurchaseOrderReceiveItem/ReceiveShipmentPayload/VerifyPasswordRequest); check-contracts passes; CI contract-check job (already existed, previously always red) now green
+- hardware_evaluator._probe: psutil import wrapped in try/ImportError with conservative HardwareProfile fallback (declared dep cannot build in the local MSYS2 py3.14 venv; CI unaffected); test count now 792 passed / 1 skipped

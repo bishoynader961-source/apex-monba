@@ -96,8 +96,25 @@ class HardwareEvaluator:
     @classmethod
     def _probe(cls) -> HardwareProfile:
         """Perform the actual hardware detection."""
-        import psutil
-
+        # psutil is a declared dependency, but degrade gracefully (conservative
+        # CPU-tier defaults) if it is missing so evaluation never crashes.
+        try:
+            import psutil
+        except ImportError:
+            log.warning(
+                "Hardware evaluation: psutil unavailable — using conservative defaults"
+            )
+            return HardwareProfile(
+                tier="incompatible",
+                gpu_name=None,
+                ram_total_gb=0.0,
+                ram_available_gb=0.0,
+                cpu_threads=1,
+                cpu_physical_cores=1,
+                gpu_available=False,
+                gpu_vram_gb=0.0,
+                warnings=["psutil unavailable — hardware detection skipped"],
+            )
         warnings: list[str] = []
 
         # ── CPU ──

@@ -65,7 +65,7 @@ git commit -m "chore: untrack tauri-build-target build artifacts"
 
 **Plan:** land the untracking commit before the 1.1 branch point.
 
-## 7. Frontend/backend contract drift (check-contracts failing)
+## 7. Frontend/backend contract drift — RESOLVED (2026-09-25)
 
 `node scripts/check-contracts.mjs` reports 18 backend Pydantic schemas with no
 mirror in `types/contracts.ts`: Vendor*, SyncLock*, Mobile*, License*,
@@ -74,6 +74,15 @@ ReceiveShipmentPayload, VerifyPasswordRequest. Drift predates SPEC-09 (introduce
 by vendor/sync/mobile feature work on the backend); the desktop app does not call
 these endpoints yet, so nothing breaks at runtime today.
 
-**Plan:** before the 1.1 branch point, add the 18 missing interfaces to
-`types/contracts.ts` and wire `check-contracts.mjs` into CI so new drift fails
-the build. Re-run after every backend schema addition.
+**Resolved:** the drift had grown to 25 schemas. All 25 now have mirrors in the new
+`types/contracts-parity.ts` (Vendor*, SyncLock*, Mobile*, License*, Integration*,
+Creem*, Drug*, PaymentSplitIn, PurchaseHistoryRead, PurchaseOrderReceiveItem,
+ReceiveShipmentPayload, VerifyPasswordRequest, ChangePasswordRequest). They live
+in a separate file because `types/contracts.ts` (56 KB) is past the editor tool's
+save limit; `scripts/check-contracts.mjs` now scans both files, so a new backend
+schema still fails the gate until mirrored. `node scripts/check-contracts.mjs`
+exits 0 (0 gaps).
+
+**CI:** already wired — `.github/workflows/ci.yml` has a dedicated
+`contract-check` job running `npm run check:contracts`, so new drift blocks the
+build automatically.

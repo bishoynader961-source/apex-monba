@@ -313,10 +313,23 @@ Tauri IPC: invoke("command", { snake_case_params }) -> src-tauri/src/lib.rs
 - vitest: 54/54 PASS
 - audit-labels: PASS (190 labels, 0 missing/dangling)
 - audit-backnav: PASS (0 missing)
-- check-contracts: FAIL (18 schemas: Vendor*/SyncLock*/Mobile*/License* etc.) — pre-existing, documented as KNOWN_ISSUES #7
+- check-contracts: FAIL at the time (18 schemas: Vendor*/SyncLock*/Mobile*/License* etc.) — pre-existing, documented as KNOWN_ISSUES #7. **RESOLVED 2026-09-25** (grew to 25 schemas; all mirrored — see [SPEC 09 FOLLOW-UP] below).
 - npm run tauri build: PASS — NSIS + MSI at src-tauri/target/release/bundle/
 ### New scripts
 - scripts/kill-servers.ps1 (-Check flag): kills project-owned node.exe/backend.exe/fresh.exe only (command-line scoped, safe for unrelated node tooling)
 ### Orphans & pending
 - Support-page fix-code feature: PROVEN end-to-end (10-test suite, tamper/fail-closed/registration-guard coverage); three bugs fixed post-audit (dropped sig, phantom settings.write permission, frontend envelope mishandling)
 - tsconfig.tsbuildinfo remains a tracked build artifact (pre-existing)
+
+## [SPEC 09 FOLLOW-UP — 2026-09-25] Fix-Code CLI + Contract Parity — COMPLETE
+### Remote-fix tooling
+- scripts/make-fix-code.py: NEW — operator CLI that mints the HMAC envelope for `POST /api/v1/support/fix-code/verify`. Resolves `FIX_CODE_SECRET` automatically (--secret > env > backend_fastapi/.env via a dependency-free parser), type-casts CLI values (bool/int/float/JSON/string with `--string` override), and prints the exact compact envelope to stdout for piping to the clipboard. Fail-fast (exit 1) when no secret; secret never printed.
+- backend_fastapi/.env.example: documents FIX_CODE_SECRET (distinct from SECRET_KEY; empty ⇒ fail-closed).
+- backend_fastapi/tests/test_make_fix_code.py: NEW (20 tests) — cross-checks the CLI HMAC against `support_fix_route.sign_payload`, round-trips bool typing through JSON, verifies secret resolution/fail-fast, and POSTs a generated envelope through the real route (applied 200 + tampered 403).
+### Contract parity (KNOWN_ISSUES #7)
+- types/contracts-parity.ts: NEW — the 25 backend Pydantic schemas that had no frontend mirror (Vendor*, SyncLock*, Mobile*, License*, Integration*, Creem*, Drug*, PaymentSplitIn, PurchaseHistoryRead, PurchaseOrderReceiveItem, ReceiveShipmentPayload, VerifyPasswordRequest, ChangePasswordRequest). Split from contracts.ts because that file exceeds the editor tool's 20k-token save limit.
+- scripts/check-contracts.mjs: now scans contracts.ts AND contracts-parity.ts — a new backend schema still fails the gate until mirrored. `node scripts/check-contracts.mjs` → exit 0 (0 gaps).
+### Verification (run, not assumed)
+- pytest tests/test_make_fix_code.py: 20 passed. Full suite: 775 passed / 1 skipped / 1 failed — the failure is `test_invoice_parse.py::test_hardware_status_endpoint` because `psutil` is not installed in this worktree (declared in pyproject; environment gap, not a regression).
+- vitest: 28 passed. check-contracts: PASS (0 gaps). tsc: no new errors (mobile/ failures pre-existing — React Native deps not installed in this worktree).
+- npm run build / npm run tauri build: NOT RUNNABLE in this isolated worktree — it has no `node_modules` (only `.vite`) and installing is disallowed; Turbopack refuses to resolve `next` from the parent repo ("Could not find the Next.js package", hermetic root). tsc/vitest succeed because Node resolves the parent tree. Re-run the build gate from the main checkout.

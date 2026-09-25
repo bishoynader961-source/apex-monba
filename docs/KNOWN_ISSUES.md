@@ -65,12 +65,20 @@ git commit -m "chore: untrack tauri-build-target build artifacts"
 
 **Plan:** land the untracking commit before the 1.1 branch point.
 
-## 7. Frontend/backend contract drift — RESOLVED 2026-09-25
+## 7. Frontend/backend contract drift — RESOLVED (2026-09-25)
 
-All 25 missing interfaces (18 initially visible + 7 below the fold:
+The drift had grown to 25 schemas (18 initially visible + 7 below the fold:
 ChangePasswordRequest, CreemCheckoutRequest/Response, DrugDictionaryRead,
-DrugEvaluateRequest/Response, IntegrationCreate) were added to
-`types/contracts.ts`, mirroring the Pydantic schemas field-for-field — including
-the legacy vendor module's JSON-number money and SQLite int-bool flags.
-`node scripts/check-contracts.mjs` passes, and CI's existing `contract-check`
-job (previously red on every push) now gates this on every PR.
+DrugEvaluateRequest/Response, IntegrationCreate). All 25 now have field-for-field
+mirrors in the new `types/contracts-parity.ts` (Vendor*, SyncLock*, Mobile*,
+License*, Integration*, Creem*, Drug*, PaymentSplitIn, PurchaseHistoryRead,
+PurchaseOrderReceiveItem, ReceiveShipmentPayload, VerifyPasswordRequest) —
+including the legacy vendor module's JSON-number money and SQLite int-bool flags.
+They live in a separate file because `types/contracts.ts` (56 KB) is past the
+editor tool's save limit; `scripts/check-contracts.mjs` now scans both files, so
+a new backend schema still fails the gate until mirrored.
+`node scripts/check-contracts.mjs` exits 0 (0 gaps).
+
+**CI:** already wired — `.github/workflows/ci.yml` has a dedicated
+`contract-check` job running `npm run check:contracts` (previously red on every
+push), so new drift blocks the build automatically.

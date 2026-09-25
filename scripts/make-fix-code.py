@@ -75,7 +75,9 @@ def load_secret(cli_secret: str | None, env_path: Path) -> str:
     if from_env:
         return from_env
     if env_path.is_file():
-        for line in env_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        # utf-8-sig transparently strips a BOM if one is ever added by a
+        # Windows editor; without it the first key would read as "\ufeffKEY".
+        for line in env_path.read_text(encoding="utf-8-sig", errors="replace").splitlines():
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue

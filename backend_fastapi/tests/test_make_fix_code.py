@@ -1,10 +1,16 @@
 """Tests for scripts/make-fix-code.py — the support-team signing CLI.
 
+Consolidates the two parallel test suites produced before the merge: the
+36-case suite (casting, secret sourcing, stdout contract, fail-fast,
+subprocess e2e, full CLI→HTTP round-trip) plus the distinctive cases from the
+worktree suite — signature stability across a JSON round-trip and a tampered
+CLI-generated code being rejected 403 by the real route.
+
 The critical property is parity: the CLI's signature must verify against the
 backend route's verifier, or every generated code would 403 at the Support
 tab. Enforced at three levels: direct function parity, envelope-level parity,
 and a full HTTP round-trip (CLI stdout -> POST /support/fix-code/verify -> 200
--> row updated). The subprocess and round-trip tests run against the operator
+-> row updated). The subprocess tests run against the operator
 backend_fastapi/.env and skip cleanly when it is absent.
 """
 
@@ -27,6 +33,7 @@ from app.shared.security import hash_password
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "make-fix-code.py"
 REPO_ROOT = SCRIPT.parents[1]
 REAL_ENV = REPO_ROOT / "backend_fastapi" / ".env"
+URL = "/api/v1/support/fix-code/verify"
 
 
 def _load_cli():
@@ -136,6 +143,7 @@ def test_main_reload_permissions(tmp_path: Path, capsys: pytest.CaptureFixture) 
     assert rc == 0
     envelope = json.loads(capsys.readouterr().out)
     assert envelope["payload"] == {}
+    assert envelope["sig"] == cli.sign_payload({}, "unit-secret")
 
 
 def test_main_fails_fast_without_secret(
@@ -177,6 +185,19 @@ def test_cli_envelope_passes_backend_verifier(tmp_path: Path, capsys: pytest.Cap
     cli.main(["any_key", "true", "--env", str(_env_file(tmp_path, "parity-secret"))])
     envelope = json.loads(capsys.readouterr().out)
     assert backend_sign(envelope["payload"], "parity-secret") == envelope["sig"]
+
+
+def test_typed_payload_signature_is_stable_across_json_round_trip(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    """A bool value must survive CLI -> JSON -> backend parse unchanged."""
+    from app.api.routers.support_fix_route import sign_payload as backend_sign
+
+    cli.main(["enable_receipts", "true", "--env", str(_env_file(tmp_path, "rt-secret"))])
+    envelope = json.loads(capsys.readouterr().out)
+    received = json.loads(json.dumps(envelope))
+    assert received["payload"]["value"] is True
+    assert backend_sign(received["payload"], "rt-secret") == received["sig"]
 
 
 # ── Subprocess end-to-end against the operator .env ──────────────────────────
@@ -233,6 +254,13 @@ async def _admin_token(client: AsyncClient, session: AsyncSession) -> str:
 
 
 @pytest.mark.anyio
+async def test_route_is_registered(client: AsyncClient) -> None:
+    resp = await client.post(URL, json={"action": "x", "payload": {}, "sig": "y"})
+    # Registered: auth runs before anything else. An unregistered route 404s.
+    assert resp.status_code == 401, f"expected 401 (unauthenticated), got {resp.status_code}"
+
+
+@pytest.mark.anyio
 async def test_cli_output_accepted_by_endpoint(
     client: AsyncClient, session: AsyncSession, tmp_path: Path, capsys: pytest.CaptureFixture
 ) -> None:
@@ -251,13 +279,31 @@ async def test_cli_output_accepted_by_endpoint(
     envelope = json.loads(capsys.readouterr().out)
 
     token = await _admin_token(client, session)
-    resp = await client.post(
-        "/api/v1/support/fix-code/verify",
-        json=envelope,
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    resp = await client.post(URL, json=envelope, headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200, resp.text
 
     session.expire_all()
     row = await session.get(SystemSetting, "session_idle_minutes")
     assert row.value.decode() == "60"
+
+
+@pytest.mark.anyio
+async def test_tampered_cli_code_is_rejected(
+    client: AsyncClient, session: AsyncSession, tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    """Tampering with a CLI-generated envelope after signing must 403."""
+    from app.api.routers.support_fix_route import _fix_code_secret
+
+    secret = _fix_code_secret()
+    if not secret:
+        pytest.skip("FIX_CODE_SECRET not configured in this environment")
+    env_file = tmp_path / ".env"
+    env_file.write_text(f"FIX_CODE_SECRET={secret}\n", encoding="utf-8")
+
+    assert cli.main(["session_idle_minutes", "60", "--env", str(env_file)]) == 0
+    envelope = json.loads(capsys.readouterr().out)
+    envelope["payload"]["value"] = 9999  # edit after signing
+
+    token = await _admin_token(client, session)
+    resp = await client.post(URL, json=envelope, headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 403

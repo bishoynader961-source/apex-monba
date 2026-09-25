@@ -156,6 +156,11 @@ class Settings(BaseSettings):
     auth_rate_limit: str = Field(default="5/minute", alias="POS_AUTH_RATE_LIMIT")
     pin_rate_limit: str = Field(default="5/minute", alias="POS_PIN_RATE_LIMIT")
 
+    # ── Support fix-code signature (Stage 2.3) ──
+    # Support team's HMAC signing secret for fix codes. Set FIX_CODE_SECRET in
+    # the backend .env. Different from SECRET_KEY/JWT secret.
+    fix_code_secret: str = Field(default="", alias="FIX_CODE_SECRET")
+
     # ── Multi-terminal sync hub (C.1 hardening) ──
     multi_terminal: bool = Field(default=False, alias="POS_MULTI_TERMINAL")
     device_id: str = Field(default_factory=lambda: _stable_device_id(), alias="POS_DEVICE_ID")

@@ -5,6 +5,7 @@ import { useI18n } from "@/components/I18nProvider";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { getRecentErrors } from "@/stores/errorLogStore";
+import { useToastStore } from "@/hooks/useToast";
 import { DashboardLayout } from "@/components/DashboardLayout";
 
 // Spec 08 Part 2: crash-report endpoint. Configured at BUILD TIME via
@@ -93,14 +94,6 @@ async function generateDiagnosticReport(): Promise<string> {
 }
 
 export default function SupportPage() {
-  const { t } = useI18n();
-  const [settings, setSettings] = useState<{
-    support_email: string;
-    support_name: string;
-    support_message: string;
-    pharmacy_name: string;
-    security_notice: string;
-  } | null>(null);
 
   // Anti-phishing notice shown even when the backend is unreachable —
   // scammers impersonate support most convincingly when "the server is down".
@@ -111,9 +104,40 @@ export default function SupportPage() {
   const [copied, setCopied] = useState(false);
   const [fallbackReport, setFallbackReport] = useState<string | null>(null);
 
+  // Use the auth store for role gating (single source of truth — no props)
+  const { user } = useAuthStore();
+
+
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+
+  // ── Technician fix-code import (Stage 2.3) ──
+  const [settings, setSettings] = useState<{
+    support_email: string;
+    support_name: string;
+    support_message: string;
+    pharmacy_name: string;
+    security_notice: string;
+  } | null>(null);
+
+  const [fixCode, setFixCode] = useState("");
+  const [fixApplying, setFixApplying] = useState(false);
+  const [fixError, setFixError] = useState<string | null>(null);
+
+  // ── Stage 2.4: pre-filled support email (client-side only) ──
+  const openSupportEmail = (diagnosticReport: string) => {
+    const subject = encodeURIComponent("PharmacySuite Support Request");
+    const body = encodeURIComponent(
+      `Dear PharmacySuite Support,\n\n` +
+      `I'm experiencing the following issue:\n\n` +
+      `[DESCRIBE YOUR ISSUE HERE]\n\n` +
+      `--- Diagnostic Report (auto-generated) ---\n` +
+      diagnosticReport +
+      `\n--- End of Report ---`
+    );
+    window.open(`mailto:pharmacypro.support@gmail.com?subject=${subject}&body=${body}`);
+  };
 
   useEffect(() => {
     // Live support contact — readable by every logged-in role (no admin gate).
@@ -160,14 +184,13 @@ export default function SupportPage() {
     setSendError(null);
 
     try {
-      const report = await generateDiagnosticReport();
       const user = useAuthStore.getState().user;
 
       const res = await fetch(CRASH_REPORT_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          report_text: report,
+          report_text: "diagnostic report",
           app_version: "1.0.0",
           pharmacy_name: settings?.pharmacy_name ?? "",
           user_id: user?.id,
@@ -180,6 +203,29 @@ export default function SupportPage() {
       setSendError("Could not send report. Please use 'Copy Diagnostic Info' and email us instead.");
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleApplyFix = async () => {
+    if (!fixCode.trim()) return;
+    setFixApplying(true);
+    setFixError(null);
+    try {
+      const res = await api.post("/api/v1/support/fix-code/verify", {
+        action: "update_setting",
+        payload: JSON.parse(fixCode),
+        sig: "",
+      });
+      if (!res.status) {
+        const data = await res.data ?? {};
+        throw new Error(data.detail ?? "Invalid fix code.");
+      }
+      useToastStore.getState().toast({ title: "Success", message: "Fix applied successfully. Restart may be required.", variant: "success" });
+      setFixCode("");
+    } catch (err) {
+      setFixError(err instanceof Error ? err.message : "Could not apply fix.");
+    } finally {
+      setFixApplying(false);
     }
   };
 
@@ -261,10 +307,37 @@ export default function SupportPage() {
             ) : (
               <span>📋 Copy Diagnostic Info</span>
             )}
-          </button>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">
+          </button>            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">
             Paste this into your email to support. It contains no passwords or patient data.
           </p>
+
+          {/* Stage 2.3: technician fix import (admin only) */}
+          {user?.role_id === 1 && (
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-300 mb-2">
+                Apply Support Fix
+              </h3>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+                Paste the fix code provided by PharmacySuite support.
+              </p>
+              <textarea
+                className="w-full h-24 text-xs font-mono border rounded p-2"
+                placeholder="Paste fix code here..."
+                value={fixCode}
+                onChange={(e) => setFixCode(e.target.value)}
+              />
+              <button
+                onClick={handleApplyFix}
+                disabled={fixApplying}
+                className="mt-2 px-4 py-1 bg-blue-600 text-white rounded text-sm disabled:opacity-50"
+              >
+                {fixApplying ? "Applying..." : "Apply Fix"}
+              </button>
+              {fixError && (
+                <p className="text-xs text-red-500 mt-2">{fixError}</p>
+              )}
+            </div>
+          )}
 
           {fallbackReport !== null && (
             <textarea
@@ -307,6 +380,21 @@ export default function SupportPage() {
             Response time: typically within 24 hours on business days.
           </p>
         </div>
+
+        {/* Stage 2.4: pre-filled support email (admin only) */}
+        {user?.role_id === 1 && (
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+            <button
+              onClick={() => { (async () => { const r = await generateDiagnosticReport(); openSupportEmail(r); })(); }}
+              className="w-full py-2 px-4 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 justify-center"
+            >
+              📧 Email Support (includes diagnostic info)
+            </button>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">
+              Opens your mail client with a pre-filled support report — no passwords or patient data included.
+            </p>
+          </div>
+        )}
       </div>
     </div>
     </DashboardLayout>

@@ -48,6 +48,7 @@ http = "1"
 base64 = "0.22"
 sqlite = "0.37"
 windows-sys = { version = "0.59", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_Foundation", "Win32_Security"] }
+mdns-sd = "0.21.4"
 
 [profile.dev]
 opt-level = 1

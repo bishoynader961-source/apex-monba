@@ -4,6 +4,8 @@
 pub mod crash_handler;
 // Fix Engine (Step 2.4): verification of signed support fix codes.
 pub mod fix_engine;
+// Step 1.6: LAN advertisement of the backend service (blueprint §1.4.5).
+pub mod mdns_advisor;
 
 use tauri::{Manager, WindowEvent};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -105,6 +107,9 @@ fn kill_sidecars() {
             info!("Killed FastAPI backend sidecar process");
         }
     }
+    // Step 1.6: stop the mDNS advertisement on the same cleanup path — both
+    // CloseRequested and Destroyed funnel through kill_sidecars.
+    mdns_advisor::stop_mdns_advertisement();
 }
 
 /// Write one SystemSetting row directly to the SQLite DB.
@@ -701,6 +706,9 @@ async fn spawn_servers(app: &tauri::AppHandle) {
                                 *guard = Some(child);
                             }
                             log_to_file(&log_path, "[backend] sidecar spawned OK");
+                            // Step 1.6: announce the backend on the LAN —
+                            // only fires when mobile_access_mode == "shared".
+                            mdns_advisor::start_mdns_advertisement(app).await;
                             let lp = log_path.clone();
                             tauri::async_runtime::spawn(async move {
                                 while let Some(ev) = rx.recv().await {

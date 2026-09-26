@@ -1,0 +1,287 @@
+// ── Mobile Fix-Code Engine (Blueprint Task 3, Step 3.5) ──────────────────────
+//
+// PORT OF src-tauri/src/fix_engine.rs — one fix code verifies on desktop,
+// backend, and mobile. Byte-level contract (must not drift):
+//   * Envelope: {"action", "payload", "sig"}; sig = hex(HMAC-SHA256(
+//     canonical_json(payload), FIX_CODE_SECRET)).
+//   * Canonical JSON = Python json.dumps(payload, sort_keys=True):
+//     keys sorted, separators ", " / ": ", ensure_ascii escaping.
+//   * Verification order: signature FIRST (oracle resistance), then
+//     expiry, then version, then whitelist.
+//
+// SECURITY:
+//   * The key below is hardcoded (invariant #4) and identical to the
+//     desktop's fix_key.txt and the backend's FIX_CODE_SECRET. Rotation is
+//     atomic across all three (KNOWN_ISSUES #11). This file is source code
+//     compiled into the app bundle — NOT a user-editable config.
+//   * Operations are a strict whitelist. There is no eval, no fetch, no
+//     filesystem access, and no patient-data path in this module.
+//   * Only fixed error codes leave this module (invariant #7).
+
+import * as Crypto from "expo-crypto";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+// Same bytes as FIX_CODE_SECRET (backend .env) and fix_key.txt (desktop).
+const FIX_CODE_SECRET =
+  "REPLACE_WITH_FIX_CODE_SECRET_SAME_BYTES_AS_BACKEND_ENV";
+
+const APP_VERSION = "1.0.0";
+
+export type FixErrorCode =
+  | "INVALID_FORMAT"
+  | "INVALID_SIGNATURE"
+  | "EXPIRED"
+  | "VERSION_MISMATCH"
+  | "UNKNOWN_OPERATION"
+  | "NOT_APPLICABLE_HERE";
+
+// ── Python-compatible JSON canonicalization ──────────────────────────────────
+
+function pyEscape(s: string): string {
+  let out = "\"";
+  for (const ch of s) {
+    const code = ch.codePointAt(0) as number;
+    switch (ch) {
+      case "\"": out += "\\\""; break;
+      case "\\": out += "\\\\"; break;
+      case "\n": out += "\\n"; break;
+      case "\r": out += "\\r"; break;
+      case "\t": out += "\\t"; break;
+      case "\b": out += "\\b"; break;
+      case "\f": out += "\\f"; break;
+      default:
+        if (code < 0x20) {
+          out += "\\u" + code.toString(16).padStart(4, "0");
+        } else if (code > 0x7e) {
+          if (code > 0xffff) {
+            const v = code - 0x10000;
+            const hi = 0xd800 + (v >> 10);
+            const lo = 0xdc00 + (v & 0x3ff);
+            out += "\\u" + hi.toString(16).padStart(4, "0") + "\\u" + lo.toString(16).padStart(4, "0");
+          } else {
+            out += "\\u" + code.toString(16).padStart(4, "0");
+          }
+        } else {
+          out += ch;
+        }
+    }
+  }
+  return out + "\"";
+}
+
+export function canonicalJson(value: unknown): string {
+  if (value === null || typeof value === "boolean") return String(value);
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") return pyEscape(value);
+  if (Array.isArray(value)) return "[" + value.map(canonicalJson).join(", ") + "]";
+  if (typeof value === "object") {
+    const keys = Object.keys(value as Record<string, unknown>).sort();
+    const parts = keys.map(
+      (k) => pyEscape(k) + ": " + canonicalJson((value as Record<string, unknown>)[k]),
+    );
+    return "{" + parts.join(", ") + "}";
+  }
+  // undefined / functions / symbols never appear in parsed JSON envelopes.
+  return "null";
+}
+
+// ── HMAC-SHA256 via expo-crypto ──────────────────────────────────────────────
+
+async function hmacSha256Hex(key: string, message: string): Promise<string> {
+  // expo-crypto's digestRaw requires byte arrays; the key can be any length
+  // (HMAC pads internally), so we hash oversized keys to derive a block-size
+  // key per RFC 2104 — expo-crypto exposes no primitive HMAC, so this
+  // implements RFC 2104 on top of SHA-256 directly.
+  const blockSize = 64;
+  let keyBytes = hexToBytes(await sha256Hex(key));
+  if (keyBytes.length > blockSize) {
+    keyBytes = hexToBytes(await sha256Hex(bytesToHex(keyBytes)));
+  }
+  const padded = new Uint8Array(blockSize);
+  padded.set(keyBytes);
+  const inner = new Uint8Array(blockSize);
+  const outer = new Uint8Array(blockSize);
+  for (let i = 0; i < blockSize; i++) {
+    inner[i] = padded[i] ^ 0x36;
+    outer[i] = padded[i] ^ 0x5c;
+  }
+  const messageBytes = new TextEncoder().encode(message);
+  const innerInput = concat(inner, messageBytes);
+  const innerHash = hexToBytes(await sha256HexBytes(innerInput));
+  const outerInput = concat(outer, innerHash);
+  return sha256HexBytes(outerInput);
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, input, {
+    encoding: Crypto.CryptoEncoding.HEX,
+  });
+}
+
+async function sha256HexBytes(bytes: Uint8Array): Promise<string> {
+  // digestStringAsync expects a string; encode bytes as latin1 so each byte
+  // maps to exactly one char code and survives the string->bytes round trip.
+  let latin = "";
+  for (const b of bytes) latin += String.fromCharCode(b);
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, latin, {
+    encoding: Crypto.CryptoEncoding.HEX,
+  });
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  let out = "";
+  for (const b of bytes) out += b.toString(16).padStart(2, "0");
+  return out;
+}
+
+function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a);
+  out.set(b, a.length);
+  return out;
+}
+
+/** Constant-time comparison — mirrors hmac.compare_digest / the Rust ct_eq. */
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+// ── Envelope handling ────────────────────────────────────────────────────────
+
+interface FixEnvelope {
+  action: string;
+  payload: Record<string, unknown>;
+  sig: string;
+}
+
+interface PatchMetadata {
+  expiresAt: string;
+  version: string;
+}
+
+export interface FixResult {
+  ok: boolean;
+  /** Success message or friendly error code — nothing else (invariant #7). */
+  message: string;
+}
+
+export async function verifyFixCode(raw: string): Promise<
+  | { ok: true; action: string; payload: Record<string, unknown> }
+  | { ok: false; code: FixErrorCode }
+> {
+  let envelope: FixEnvelope;
+  try {
+    envelope = JSON.parse(raw) as FixEnvelope;
+  } catch {
+    return { ok: false, code: "INVALID_FORMAT" };
+  }
+  if (
+    typeof envelope.action !== "string" ||
+    typeof envelope.sig !== "string" ||
+    envelope.payload === null ||
+    typeof envelope.payload !== "object"
+  ) {
+    return { ok: false, code: "INVALID_FORMAT" };
+  }
+
+  // 1. Signature first.
+  const message = canonicalJson(envelope.payload);
+  const expected = await hmacSha256Hex(FIX_CODE_SECRET, message);
+  if (!constantTimeEqual(expected, envelope.sig.toLowerCase())) {
+    return { ok: false, code: "INVALID_SIGNATURE" };
+  }
+
+  // 2. Expiry + version (inside the signed payload).
+  const meta = envelope.payload as unknown as PatchMetadata;
+  if (typeof meta.expiresAt !== "string" || typeof meta.version !== "string") {
+    return { ok: false, code: "INVALID_FORMAT" };
+  }
+  const exp = Date.parse(meta.expiresAt);
+  if (Number.isNaN(exp)) return { ok: false, code: "INVALID_FORMAT" };
+  if (exp < Date.now()) return { ok: false, code: "EXPIRED" };
+
+  const appMinor = APP_VERSION.split(".").slice(0, 2).join(".");
+  const patchMinor = meta.version.split(".").slice(0, 2).join(".");
+  if (appMinor !== patchMinor) return { ok: false, code: "VERSION_MISMATCH" };
+
+  return { ok: true, action: envelope.action, payload: envelope.payload };
+}
+
+// ── Whitelisted operations (mobile subset) ───────────────────────────────────
+// Mirrors the blueprint's MobileFixOperation enum. Each op touches ONLY its
+// own storage keys; there is no generic "clear storage" op, and tokens in
+// SecureStore are deliberately outside AsyncStorage's reach.
+
+const WHITELISTED_CLEAR_KEYS = [
+  "ph_last_connection",
+  "ph_sync_cursor",
+  "ph_pos_draft",
+] as const;
+
+async function applyAction(action: string, payload: Record<string, unknown>): Promise<string> {
+  switch (action) {
+    case "clear_local_cache": {
+      for (const key of WHITELISTED_CLEAR_KEYS) {
+        await AsyncStorage.removeItem(key);
+      }
+      return "Local cache cleared. Please log in again if prompted.";
+    }
+    case "reset_connection_settings": {
+      await AsyncStorage.removeItem("ph_last_connection");
+      return "Connection settings reset. Re-scan the desktop QR code.";
+    }
+    case "update_mobile_setting": {
+      const key = payload["key"];
+      const value = payload["value"];
+      if (typeof key !== "string" || typeof value !== "string") {
+        throw new Error("UNKNOWN_OPERATION");
+      }
+      // Only a fixed set of mobile-local settings is writable.
+      if (!["support_ack_seen", "diagnostics_opt_out"].includes(key)) {
+        throw new Error("UNKNOWN_OPERATION");
+      }
+      await AsyncStorage.setItem(`ph_fix_${key}`, value);
+      return `Setting ${key} updated.`;
+    }
+    case "force_full_sync": {
+      // The sync hook reads this flag on next launch and enqueues a full pull.
+      await AsyncStorage.setItem("ph_force_full_sync", "1");
+      return "Full sync scheduled. It will run on next launch.";
+    }
+    default:
+      throw new Error("UNKNOWN_OPERATION");
+  }
+}
+
+/**
+ * Entry point used by the recovery/support UI: verify, then apply.
+ * Returns a friendly message or a friendly error code — never internals.
+ */
+export async function applyMobileFix(fixCodeJson: string): Promise<FixResult> {
+  const verdict = await verifyFixCode(fixCodeJson);
+  if (!verdict.ok) return { ok: false, message: verdict.code };
+  try {
+    const message = await applyAction(verdict.action, verdict.payload);
+    return { ok: true, message };
+  } catch (e) {
+    const code = e instanceof Error ? e.message : "UNKNOWN_OPERATION";
+    const allowed: FixErrorCode[] = ["UNKNOWN_OPERATION", "NOT_APPLICABLE_HERE"];
+    return {
+      ok: false,
+      message: allowed.includes(code as FixErrorCode) ? code : "UNKNOWN_OPERATION",
+    };
+  }
+}

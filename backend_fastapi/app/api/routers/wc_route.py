@@ -1,6 +1,7 @@
 """Workers' Compensation Claims CRUD routes."""
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,6 +18,34 @@ from app.shared.schemas import (
 )
 
 router = APIRouter(prefix="/api/v1/wc-claims", tags=["workers-compensation"])
+
+
+def _money_value(payload: WCClaimCreate | WCClaimUpdate, field: str) -> Decimal:
+    value = getattr(payload, field, None)
+    return value if value is not None else Decimal("0")
+
+
+def _validate_money_totals(payload: WCClaimCreate | WCClaimUpdate) -> None:
+    """H6 money-safety: enforce the WC accounting identity on every write.
+
+    Mirrors the Phase-1 checkout contract. Non-negativity and the
+    Numeric(10,2) column cap live in the schemas (Field ge=0/le); this check
+    enforces total_charges == insurance_paid + patient_responsibility.
+    Unadjudicated claims may keep all three at their zero defaults; on
+    update, supply the full balanced triplet or none at all.
+    """
+    total = _money_value(payload, "total_charges")
+    paid = _money_value(payload, "insurance_paid")
+    patient = _money_value(payload, "patient_responsibility")
+    if total != paid + patient:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "WC claim totals do not balance: total_charges "
+                f"({total}) must equal insurance_paid ({paid}) + "
+                f"patient_responsibility ({patient})"
+            ),
+        )
 
 
 @router.get("", response_model=list[WCClaimRead])
@@ -67,6 +96,7 @@ async def create_claim(
             status_code=409,
             detail=f"Claim number '{payload.claim_number}' already exists",
         )
+    _validate_money_totals(payload)
     claim = await repo.create(payload)
     return WCClaimRead.model_validate(claim)
 
@@ -80,6 +110,7 @@ async def update_claim(
 ) -> WCClaimRead:
     """Update a Workers' Compensation claim."""
     repo = WCClaimRepository(session)
+    _validate_money_totals(payload)
     claim = await repo.update(claim_id, payload)
     if claim is None:
         raise HTTPException(status_code=404, detail="WC claim not found")

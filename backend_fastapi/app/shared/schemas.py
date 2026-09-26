@@ -1431,9 +1431,10 @@ class WCClaimBase(BaseModel):
     pay_to_zip: Optional[str] = None
     status: str = "open"
     dispense_id: Optional[int] = None
-    total_charges: Decimal = Decimal("0")
-    insurance_paid: Decimal = Decimal("0")
-    patient_responsibility: Decimal = Decimal("0")
+    # H6 money bounds: non-negative, capped at the Numeric(10,2) column limit
+    total_charges: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("99999999.99"))
+    insurance_paid: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("99999999.99"))
+    patient_responsibility: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("99999999.99"))
     notes: Optional[str] = None
 
 
@@ -1505,9 +1506,10 @@ class WCClaimUpdate(BaseModel):
     pay_to_zip: Optional[str] = None
     status: Optional[str] = None
     dispense_id: Optional[int] = None
-    total_charges: Optional[Decimal] = None
-    insurance_paid: Optional[Decimal] = None
-    patient_responsibility: Optional[Decimal] = None
+    # H6 money bounds: same contract as WCClaimBase (optional on update)
+    total_charges: Optional[Decimal] = Field(default=None, ge=0, le=Decimal("99999999.99"))
+    insurance_paid: Optional[Decimal] = Field(default=None, ge=0, le=Decimal("99999999.99"))
+    patient_responsibility: Optional[Decimal] = Field(default=None, ge=0, le=Decimal("99999999.99"))
     notes: Optional[str] = None
 
 

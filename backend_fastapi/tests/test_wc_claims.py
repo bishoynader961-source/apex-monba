@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
@@ -173,3 +174,118 @@ async def test_wc_claim_duplicate_number_conflict(
         headers=auth,
     )
     assert resp2.status_code == 409
+
+
+# ── H6: money bounds + totals balance (mirrors checkout money contract) ──────
+async def test_wc_claim_negative_money_rejected(
+    client: AsyncClient, auth: dict[str, str], patient_id: int
+) -> None:
+    resp = await client.post(
+        "/api/v1/wc-claims",
+        json={**_WC_PAYLOAD, "patient_id": patient_id, "total_charges": "-10.00"},
+        headers=auth,
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.parametrize("field", ["insurance_paid", "patient_responsibility"])
+async def test_wc_claim_negative_payment_fields_rejected(
+    client: AsyncClient, auth: dict[str, str], patient_id: int, field: str
+) -> None:
+    resp = await client.post(
+        "/api/v1/wc-claims",
+        json={**_WC_PAYLOAD, "patient_id": patient_id, field: "-5.00"},
+        headers=auth,
+    )
+    assert resp.status_code == 422
+
+
+async def test_wc_claim_money_cap_rejected(
+    client: AsyncClient, auth: dict[str, str], patient_id: int
+) -> None:
+    resp = await client.post(
+        "/api/v1/wc-claims",
+        json={**_WC_PAYLOAD, "patient_id": patient_id, "total_charges": "100000000.00"},
+        headers=auth,
+    )
+    assert resp.status_code == 422
+
+
+async def test_wc_claim_unbalanced_totals_rejected(
+    client: AsyncClient, auth: dict[str, str], patient_id: int
+) -> None:
+    resp = await client.post(
+        "/api/v1/wc-claims",
+        json={
+            **_WC_PAYLOAD,
+            "patient_id": patient_id,
+            "total_charges": "100.00",
+            "insurance_paid": "40.00",
+            "patient_responsibility": "55.00",
+        },
+        headers=auth,
+    )
+    assert resp.status_code == 422
+
+
+async def test_wc_claim_balanced_totals_accepted(
+    client: AsyncClient, auth: dict[str, str], patient_id: int
+) -> None:
+    resp = await client.post(
+        "/api/v1/wc-claims",
+        json={
+            **_WC_PAYLOAD,
+            "patient_id": patient_id,
+            "total_charges": "100.00",
+            "insurance_paid": "40.00",
+            "patient_responsibility": "60.00",
+        },
+        headers=auth,
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert Decimal(body["total_charges"]) == Decimal("100.00")
+    assert Decimal(body["insurance_paid"]) == Decimal("40.00")
+    assert Decimal(body["patient_responsibility"]) == Decimal("60.00")
+
+
+async def test_wc_claim_unadjudicated_defaults_accepted(
+    client: AsyncClient, auth: dict[str, str], patient_id: int
+) -> None:
+    """Claims awaiting adjudication keep all three money fields at zero."""
+    resp = await client.post(
+        "/api/v1/wc-claims", json={**_WC_PAYLOAD, "patient_id": patient_id}, headers=auth
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert Decimal(body["total_charges"]) == 0
+    assert Decimal(body["insurance_paid"]) == 0
+    assert Decimal(body["patient_responsibility"]) == 0
+
+
+async def test_wc_claim_update_requires_balanced_triplet(
+    client: AsyncClient, auth: dict[str, str], patient_id: int
+) -> None:
+    create_resp = await client.post(
+        "/api/v1/wc-claims", json={**_WC_PAYLOAD, "patient_id": patient_id}, headers=auth
+    )
+    claim_id = create_resp.json()["id"]
+
+    # Unbalanced triplet must be rejected on update too.
+    partial = await client.put(
+        f"/api/v1/wc-claims/{claim_id}",
+        json={"total_charges": "80.00", "insurance_paid": "30.00", "patient_responsibility": "45.00"},
+        headers=auth,
+    )
+    assert partial.status_code == 422
+
+    # Supplying the balanced triplet is accepted.
+    balanced = await client.put(
+        f"/api/v1/wc-claims/{claim_id}",
+        json={"total_charges": "80.00", "insurance_paid": "30.00", "patient_responsibility": "50.00"},
+        headers=auth,
+    )
+    assert balanced.status_code == 200
+    body = balanced.json()
+    assert Decimal(body["total_charges"]) == Decimal("80.00")
+    assert Decimal(body["patient_responsibility"]) == Decimal("50.00")

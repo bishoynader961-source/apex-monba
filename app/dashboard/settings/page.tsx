@@ -11,7 +11,7 @@ import { listSettings, updateSetting } from "@/lib/api/settings";
 import { changePassword } from "@/lib/api/auth";
 import { useToast } from "@/hooks/useToast";
 import type { SystemSettingRead } from "@/types/contracts";
-import { Plug, Plus, X, Check, Loader2, Building2, Receipt, ShieldAlert, Mail, Clock, Globe, MessageSquare, Server, Cpu, Wifi, WifiOff, Save, Sun, Moon, Monitor } from "lucide-react";
+import { Plug, Plus, X, Check, Loader2, Building2, Receipt, ShieldAlert, Mail, Clock, Globe, MessageSquare, Server, Cpu, Wifi, WifiOff, Save, Sun, Moon, Monitor, Smartphone } from "lucide-react";
 import { api } from "@/lib/api";
 import { useUiStore } from "@/stores/uiStore";
 import { UpdateChecker } from "@/components/UpdateChecker";
@@ -146,6 +146,7 @@ export default function SettingsPage() {
 
   // Terminal Mode form (SPEC 07)
   const [terminalMode, setTerminalMode] = useState<"main" | "client">("main");
+  const [mobileAccessMode, setMobileAccessMode] = useState<"shared" | "independent">("shared");
   const [serverIp, setServerIp] = useState("");
 
   const loadSettings = useCallback(async () => {
@@ -203,6 +204,7 @@ export default function SettingsPage() {
       });
       // Terminal Mode (SPEC 07)
       setTerminalMode((map.terminal_mode as "main" | "client") ?? "main");
+      setMobileAccessMode((map.mobile_access_mode as "shared" | "independent") ?? "shared");
       setServerIp(map.server_ip ?? "");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load settings");
@@ -497,6 +499,51 @@ export default function SettingsPage() {
                 </>
               )}
             </div>
+          </div>
+
+          {/* ── Mobile Access (Network) Mode (Phase 4 Step 1.4) ─────────── */}
+          <div style={SECTION_STYLE}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <Smartphone size={20} style={{ color: "var(--primary)" }} />
+              <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)" }}>Mobile Access (Network)</h2>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={LABEL_STYLE} htmlFor="page-field-32">Mode</label>
+                <select
+                  id="page-field-32"
+                  style={INPUT_STYLE}
+                  value={mobileAccessMode}
+                  onChange={(e) => setMobileAccessMode(e.target.value as "shared" | "independent")}
+                >
+                  <option value="shared">Shared Network Database (mobile connects to this PC)</option>
+                  <option value="independent">Independent Mobile Database (API loopback-only)</option>
+                </select>
+                {mobileAccessMode === "shared" && (
+                  <p style={{ fontSize: 12, color: "var(--warning, #d97706)", marginTop: 6 }}>
+                    Shared mode binds the API to all network interfaces (0.0.0.0). Only devices on your
+                    local WiFi can connect — your data is never exposed to the internet. Your firewall
+                    must allow inbound TCP 8000; some routers need explicit permission on first run.
+                  </p>
+                )}
+                {mobileAccessMode === "independent" && (
+                  <p style={{ fontSize: 12, color: "var(--fg-muted, #6b7280)", marginTop: 6 }}>
+                    Independent mode keeps the API loopback-only (127.0.0.1). Mobile devices run their
+                    own local database and cannot reach this PC's API over the network.
+                  </p>
+                )}
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: "var(--fg-muted, #6b7280)", marginTop: 8 }}>
+              Takes effect on next application restart. Cloud relay is planned for a future release.
+            </p>
+            <button
+              onClick={() => void saveSection([["mobile_access_mode", mobileAccessMode]])}
+              disabled={saving}
+              style={{ marginTop: 12, padding: "8px 20px", background: "var(--primary)", color: "var(--primary-fg)", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}
+            >
+              {saving ? "Saving..." : t("common.save")}
+            </button>
           </div>
 
           {/* ── Terminal Mode Configuration (SPEC 07) ───────────────────── */}

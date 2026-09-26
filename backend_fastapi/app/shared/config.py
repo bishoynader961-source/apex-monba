@@ -168,6 +168,14 @@ class Settings(BaseSettings):
     fastapi_host: str = Field(default="0.0.0.0", alias="FASTAPI_HOST")
     fastapi_port: int = Field(default=8000, alias="FASTAPI_PORT")
 
+    # ── Mobile Access Mode (Phase 4 Step 1.4) ──
+    # "shared" = the desktop DB/API is authoritative and may be exposed to the
+    # local network (0.0.0.0). "independent" = mobile keeps its own local DB
+    # and the API stays loopback-only (127.0.0.1). "cloud" is a stub for a
+    # future hosted relay and currently behaves like "independent".
+    mobile_access_mode: str = Field(default="shared", alias="MOBILE_ACCESS_MODE")
+    mobile_bind_host: str = Field(default="127.0.0.1", alias="MOBILE_BIND_HOST")
+
     frontend_url: str = Field(default="http://localhost:3000", alias="FRONTEND_URL")
     tax_rate: float = Field(default=0.14, alias="TAX_RATE")
 

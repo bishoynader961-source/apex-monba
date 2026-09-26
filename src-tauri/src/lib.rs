@@ -505,32 +505,40 @@ fn get_data_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
 
 // ── Sidecar orchestration ────────────────────────────────────────────────────
 async fn read_terminal_mode(app: &tauri::AppHandle) -> Result<String, String> {
+    read_system_setting_value(app, "terminal_mode").await.map(|v| v.unwrap_or_else(|| "main".to_string()))
+}
+
+/// Read a single SystemSetting row directly from the SQLite DB (shared
+/// helper — used by terminal_mode today, mobile_access_mode in Step 1.4).
+/// Returns Ok(None) when the key is absent; missing DB defaults to None.
+async fn read_system_setting_value(app: &tauri::AppHandle, key: &str) -> Result<Option<String>, String> {
     let data_dir = get_data_dir(app)?;
     let db_path = data_dir.join("pharmacy.db");
-    
+
     if !db_path.exists() {
-        // No database yet - default to main server for first-time setup
-        return Ok("main".to_string());
+        return Ok(None);
     }
-    
-    // Use sqlite to read the terminal_mode setting
+
     use sqlite::State;
     let conn = sqlite::open(&db_path).map_err(|e| e.to_string())?;
-    let mut stmt = conn.prepare("SELECT value FROM system_settings WHERE key = 'terminal_mode'").map_err(|e| e.to_string())?;
-    
-    let mode = match stmt.next() {
+    // Key is a bound parameter, never string-interpolated.
+    let mut stmt = conn
+        .prepare("SELECT value FROM system_settings WHERE key = ?1")
+        .map_err(|e| e.to_string())?;
+    // sqlite crate: Bindable is implemented for (index, value) tuples.
+    stmt.bind((1, key)).map_err(|e| e.to_string())?;
+
+    match stmt.next() {
         Ok(State::Row) => {
             let val: String = stmt.read(0).unwrap_or_default();
-            val
+            Ok(Some(val))
         }
-        Ok(State::Done) => "main".to_string(), // Default to main if not set
+        Ok(State::Done) => Ok(None),
         Err(e) => {
-            log_to_file(&get_log_path(app), &format!("[terminal_mode] DB query error: {e}"));
-            "main".to_string()
+            log_to_file(&get_log_path(app), &format!("[settings] DB query error for {key}: {e}"));
+            Ok(None)
         }
-    };
-    
-    Ok(mode)
+    }
 }
 
 async fn spawn_servers(app: &tauri::AppHandle) {
@@ -668,15 +676,26 @@ async fn spawn_servers(app: &tauri::AppHandle) {
                 if !port_is_bindable(8000) {
                     log_to_file(&log_path, "[backend] PORT CONFLICT: 127.0.0.1:8000 is already in use (another Pharmacy Suite instance or unrelated service?)");
                 }
+                // Step 1.4 (Database Mode): bind host follows mobile_access_mode.
+                //   shared      → 0.0.0.0 (desktop is the LAN server; firewall note shown in Settings)
+                //   independent → 127.0.0.1 (loopback only — default and safe)
+                //   cloud (stub)→ 127.0.0.1 today; a hosted relay is future work
+                let mobile_access_mode =
+                    read_system_setting_value(app, "mobile_access_mode").await.ok().flatten().unwrap_or_else(|| "shared".to_string());
+                let bind_host = match mobile_access_mode.as_str() {
+                    "shared" => "0.0.0.0",
+                    _ => "127.0.0.1", // independent + cloud-stub + unknown values stay safe
+                };
+                log_to_file(&log_path, &format!("[backend] mobile_access_mode = {mobile_access_mode}; binding {bind_host}:8000"));
                 match app.shell().sidecar("backend") {
                     Ok(cmd) => match cmd
-                        .args(["--host", "127.0.0.1", "--port", "8000"])
+                        .args(["--host", bind_host, "--port", "8000"])
                         .current_dir(&data_dir)
                         .spawn()
                     {
                         Ok((mut rx, child)) => {
                             log_to_file(&log_path, &format!("[backend] sidecar spawned OK (pid {})", child.pid()));
-                            log_to_file(&log_path, "[backend] listening on 127.0.0.1:8000 (loopback only; other machines cannot connect)");
+                            log_to_file(&log_path, &format!("[backend] listening on {bind_host}:8000{}", if bind_host == "0.0.0.0" { " (LAN: other devices on this network can connect)" } else { " (loopback only; other machines cannot connect)" }));
                             assign_child_to_job(child.pid());
                             if let Ok(mut guard) = SIDECAR_BACKEND.lock() {
                                 *guard = Some(child);

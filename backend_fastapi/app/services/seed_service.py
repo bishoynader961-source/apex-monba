@@ -390,6 +390,11 @@ async def seed_default_settings(session: AsyncSession) -> None:
         ("pharmacy_name", ""),
         ("session_idle_minutes", "15"),
         ("session_absolute_minutes", "480"),
+        # Mobile Access Mode (Phase 4 Step 1.4): shared = desktop becomes the
+        # LAN server; independent = mobile keeps loopback-only API. Cloud is a
+        # documented future option and intentionally has no seed.
+        ("mobile_access_mode", "shared"),
+        ("qr_secret_key", ""),
     ]
     try:
         for key, value in defaults:

@@ -6,7 +6,15 @@ import { readCrashLog } from "../lib/diagnostics/classifier";
 import { RecoveryActions } from "./MobileRecoveryScreen";
 
 export default function SettingsScreen() {
-  const { user, logout, license } = useAuthStore();
+  const {
+    user,
+    logout,
+    license,
+    biometricsEnabled,
+    enableBiometrics,
+    disableBiometrics,
+    timeouts,
+  } = useAuthStore();
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState<string>("");
   const [licenseStatus, setLicenseStatus] = useState<string>("");
@@ -35,6 +43,20 @@ export default function SettingsScreen() {
   useEffect(() => {
     void readCrashLog().then((log) => setCrashCount(log.length));
   }, []);
+
+  // Step 1.3: biometric unlock preference. Enabling requires a successful
+  // hardware prompt; failing hardware/enrollment surfaces as an alert.
+  const toggleBiometrics = async () => {
+    try {
+      if (biometricsEnabled) {
+        await disableBiometrics();
+      } else {
+        await enableBiometrics();
+      }
+    } catch (e) {
+      Alert.alert("Biometrics", e instanceof Error ? e.message : "Not available on this device.");
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -69,6 +91,21 @@ export default function SettingsScreen() {
             <Text style={styles.value}>{deviceId}</Text>
           </>
         )}
+      </View>
+
+      {/* Step 1.3: session security (mirrors desktop sessionStore limits) */}
+      <View style={styles.section}>
+        <Text style={styles.label}>Security</Text>
+        <Text style={styles.value}>
+          Session limits: {timeouts.idleMinutes} min idle / {timeouts.absoluteMinutes} min absolute
+        </Text>
+        <TouchableOpacity style={styles.recoveryToggle} onPress={toggleBiometrics}>
+          <Text style={{ color: biometricsEnabled ? "#34C759" : "#9ca3af", fontSize: 13 }}>
+            {biometricsEnabled
+              ? "● Biometric unlock ON — tap to disable"
+              : "Enable biometric unlock (Face ID / fingerprint)"}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Step 3.7: Support & Recovery (blueprint Point 3) */}

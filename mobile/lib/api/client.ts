@@ -50,6 +50,45 @@ async function clearTokens(): Promise<void> {
 // device name). Tokens must never pass through here.
 export const configStorage = AsyncStorage;
 
+// ── Cross-module auth notifications (no circular imports) ───────────────────
+// authStore registers these at startup. The interceptor fires them when a
+// session dies (401 after failed refresh), a permission error occurs (403),
+// or any API call succeeds (activity → idle-timeout clock).
+let onUnauthorized: (() => void) | null = null;
+let onForbidden: (() => void) | null = null;
+let onActivity: (() => void) | null = null;
+
+export function setUnauthorizedCallback(cb: (() => void) | null): void {
+  onUnauthorized = cb;
+}
+
+export function setForbiddenCallback(cb: (() => void) | null): void {
+  onForbidden = cb;
+}
+
+export function setActivityCallback(cb: (() => void) | null): void {
+  onActivity = cb;
+}
+
+// ── SecureStore helpers for the session-unlock (biometric) flow ────────────
+// Tokens never leave SecureStore except as opaque strings to the auth store.
+export async function getStoredAccessToken(): Promise<string | null> {
+  return SecureStore.getItemAsync("ph_access_token");
+}
+
+export async function getStoredRefreshToken(): Promise<string | null> {
+  return SecureStore.getItemAsync("ph_refresh_token");
+}
+
+export async function storeTokens(access: string, refresh: string): Promise<void> {
+  await SecureStore.setItemAsync("ph_access_token", access);
+  await SecureStore.setItemAsync("ph_refresh_token", refresh);
+}
+
+export async function clearStoredTokens(): Promise<void> {
+  await clearTokens();
+}
+
 function getErrorMessage(error: AxiosError): string {
   const data = error.response?.data as { error?: { message?: string } } | undefined;
   if (data?.error?.message) return data.error.message;
@@ -98,8 +137,17 @@ function drainQueue() {
 }
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Every successful response counts as user activity for the idle timeout.
+    onActivity?.();
+    return response;
+  },
   async (error: AxiosError) => {
+    if (error.response?.status === 403) {
+      // Permission errors must surface as a toast/alert, not a crash (1.3).
+      onForbidden?.();
+      return Promise.reject(new Error(getErrorMessage(error)));
+    }
     if (error.response?.status !== 401) {
       return Promise.reject(new Error(getErrorMessage(error)));
     }
@@ -132,10 +180,12 @@ api.interceptors.response.use(
         isRefreshing = false;
         drainQueue();
         await clearTokens();
+        onUnauthorized?.();
         return Promise.reject(new Error("unauthorized"));
       }
     }
     await clearTokens();
+    onUnauthorized?.();
     return Promise.reject(new Error(getErrorMessage(error)));
   },
 );

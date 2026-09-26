@@ -6,7 +6,8 @@ export default function LoginScreen({ navigation }: any) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login } = useAuthStore();
+  const [unlocking, setUnlocking] = useState(false);
+  const { login, biometricsEnabled, unlockWithBiometrics } = useAuthStore();
 
   const handleLogin = async () => {
     if (!username || !password) {
@@ -21,6 +22,22 @@ export default function LoginScreen({ navigation }: any) {
       Alert.alert("Login Failed", msg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Step 1.3: biometric unlock resumes an existing SecureStore session; it
+  // can never create one. No live session → fall back to the password form.
+  const handleBiometricUnlock = async () => {
+    setUnlocking(true);
+    try {
+      const ok = await unlockWithBiometrics();
+      if (!ok) {
+        Alert.alert("Unlock unavailable", "No active session to unlock — please sign in with your password.");
+      }
+    } catch (e) {
+      Alert.alert("Unlock failed", e instanceof Error ? e.message : "Please try again.");
+    } finally {
+      setUnlocking(false);
     }
   };
 
@@ -66,6 +83,18 @@ export default function LoginScreen({ navigation }: any) {
             {loading ? "Signing in..." : "Sign In"}
           </Text>
         </TouchableOpacity>
+
+        {biometricsEnabled && (
+          <TouchableOpacity
+            style={[styles.biometricBtn, unlocking && styles.loginBtnDisabled]}
+            onPress={handleBiometricUnlock}
+            disabled={unlocking || loading}
+          >
+            <Text style={styles.biometricText}>
+              {unlocking ? "Waiting for biometrics…" : "🔓 Unlock with biometrics"}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -121,6 +150,18 @@ const styles = StyleSheet.create({
   },
   loginBtnDisabled: {
     backgroundColor: "#333",
+  },
+  biometricBtn: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#007AFF",
+  },
+  biometricText: {
+    color: "#007AFF",
+    fontSize: 14,
+    fontWeight: "600",
   },
   loginBtnText: {
     color: "#fff",

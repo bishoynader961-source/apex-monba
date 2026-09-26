@@ -110,10 +110,10 @@ export default function AnalyticsScreen() {
 
   const renderDemandItem = ({ item }: { item: DemandAnalyticsItem }) => {
     const bg = {
-      FAST: "#30B054",
-      MODERATE: "#007AFF",
-      SLOW: "#FF9500",
-      "NON-MOVING": "#888",
+      FAST_MOVING: "#30B054",
+      MODERATE_MOVING: "#007AFF",
+      SLOW_MOVING: "#FF9500",
+      NON_MOVING: "#888",
     }[item.velocity_category] || "#888";
 
     return (

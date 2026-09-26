@@ -740,7 +740,9 @@ export interface SyncPushEntry {
   device_id: string;
   local_seq: number;
   client_txn_id: string;
+  type: "POS_CHECKOUT" | "STOCK_ADJUST" | "RECEIVE_PO" | "DRAWER_MOVEMENT";
   payload: { items: Array<{ product_name: string; quantity: number }> };
+  enqueued_at: string;
 }
 
 export interface SyncPushRequest {
@@ -752,6 +754,8 @@ export interface SyncPushResult {
   deduped: number;
   over_sells: number;
   merge_seq_max: number;
+  processed_client_txn_ids: string[];
+  skipped_client_txn_ids: string[];
 }
 
 // Persisted sync discrepancy surfaced for manager review (A4). Mirrors the
@@ -2148,4 +2152,47 @@ export interface ReceiptSettingsRead {
 
 export interface ReceiptSettingsUpdate {
   retention_days: number | null;
+}
+
+
+// ── Mobile app types (parity merge from mobile/types/contracts.ts — Step 1.2) ─
+export type ProductCreate = Omit<Medicine, "id" | "is_deleted" | "recalled">;
+
+export interface InventoryAdjustmentCreate {
+  product_name: string;
+  change: number;
+  reason: string;
+  client_timestamp?: string | null;
+}
+
+export interface LicenseValidationResult {
+  license_key: string;
+  status: string;
+  email?: string;
+  expires_at?: string;
+  offline_until?: string;
+  hardware_id?: string;
+}
+
+export interface PatientSummary {
+  id: number;
+  first_name?: string | null;
+  last_name?: string | null;
+  name: string;
+  dob?: string | null;
+  insurance_provider?: string | null;
+  phone?: string | null;
+}
+
+export interface PurchaseOrderReceiveItem {
+  item_id: number;
+  received_qty: number;
+  lot_number?: string;
+  expiry_date?: string;
+  mfg_date?: string;
+}
+
+export interface AutoReorderResponse {
+  total: number;
+  created: PurchaseOrderRead[];
 }

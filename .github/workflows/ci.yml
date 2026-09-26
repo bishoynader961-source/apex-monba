@@ -115,6 +115,11 @@ jobs:
       - run: npm ci
       - name: Check contract parity
         run: npm run check:contracts
+      - name: Check mobile/desktop shared-file parity (Step 1.2)
+        run: |
+          cmp mobile/types/contracts.ts types/contracts.ts
+          cmp mobile/lib/decimalCurrency.ts lib/decimalCurrency.ts
+          echo "mobile shared files are byte-identical to desktop"
 
   docker-build:
     name: Docker images (R2)

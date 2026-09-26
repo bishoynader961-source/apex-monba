@@ -52,3 +52,7 @@ src-tauri/src/fix_admin_key.txt
 
 # Mobile fix-code engine embeds the same secret (public repo)
 mobile/lib/security/fixEngine.ts
+
+# Bare-name guards: the same files must be ignored at ANY path (root, subdir, future moves)
+fix_key.txt
+fix_admin_key.txt

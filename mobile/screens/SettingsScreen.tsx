@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { useAuthStore } from "../stores/authStore";
 import { getStoredDeviceId, getDeviceName } from "../lib/deviceId";
+import { readCrashLog } from "../lib/diagnostics/classifier";
+import { RecoveryActions } from "./MobileRecoveryScreen";
 
 export default function SettingsScreen() {
   const { user, logout, license } = useAuthStore();
@@ -27,6 +29,12 @@ export default function SettingsScreen() {
       },
     ]);
   };
+
+  const [crashCount, setCrashCount] = useState(0);
+  const [showSupport, setShowSupport] = useState(false);
+  useEffect(() => {
+    void readCrashLog().then((log) => setCrashCount(log.length));
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -63,6 +71,20 @@ export default function SettingsScreen() {
         )}
       </View>
 
+      {/* Step 3.7: Support & Recovery (blueprint Point 3) */}
+      <View style={styles.section}>
+        <Text style={styles.label}>Support &amp; Recovery</Text>
+        <TouchableOpacity
+          style={styles.recoveryToggle}
+          onPress={() => setShowSupport((v: boolean) => !v)}
+        >
+          <Text style={{ color: crashCount > 0 ? '#f87171' : '#9ca3af', fontSize: 13 }}>
+            {crashCount > 0 ? `● ${crashCount} recent issue${crashCount === 1 ? '' : 's'} — tap for help` : 'Get help / diagnostics'}
+          </Text>
+        </TouchableOpacity>
+        {showSupport && <RecoveryActions />}
+      </View>
+
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
         <Text style={styles.logoutText}>Logout</Text>
       </TouchableOpacity>
@@ -70,7 +92,10 @@ export default function SettingsScreen() {
   );
 }
 
+
 const styles = StyleSheet.create({
+  recoveryToggle: { paddingVertical: 6 },
+
   container: { flex: 1, backgroundColor: "#000", padding: 16 },
   title: { color: "#fff", fontSize: 24, fontWeight: "bold", marginBottom: 16 },
   section: {

@@ -5,6 +5,7 @@ import { useSync } from "./lib/hooks/useSync";
 import { useAuthStore } from "./stores/authStore";
 import { usePosStore } from "./stores/posStore";
 import LicenseEntryScreen from "./screens/LicenseEntryScreen";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export default function App() {
   useSync();
@@ -36,7 +37,7 @@ export default function App() {
   return (
     <>
       <StatusBar style="light" />
-      <RootNavigator />
+      <ErrorBoundary><RootNavigator /></ErrorBoundary>
     </>
   );
 }

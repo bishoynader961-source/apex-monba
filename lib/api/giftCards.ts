@@ -1,10 +1,13 @@
 import { api } from "@/lib/api";
 
+// Money-safety invariant: balances are decimal strings (backend Decimal),
+// never JS numbers. Any consumer needing arithmetic must use
+// lib/decimalCurrency (bigint cents) — parseFloat/Number are forbidden here.
 export interface GiftCard {
   id: number;
   code: string;
-  initial_balance: number;
-  current_balance: number;
+  initial_balance: Money;
+  current_balance: Money;
   status: string;
   issued_to_patient_id: number | null;
   issued_by_user_id: number | null;
@@ -14,8 +17,11 @@ export interface GiftCard {
   note: string | null;
 }
 
+/** Decimal money string ("12.34") — serialized from backend Decimal. */
+type Money = string;
+
 export async function issueGiftCard(data: {
-  initial_balance: number;
+  initial_balance: Money;
   issued_to_patient_id?: number;
   note?: string;
 }): Promise<GiftCard> {
@@ -34,7 +40,7 @@ export async function lookupGiftCard(code: string): Promise<GiftCard> {
   return data;
 }
 
-export async function redeemGiftCard(cardId: number, amount: number): Promise<GiftCard> {
+export async function redeemGiftCard(cardId: number, amount: Money): Promise<GiftCard> {
   const { data } = await api.post<GiftCard>(`/api/v1/gift-cards/${cardId}/redeem`, { amount });
   return data;
 }

@@ -3,16 +3,22 @@
 import { useState } from "react";
 import { Gift } from "lucide-react";
 import { lookupGiftCard } from "@/lib/api/giftCards";
+// Money-safety invariant: balances are decimal strings; all arithmetic and
+// comparisons happen in bigint cents. No parseFloat/Number on money, ever.
+import { parseMoney, formatMoney, cmpMoney, type Cents } from "@/lib/decimalCurrency";
+
+/** Decimal money string ("12.34") — matches the backend Money = string contract. */
+type Money = string;
 
 interface GiftCardPaymentProps {
-  totalAmount: number;
-  onApply: (code: string, cardId: number, amount: number) => void;
+  totalAmount: Money;
+  onApply: (code: string, cardId: number, amount: Money) => void;
   disabled?: boolean;
 }
 
 export function GiftCardPayment({ totalAmount, onApply, disabled }: GiftCardPaymentProps) {
   const [code, setCode] = useState("");
-  const [balance, setBalance] = useState<number | null>(null);
+  const [balance, setBalance] = useState<Money | null>(null);
   const [cardId, setCardId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [looking, setLooking] = useState(false);
@@ -27,7 +33,7 @@ export function GiftCardPayment({ totalAmount, onApply, disabled }: GiftCardPaym
       const card = await lookupGiftCard(code.trim());
       if (card.status !== "active") {
         setError(`Card is ${card.status}`);
-      } else if (card.current_balance <= 0) {
+      } else if (cmpMoney(parseMoney(card.current_balance), 0n) <= 0) {
         setError("Card has no balance");
       } else {
         setBalance(card.current_balance);
@@ -42,12 +48,32 @@ export function GiftCardPayment({ totalAmount, onApply, disabled }: GiftCardPaym
 
   const handleApply = () => {
     if (cardId === null || balance === null) return;
-    const applyAmount = Math.min(balance, totalAmount);
-    onApply(code.trim(), cardId, applyAmount);
+    // Apply the lesser of card balance and cart total — computed in cents.
+    let applyAmount: Cents;
+    try {
+      const totalCents = parseMoney(totalAmount);
+      const balanceCents = parseMoney(balance);
+      applyAmount = cmpMoney(balanceCents, totalCents) <= 0 ? balanceCents : totalCents;
+    } catch {
+      setError("Invalid amount");
+      return;
+    }
+    onApply(code.trim(), cardId, formatMoney(applyAmount));
     setCode("");
     setBalance(null);
     setCardId(null);
   };
+
+  const applyPreview = (() => {
+    if (balance === null) return null;
+    try {
+      const totalCents = parseMoney(totalAmount);
+      const balanceCents = parseMoney(balance);
+      return cmpMoney(balanceCents, totalCents) <= 0 ? balanceCents : totalCents;
+    } catch {
+      return null;
+    }
+  })();
 
   return (
     <div className="flex items-center gap-2">
@@ -75,12 +101,12 @@ export function GiftCardPayment({ totalAmount, onApply, disabled }: GiftCardPaym
           disabled={disabled}
           className="px-2 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded transition-colors disabled:opacity-50"
         >
-          Apply ${Math.min(balance, totalAmount).toFixed(2)}
+          Apply ${applyPreview !== null ? formatMoney(applyPreview) : "—"}
         </button>
       )}
       {error && <span className="text-xs text-red-400">{error}</span>}
       {balance !== null && (
-        <span className="text-xs text-green-400">${balance.toFixed(2)} avail</span>
+        <span className="text-xs text-green-400">${formatMoney(parseMoney(balance))} avail</span>
       )}
     </div>
   );

@@ -1,0 +1,4 @@
+# Replace this file's contents with the FIX_CODE_SECRET value (the same
+# bytes as FIX_CODE_SECRET in backend_fastapi/.env). This file is compiled
+# into the desktop binary via include_str! and is gitignored on purpose.
+YOUR_SECRET_BYTES_HERE

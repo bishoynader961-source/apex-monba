@@ -15,6 +15,20 @@ import {
 } from "@/lib/api/giftCards";
 import { Gift, Search, Plus, Ban, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
+// Money-safety invariant: currency math NEVER uses floating point.
+// Server balances arrive as decimal strings (backend Decimal); all parsing,
+// arithmetic, and display go through bigint-cent helpers.
+import { parseMoney, formatMoney, cmpMoney } from "@/lib/decimalCurrency";
+
+// Client-side guard without floating point: valid positive decimal string only.
+function isValidMoneyInput(value: string): boolean {
+  if (!/^-?\d+(\.\d+)?$/.test(value.trim())) return false;
+  try {
+    return cmpMoney(parseMoney(value), 0n) > 0;
+  } catch {
+    return false;
+  }
+}
 
 const INPUT_STYLE =
   "w-full bg-[#0d0d20] border border-gray-700 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm";
@@ -68,12 +82,19 @@ export default function GiftCardsPage() {
   };
 
   const handleIssue = async () => {
-    const amount = parseFloat(issueAmount);
-    if (!amount || amount <= 0) return;
+    // Parse the decimal string exactly (bigint cents); reject invalid input.
+    let amountCents: bigint;
+    try {
+      amountCents = parseMoney(issueAmount);
+    } catch {
+      return;
+    }
+    if (cmpMoney(amountCents, 0n) <= 0) return;
     setSaving(true);
     setError(null);
     try {
-      await issueGiftCard({ initial_balance: amount, note: issueNote || undefined });
+      // Backend takes a Decimal-compatible string, never a JS number.
+      await issueGiftCard({ initial_balance: formatMoney(amountCents), note: issueNote || undefined });
       setShowIssue(false);
       setIssueAmount("");
       setIssueNote("");
@@ -88,12 +109,18 @@ export default function GiftCardsPage() {
   };
 
   const handleRedeem = async (cardId: number) => {
-    const amount = parseFloat(redeemAmount);
-    if (!amount || amount <= 0) return;
+    // Exact decimal-string parsing for the redeem amount (no float loss).
+    let amountCents: bigint;
+    try {
+      amountCents = parseMoney(redeemAmount);
+    } catch {
+      return;
+    }
+    if (cmpMoney(amountCents, 0n) <= 0) return;
     setSaving(true);
     setError(null);
     try {
-      await redeemGiftCard(cardId, amount);
+      await redeemGiftCard(cardId, formatMoney(amountCents));
       setRedeemAmount("");
       setLookupResult(null);
       setSearchCode("");
@@ -121,7 +148,10 @@ export default function GiftCardsPage() {
   };
 
   const activeCards = cards.filter((c) => c.status === "active");
-  const totalBalance = activeCards.reduce((sum, c) => sum + c.current_balance, 0);
+  // Sum balances in bigint cents — floating-point addition of currency is forbidden.
+  const totalBalanceCents = activeCards.reduce((sum, c) => sum + parseMoney(c.current_balance), 0n);
+  // Display helper: decimal string -> exact 2-decimal string via bigint cents.
+  const money = (v: string) => formatMoney(parseMoney(v));
 
   return (
     <DashboardLayout>
@@ -153,7 +183,7 @@ export default function GiftCardsPage() {
         {[
           { label: "Total Cards", value: cards.length.toString(), icon: CreditCard, color: "#ec4899" },
           { label: "Active Cards", value: activeCards.length.toString(), icon: Gift, color: "#22c55e" },
-          { label: "Total Balance", value: `$${totalBalance.toFixed(2)}`, icon: CreditCard, color: "#3b82f6" },
+          { label: "Total Balance", value: `$${formatMoney(totalBalanceCents)}`, icon: CreditCard, color: "#3b82f6" },
         ].map((stat) => (
           <div key={stat.label} className="bg-[#1a1a2e] border border-gray-800 rounded-lg p-4 flex items-center gap-3">
             <stat.icon className="w-5 h-5" style={{ color: stat.color }} />
@@ -194,7 +224,7 @@ export default function GiftCardsPage() {
               </div>
               <div>
                 <span className="text-gray-600 dark:text-gray-400 text-xs block">Balance</span>
-                <span className="text-green-400 font-bold">${lookupResult.current_balance.toFixed(2)}</span>
+                <span className="text-green-400 font-bold">${money(lookupResult.current_balance)}</span>
               </div>
               <div>
                 <span className="text-gray-600 dark:text-gray-400 text-xs block">Status</span>
@@ -221,7 +251,7 @@ export default function GiftCardsPage() {
                 />
                 <button
                   onClick={() => void handleRedeem(lookupResult.id)}
-                  disabled={saving || !redeemAmount || parseFloat(redeemAmount) <= 0}
+                  disabled={saving || !redeemAmount || !isValidMoneyInput(redeemAmount)}
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition-colors disabled:opacity-50"
                 >
                   Redeem
@@ -276,7 +306,7 @@ export default function GiftCardsPage() {
               </button>
               <button
                 onClick={() => void handleIssue()}
-                disabled={saving || !issueAmount || parseFloat(issueAmount) <= 0}
+                disabled={saving || !issueAmount || !isValidMoneyInput(issueAmount)}
                 className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition-colors disabled:opacity-50"
               >
                 {saving ? "Issuing..." : "Issue Card"}
@@ -314,8 +344,8 @@ export default function GiftCardsPage() {
                 {cards.map((card) => (
                   <tr key={card.id} className="border-b border-gray-800/50 hover:bg-gray-800/20">
                     <td className="px-5 py-2.5 font-mono text-gray-800 dark:text-gray-100 font-semibold">{card.code}</td>
-                    <td className="px-5 py-2.5 text-right text-gray-700 dark:text-gray-300">${card.initial_balance.toFixed(2)}</td>
-                    <td className="px-5 py-2.5 text-right text-green-400 font-semibold">${card.current_balance.toFixed(2)}</td>
+                    <td className="px-5 py-2.5 text-right text-gray-700 dark:text-gray-300">${money(card.initial_balance)}</td>
+                    <td className="px-5 py-2.5 text-right text-green-400 font-semibold">${money(card.current_balance)}</td>
                     <td className="px-5 py-2.5">
                       <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
                         card.status === "active" ? "bg-green-600/20 text-green-400" :

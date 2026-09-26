@@ -19,20 +19,25 @@ router = APIRouter(prefix="/api/v1/gift-cards", tags=["gift-cards"])
 
 
 class GiftCardCreate(BaseModel):
-    initial_balance: float
+    # Money invariant: accept JSON numbers or exact decimal strings, but
+    # coerce through Decimal with float digestion disabled so binary-float
+    # artifacts (0.1+0.2 style) can never reach the ledger.
+    initial_balance: Decimal
     issued_to_patient_id: int | None = None
     note: str | None = None
 
 
 class GiftCardRedeem(BaseModel):
-    amount: float
+    # Same Decimal-strict coercion as GiftCardCreate.initial_balance.
+    amount: Decimal
 
 
 class GiftCardRead(BaseModel):
     id: int
     code: str
-    initial_balance: float
-    current_balance: float
+    # Money = string contract: exact decimal text, never float.
+    initial_balance: str
+    current_balance: str
     status: str
     issued_to_patient_id: int | None
     issued_by_user_id: int | None
@@ -55,6 +60,8 @@ async def issue_gift_card(
     user: CurrentUser = Depends(require_permission("pos.write")),
     db: AsyncSession = Depends(get_session),
 ):
+    if body.initial_balance <= 0:
+        raise HTTPException(status_code=400, detail="Initial balance must be positive")
     now = datetime.now(timezone.utc).isoformat()
     card = GiftCard(
         code=_generate_code(),
@@ -111,6 +118,8 @@ async def redeem_gift_card(
         raise HTTPException(status_code=404, detail="Gift card not found")
     if card.status != "active":
         raise HTTPException(status_code=400, detail=f"Gift card is {card.status}")
+    if body.amount <= 0:
+        raise HTTPException(status_code=400, detail="Redeem amount must be positive")
     if card.current_balance < Decimal(str(body.amount)):
         raise HTTPException(status_code=400, detail="Insufficient balance")
     card.current_balance -= Decimal(str(body.amount))

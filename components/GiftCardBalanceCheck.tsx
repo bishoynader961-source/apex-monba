@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { Gift, Search } from "lucide-react";
 import { lookupGiftCard, type GiftCard } from "@/lib/api/giftCards";
+// Money-safety invariant: balance is a decimal string; formatting goes through
+// bigint cents (lib/decimalCurrency) — no parseFloat/Number on money.
+import { parseMoney, formatMoney, cmpMoney } from "@/lib/decimalCurrency";
 
 export function GiftCardBalanceCheck() {
   const [code, setCode] = useState("");
@@ -53,8 +56,8 @@ export function GiftCardBalanceCheck() {
         <div className="mt-2 p-2 bg-[#0d0d20] rounded border border-gray-700">
           <div className="flex justify-between text-xs">
             <span className="text-gray-600 dark:text-gray-400">Balance</span>
-            <span className={`font-bold ${card.current_balance > 0 ? "text-green-400" : "text-gray-500"}`}>
-              ${card.current_balance.toFixed(2)}
+            <span className={`font-bold ${cmpMoney(parseMoney(card.current_balance), 0n) > 0 ? "text-green-400" : "text-gray-500"}`}>
+              ${formatMoney(parseMoney(card.current_balance))}
             </span>
           </div>
           <div className="flex justify-between text-xs mt-1">

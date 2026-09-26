@@ -125,15 +125,28 @@ export default function SupportPage() {
   const [fixApplying, setFixApplying] = useState(false);
   const [fixError, setFixError] = useState<string | null>(null);
 
-  // ── Stage 2.4: pre-filled support email (client-side only) ──
+  // ── Stage 2.4 → Step 2.7: pre-filled support email (client-side only) ──
+  // Email Privacy hardening (blueprint Step 2.7):
+  //   * Delegation-only: the app never sends mail itself — no SMTP
+  //     credentials exist in the client, so none can leak (invariant #6).
+  //   * The body embeds the SANITIZED diagnostic report only. The report
+  //     generator already excludes patient data, credentials, and stack
+  //     traces; a final guard below strips any accidental control
+  //     characters so a malformed line can't smuggle content into headers.
+  //   * The user sees the complete email in their own mail client before
+  //     anything is sent — full transparency, nothing automatic.
   const openSupportEmail = (diagnosticReport: string) => {
+    // Strip control characters (header-injection + paste-artifact guard).
+    const safeReport = diagnosticReport.replace(/[\u0000-\u001f\u007f]/g, (ch) =>
+      ch === "\n" ? "\n" : " "
+    );
     const subject = encodeURIComponent("PharmacySuite Support Request");
     const body = encodeURIComponent(
       `Dear PharmacySuite Support,\n\n` +
       `I'm experiencing the following issue:\n\n` +
       `[DESCRIBE YOUR ISSUE HERE]\n\n` +
-      `--- Diagnostic Report (auto-generated) ---\n` +
-      diagnosticReport +
+      `--- Diagnostic Report (auto-generated, no patient data) ---\n` +
+      safeReport +
       `\n--- End of Report ---`
     );
     window.open(`mailto:pharmacypro.support@gmail.com?subject=${subject}&body=${body}`);
@@ -303,6 +316,16 @@ export default function SupportPage() {
             className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
           >
             {settings?.support_email ?? "pharmacypro.support@gmail.com"}
+          </a>
+        </div>
+
+        {/* Microsoft Store requirement: privacy policy reachable from within the app. */}
+        <div>
+          <a
+            href="/privacy"
+            className="text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium"
+          >
+            Privacy Policy →
           </a>
         </div>
 

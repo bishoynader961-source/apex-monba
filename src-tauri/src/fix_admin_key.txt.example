@@ -1,0 +1,3 @@
+# Random 128-bit hex key generated at install time. Support sends this to
+# the pharmacy together with each fix code. Gitignored on purpose.
+GENERATE_WITH_python_-c_import_secrets_secrets_token_hex_16

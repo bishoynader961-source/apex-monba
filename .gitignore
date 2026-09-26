@@ -45,3 +45,10 @@ src-tauri/updater-key/
 
 # Tauri alternative build dir (do not track build artifacts)
 tauri-build-target/
+
+# Fix-code signing material (never commit: public repo — see KNOWN_ISSUES #11)
+src-tauri/src/fix_key.txt
+src-tauri/src/fix_admin_key.txt
+
+# Mobile fix-code engine embeds the same secret (public repo)
+mobile/lib/security/fixEngine.ts

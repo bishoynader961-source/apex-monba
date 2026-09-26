@@ -6,7 +6,6 @@ import * as syncApi from "../lib/api/sync";
 import { getStoredDeviceId } from "../lib/deviceId";
 import { SyncLock } from "../lib/syncLock";
 import {
-  enqueueCheckout,
   enqueueDrawer,
   getQueueEntries,
   getQueueCount,
@@ -14,6 +13,7 @@ import {
   incrementAttempts,
   removeStaleEntries,
 } from "../lib/offlineQueue";
+import { useOfflineQueueStore } from "./offlineQueue";
 import { saveCart, getCart, clearCart, isCartAgeValid } from "../lib/cartRegistry";
 import type {
   CartLine,
@@ -188,9 +188,11 @@ export const usePosStore = create<PosState>((set, get) => ({
       await get().refreshOfflineCount();
     } catch (e) {
       if (e instanceof Error && e.message.includes("Unable to reach the server")) {
-        const entry = await enqueueCheckout(payload);
-        set({ error: `Offline — queued as ${entry.client_txn_id.slice(0, 8)}` });
-        await get().refreshOfflineCount();
+        // Step 1.8: checkouts go to the spec queue (stores/offlineQueue —
+        // in-order reconnect flush, 3-strike dead-letter, never silent-drop).
+        // Drawer movements stay on the legacy sync pipeline above.
+        const entry = await useOfflineQueueStore.getState().enqueueCheckout(payload);
+        set({ error: `Offline — sale queued (${entry.id.slice(0, 8)})` });
       } else {
         const msg = e instanceof Error ? e.message : "Checkout failed";
         set({ error: msg });

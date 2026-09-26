@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, FlatList, StyleSheet, Alert, ScrollView } from "react-native";
 import { usePosStore } from "../stores/posStore";
+import { useOfflineQueueStore } from "../stores/offlineQueue";
 import { formatMoney, parseMoney, mulByQty, sumMoney } from "../lib/decimalCurrency";
 import { ProductRead } from "../types/contracts";
 import * as inventoryApi from "../lib/api/inventory";
@@ -27,8 +28,14 @@ export default function POSScreen() {
     clearDiscount,
     toggleTaxExempt,
     setPayments,
-    flushQueue,
   } = usePosStore();
+
+  // Step 1.8: spec queue badge in the POS header (pending + dead sales).
+  const pendingSync = useOfflineQueueStore((s) => s.pendingCount + s.deadCount);
+  const deadSales = useOfflineQueueStore((s) => s.deadCount);
+  useEffect(() => {
+    void useOfflineQueueStore.getState().refresh();
+  }, []);
 
   const subtotal = sumMoney(
     lines.map((l) => mulByQty(parseMoney(l.unit_price), l.quantity)),
@@ -36,11 +43,6 @@ export default function POSScreen() {
 
   const handleCheckout = async () => {
     await checkout("Cash");
-  };
-
-  const handleFlush = async () => {
-    await flushQueue();
-    if (error) Alert.alert("Sync", error);
   };
 
   const handleScan = (barcode: string) => {
@@ -73,10 +75,27 @@ export default function POSScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>POS — Shift #{currentShiftId}</Text>
-        {offlineCount > 0 && (
-          <TouchableOpacity onPress={handleFlush} disabled={syncing}>
+        {pendingSync > 0 && (
+          <TouchableOpacity
+            onPress={async () => {
+              void useOfflineQueueStore.getState().processQueue();
+              if (deadSales > 0) {
+                Alert.alert(
+                  "Sync",
+                  `${deadSales} sale${deadSales === 1 ? "" : "s"} need review (could not sync).`,
+                );
+                return;
+              }
+              if (error) Alert.alert("Sync", error);
+            }}
+            disabled={syncing}
+          >
             <Text style={styles.syncBadge}>
-              {syncing ? "Syncing..." : `${offlineCount} offline`}
+              {syncing
+                ? "Syncing..."
+                : deadSales > 0
+                  ? `${pendingSync} pending sync (!)`
+                  : `${pendingSync} pending sync`}
             </Text>
           </TouchableOpacity>
         )}

@@ -9,6 +9,10 @@
 //     data and trust.
 
 import { api, isApiError } from "./client";
+// Step 1.8: the healthy transition triggers the offline-queue flush. Static
+// import is safe — offlineQueue → baseUrl/client/types only, none import
+// health.ts, so there is no cycle.
+import { useOfflineQueueStore } from "../../stores/offlineQueue";
 
 export type HealthState = "healthy" | "degraded" | "offline";
 
@@ -33,6 +37,14 @@ export function onHealthChange(listener: (s: HealthSnapshot) => void): () => voi
 }
 
 function publish(next: HealthSnapshot): void {
+  // Step 1.8 (owner req 2): degraded/offline → healthy transition means the
+  // desktop is reachable again — drain the offline queue in order.
+  // processQueue is idempotent (syncing gate), so concurrent triggers are safe.
+  if (snapshot.state !== "healthy" && next.state === "healthy") {
+    void useOfflineQueueStore.getState().processQueue().catch((e) => {
+      console?.warn?.("offline queue flush after reconnect failed", e);
+    });
+  }
   snapshot = next;
   for (const listener of listeners) {
     try {

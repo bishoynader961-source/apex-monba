@@ -13,6 +13,8 @@ import {
   setForbiddenCallback,
   setUnauthorizedCallback,
 } from "./lib/api/client";
+import { startHealthPolling } from "./lib/api/health";
+import { useOfflineQueueStore } from "./stores/offlineQueue";
 
 export default function App() {
   useSync();
@@ -65,6 +67,15 @@ export default function App() {
       appState.current = next;
     });
     return () => sub.remove();
+  }, []);
+
+  // Step 1.8: app-wide health polling — the degraded/offline → healthy
+  // transition (wired in health.ts publish()) drains the offline queue.
+  // Also refresh badge counts when the app returns to the foreground.
+  useEffect(() => {
+    const stop = startHealthPolling(60_000);
+    void useOfflineQueueStore.getState().refresh();
+    return () => stop();
   }, []);
 
   if (!initialized || license.loading) {

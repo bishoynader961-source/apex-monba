@@ -42,6 +42,8 @@ pairing_router = APIRouter(prefix="/api/v1/auth", tags=["mobile-devices"])
 
 QR_TTL_HOURS = 24
 _QR_SECRET_KEY = "qr_secret_key"
+_MOBILE_MODE_KEY = "mobile_access_mode"
+_SHARED_MODE = "shared"
 
 
 # ── qr_secret_key lifecycle ───────────────────────────────────────────────────
@@ -80,7 +82,21 @@ async def get_qr_payload(
 
     Admin-only via settings.manage. The signing secret stays server-side:
     only the derived HMAC (network_key) is returned.
+
+    Pre-1.6 owner verification: QR pairing is only offered when the instance
+    runs in shared mode. A missing/empty setting means "shared" (the config
+    default and seed value); any explicit non-shared value (independent,
+    cloud, …) hard-fails with 403 so no QR can be minted.
     """
+    mode_row = await session.get(SystemSetting, _MOBILE_MODE_KEY)
+    mode = (
+        mode_row.value.decode("utf-8") if isinstance(mode_row.value, bytes) else str(mode_row.value or "")
+    ) if mode_row is not None else ""
+    if mode and mode != _SHARED_MODE:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Mobile access is disabled: mobile_access_mode is '{mode}', not '{_SHARED_MODE}'",
+        )
     expires_at = (datetime.now(timezone.utc) + timedelta(hours=QR_TTL_HOURS)).isoformat()
     url = f"http://{_detect_local_ip()}:8000"
     instance_id = _instance_id()

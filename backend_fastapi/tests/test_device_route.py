@@ -18,7 +18,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routers.device_route import compute_network_key, get_qr_secret
-from app.core.models import Role
+from app.core.models import Role, SystemSetting
 from app.core.repositories import UserRepository
 from app.main import app
 from app.shared.security import hash_password
@@ -91,6 +91,28 @@ async def test_qr_payload_shape_and_no_secret(client: AsyncClient, auth: dict[st
     assert set(p1) == {"url", "instance_id", "api_version", "expires_at", "network_key"}
     assert p1["instance_id"] == p2["instance_id"]
     assert p1["expires_at"] != p2["expires_at"], "each fetch mints a fresh 24h window"
+
+
+# ── pre-1.6 verification: QR gated on mobile_access_mode ───────────────────
+@pytest.mark.asyncio
+async def test_qr_payload_forbidden_when_mode_not_shared(
+    client: AsyncClient, auth: dict[str, str], session: AsyncSession
+) -> None:
+    """An explicit non-shared mode must block QR minting (403).
+
+    Missing/empty mobile_access_mode stays "shared" (config default + seed),
+    so the existing default-flow tests keep passing without seeding the row.
+    """
+    row = await session.get(SystemSetting, "mobile_access_mode")
+    if row is None:
+        session.add(SystemSetting(key="mobile_access_mode", value=b"independent"))
+    else:
+        row.value = b"independent"
+    await session.commit()
+
+    resp = await client.get("/api/v1/devices/qr-payload", headers=auth)
+    assert resp.status_code == 403, resp.text
+    assert "mobile_access_mode" in resp.json()["detail"]
 
 
 # ── CHECK A: expiry + signature checked once, at pairing ────────────────────

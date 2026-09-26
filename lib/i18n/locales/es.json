@@ -46,6 +46,7 @@
   "nav.email": "Email",
   "nav.backup": "Backup",
   "nav.settings": "Settings",
+  "nav.mobileAccess": "Acceso móvil",
   "nav.vendors": "Vendors",
   "nav.salesAnalytics": "Sales Analytics",
   "nav.drugs": "Drugs",
@@ -1073,7 +1074,5 @@
   "nav.section.insights": "Análisis",
   "nav.section.tools": "Herramientas",
   "nav.section.administration": "Administración",
-  "theme.light": "Modo claro",
-  "theme.dark": "Modo oscuro",
   "theme.system": "Sistema"
 }

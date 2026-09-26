@@ -46,6 +46,7 @@
   "nav.email": "Email",
   "nav.backup": "Backup",
   "nav.settings": "Settings",
+  "nav.mobileAccess": "الوصول عبر الجوال",
   "nav.vendors": "Vendors",
   "nav.salesAnalytics": "Sales Analytics",
   "nav.drugs": "Drugs",
@@ -1073,7 +1074,5 @@
   "nav.section.insights": "التحليلات",
   "nav.section.tools": "الأدوات",
   "nav.section.administration": "الإدارة",
-  "theme.light": "الوضع الفاتح",
-  "theme.dark": "الوضع الداكن",
   "theme.system": "تلقائي (النظام)"
 }

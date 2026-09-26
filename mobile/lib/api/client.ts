@@ -50,6 +50,25 @@ async function clearTokens(): Promise<void> {
 // device name). Tokens must never pass through here.
 export const configStorage = AsyncStorage;
 
+// ── Paired-device identity (Phase 4 Step 1.5) ──────────────────────────
+// The pairing token lives in SecureStore (like the JWTs) and is attached as
+// X-Device-Token on every request. The server enforces revocation on each
+// authenticated call and answers 401 when the device is revoked/unknown —
+// the 401 path below then clears tokens and returns the user to login.
+const DEVICE_TOKEN_KEY = "ph_device_token";
+
+export async function getStoredDeviceToken(): Promise<string | null> {
+  return SecureStore.getItemAsync(DEVICE_TOKEN_KEY);
+}
+
+export async function storeDeviceToken(token: string): Promise<void> {
+  await SecureStore.setItemAsync(DEVICE_TOKEN_KEY, token);
+}
+
+export async function clearStoredDeviceToken(): Promise<void> {
+  await SecureStore.deleteItemAsync(DEVICE_TOKEN_KEY);
+}
+
 // ── Cross-module auth notifications (no circular imports) ───────────────────
 // authStore registers these at startup. The interceptor fires them when a
 // session dies (401 after failed refresh), a permission error occurs (403),
@@ -122,6 +141,12 @@ api.interceptors.request.use(
     if (token) {
       const headers = config.headers as unknown as Record<string, string>;
       headers.Authorization = `Bearer ${token}`;
+      // Paired-device attestation — the server rejects revoked/unknown
+      // devices with 401 on every authenticated call (Step 1.5, CHECK B).
+      const deviceToken = await getStoredDeviceToken();
+      if (deviceToken) {
+        headers["X-Device-Token"] = deviceToken;
+      }
     }
     return config;
   },

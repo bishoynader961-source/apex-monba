@@ -72,6 +72,7 @@ const NAV_SECTIONS = [
       { href: "/dashboard/roles", labelKey: "nav.roles", icon: "🔐", permission: "users.read" },
       { href: "/dashboard/backup", labelKey: "nav.backup", icon: "💾", permission: "backup.read" },
       { href: "/dashboard/settings", labelKey: "nav.settings", icon: "⚙️", permission: "settings.read" },
+      { href: "/dashboard/mobile-access", labelKey: "nav.mobileAccess", icon: "📱", permission: "settings.read" },
       { href: "/dashboard/support", labelKey: "nav.support", icon: "💬" },
     ],
   },

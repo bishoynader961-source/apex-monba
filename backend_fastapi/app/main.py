@@ -33,6 +33,10 @@ from app.api.routers.insurance_route import router as insurance_router
 from app.api.routers.members_route import router as members_router
 from app.api.routers.patients_route import router as patients_router
 from app.api.routers.mobile_route import router as mobile_router
+from app.api.routers.device_route import router as device_router
+from app.api.routers.device_route import pairing_router as device_pairing_router
+from app.api.routers.device_route import router as device_router
+from app.api.routers.device_route import pairing_router as device_pairing_router
 from app.api.routers.pos_route import router as pos_router
 from app.api.routers.prescriber_route import router as prescriber_router
 from app.api.routers.region_route import router as region_router
@@ -290,6 +294,10 @@ app.include_router(insurance_router)
 app.include_router(members_router)
 app.include_router(patients_router)
 app.include_router(mobile_router)
+app.include_router(device_router)
+app.include_router(device_pairing_router)
+app.include_router(device_router)
+app.include_router(device_pairing_router)
 app.include_router(pos_router)
 app.include_router(prescriber_router)
 app.include_router(region_router)

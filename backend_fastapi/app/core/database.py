@@ -1213,9 +1213,33 @@ async def migrate_schema(conn: Any) -> None:
             )
         version = 26
 
+    # ── v27: devices table (Phase 4 Step 1.5 QR gateway) ─────────
+    if version < 27:
+        if not await _table_exists(conn, "devices"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE IF NOT EXISTS devices (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    device_name TEXT NOT NULL DEFAULT '',
+                    device_token_hash BLOB NOT NULL,
+                    user_id INTEGER REFERENCES users(id),
+                    created_at TEXT NOT NULL,
+                    last_seen_at TEXT,
+                    revoked INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+        await conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id)"
+        )
+        await conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS idx_devices_revoked ON devices(revoked)"
+        )
+        version = 27
+
     await conn.exec_driver_sql(f"PRAGMA user_version={SCHEMA_VERSION}")
 
 
 
-SCHEMA_VERSION = 26
+SCHEMA_VERSION = 27
 

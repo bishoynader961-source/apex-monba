@@ -14,6 +14,7 @@ enforces role-based permissions on top of it.
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import Depends, Header, HTTPException
@@ -23,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.core.models import LockedFeature, Role
+from app.core.models import Device, LockedFeature, Role
 from app.core.repositories import UserRepository
 from app.core.ttl_cache import cache_get, cache_invalidate_prefix, cache_set
 from app.shared.exceptions import AppException, ForbiddenError
@@ -35,6 +36,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
+    device_token: Optional[str] = Header(default=None, alias="X-Device-Token"),
     session: AsyncSession = Depends(get_session),
 ) -> CurrentUser:
     """Authenticate the current request from a JWT bearer token.
@@ -91,6 +93,31 @@ async def get_current_user(
     if user is None or user.is_active != 1:
         raise HTTPException(status_code=401, detail="User not found or inactive")
 
+    # ── Device binding (Phase 4 Step 1.5, owner CHECK B) ────────────
+    user_device_id: Optional[int] = None
+    # When a request presents X-Device-Token, that device must still exist
+    # and be un-revoked — checked on EVERY authenticated request, fail-closed.
+    # Revoked/unknown devices return 401 (not 403): the mobile client handles
+    # 401 by clearing tokens and returning to the login screen. Requests
+    # without the header (desktop web session, health probes) are unaffected.
+    if device_token:
+        matched_device = None
+        async with session.begin():
+            candidates = await session.execute(
+                select(Device).where(Device.revoked == 0)
+            )
+            for device in candidates.scalars():
+                if verify_password(device_token, device.device_token_hash):
+                    matched_device = device
+                    break
+        if matched_device is None:
+            raise HTTPException(status_code=401, detail="Device is revoked or unknown")
+        async with session.begin():
+            matched_device.last_seen_at = datetime.now(timezone.utc).isoformat()
+            matched_device.user_id = user_id
+            session.add(matched_device)
+        user_device_id = matched_device.id
+
     # Source role name and permissions from the database (not JWT claims)
     # to ensure they reflect current DB state after role/permission changes.
     # Role name + permissions are read per request but change rarely; cache
@@ -114,6 +141,7 @@ async def get_current_user(
         role=role_name,
         role_id=user.role_id,
         permissions=permissions,
+        device_id=user_device_id,
     )
 
 

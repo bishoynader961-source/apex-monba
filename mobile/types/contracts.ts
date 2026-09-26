@@ -2196,3 +2196,21 @@ export interface AutoReorderResponse {
   total: number;
   created: PurchaseOrderRead[];
 }
+
+// ── Mobile device pairing (Phase 4 Step 1.5 QR gateway) ──────────────────
+export interface QrPayload {
+  url: string;
+  instance_id: string;
+  api_version: string;
+  expires_at: string;
+  network_key: string;
+}
+
+export interface DeviceRead {
+  id: number;
+  device_name: string;
+  user_id?: number | null;
+  created_at?: string | null;
+  last_seen_at?: string | null;
+  revoked: number;
+}

@@ -1167,3 +1167,28 @@ class ClinicalAttachment(Base):
     uploaded_by: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
 
+
+class Device(Base):
+    """Paired mobile device (Phase 4 Step 1.5 QR gateway).
+
+    ``device_token`` is generated at pairing, shown ONCE to the mobile app
+    (SecureStore), and NEVER persisted in plain text — only its bcrypt hash
+    lives here. Revocation is enforced on every authenticated request that
+    presents an X-Device-Token header (app/api/deps.get_current_user).
+    ``user_id`` starts NULL (pairing happens before login) and is set to the
+    last user that authenticated from the device.
+    """
+
+    __tablename__ = "devices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    device_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    device_token_hash: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    last_seen_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # 0 = active, 1 = revoked (revoked devices authenticate as 401)
+    revoked: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+

@@ -46,6 +46,7 @@
   "nav.email": "Email",
   "nav.backup": "Backup",
   "nav.settings": "Settings",
+  "nav.mobileAccess": "Mobiler Zugriff",
   "nav.vendors": "Vendors",
   "nav.salesAnalytics": "Sales Analytics",
   "nav.drugs": "Drugs",
@@ -650,8 +651,8 @@
   "interactions.check": "Interaktionen prüfen",
   "interactions.none": "Keine bekannten Interaktionen gefunden",
   "interactions.label": "Arzneimittelinteraktionen Verwaltung",
-  "theme.light": "Heller Modus",
-  "theme.dark": "Dunkler Modus",
+  "theme.light": "Helles Design",
+  "theme.dark": "Dunkles Design",
   "pos.printPreview": "Receipt Preview",
   "pos.print": "Print Receipt",
   "pos.downloadText": "Download .txt",
@@ -1073,7 +1074,5 @@
   "nav.section.insights": "Analysen",
   "nav.section.tools": "Werkzeuge",
   "nav.section.administration": "Verwaltung",
-  "theme.light": "Helles Design",
-  "theme.dark": "Dunkles Design",
   "theme.system": "System"
 }

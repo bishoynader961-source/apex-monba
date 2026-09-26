@@ -636,7 +636,9 @@ class CurrentUser(BaseModel):
     username: str
     role: str
     role_id: int
-    permissions: list[str] = Field(default_factory=list)
+    permissions: list[str]
+    # Set only when the request presented a valid X-Device-Token (mobile).
+    device_id: Optional[int] = None
     display_name: Optional[str] = None
     is_active: Optional[int] = None
 
@@ -1905,6 +1907,58 @@ class MobileLabelRenderResponse(BaseModel):
     payload: str
     byte_length: int
     width_mm: int = 57
+
+
+# ── Mobile device pairing (Phase 4 Step 1.5 QR gateway) ──────────────────────
+class QrPayload(BaseModel):
+    """Signed QR payload rendered by the desktop Mobile Access tab.
+
+    ``network_key`` is HMAC-SHA256(url + instance_id + expires_at,
+    key=qr_secret_key). The secret itself NEVER appears in any response.
+    """
+
+    url: str
+    instance_id: str
+    api_version: str = "v1"
+    expires_at: str
+    network_key: str
+
+
+class DeviceRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    device_name: str
+    user_id: Optional[int] = None
+    created_at: Optional[str] = None
+    last_seen_at: Optional[str] = None
+    revoked: int = 0
+
+
+class MobileRegisterRequest(BaseModel):
+    """Pairing request sent by the mobile app after a successful QR scan.
+
+    ``network_key`` must be the HMAC from the scanned QR (verified against
+    qr_secret_key server-side); ``qr_expires_at`` is echoed from the payload
+    so a tampered/replayed pairing cannot outlive the original QR.
+    """
+
+    instance_id: str
+    device_id: str
+    device_name: str
+    url: str
+    network_key: str
+    qr_expires_at: str
+
+
+class MobileRegisterResponse(BaseModel):
+    """Pairing result. ``device_token`` is returned EXACTLY ONCE and never
+    stored server-side in plain text — only its bcrypt hash persists."""
+
+    device_id_internal: int
+    device_token: str
+    device_name: str
+    url: str
 
 
 # ── Purchase Order (PO) ───────────────────────────────────────────────────────

@@ -5,13 +5,26 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from "axios";
 import { useConnectionStore } from "../../stores/connectionStore";
+import { MANUAL_ENTRY_REQUIRED } from "./baseUrl";
 
 function getApiBaseUrl(): string {
   const state = useConnectionStore.getState();
+  // Step 1.7 (blueprint §1.3.3): the resolved desktop origin wins. The
+  // legacy desktopIp branch and the localhost fallback stay for dev builds;
+  // on a fresh install mobileBaseUrl is null and the request interceptor
+  // resolves it from SecureStore (ph_desktop_url) before the request goes out.
+  if (state.mobileBaseUrl) {
+    return state.mobileBaseUrl;
+  }
   if (state.desktopIp && state.authToken) {
     return `http://${state.desktopIp}:8000`;
   }
   return process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? "http://localhost:8000";
+}
+
+/** True when an error is the §1.3.3 "pair first" sentinel. */
+export function isManualEntryError(err: unknown): boolean {
+  return err instanceof Error && err.message === MANUAL_ENTRY_REQUIRED;
 }
 
 export const api: AxiosInstance = axios.create({
@@ -136,6 +149,12 @@ export function isApiError(err: unknown): err is ApiError {
 
 api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig): Promise<InternalAxiosRequestConfig> => {
+    // Step 1.7: no base URL resolved yet (fresh install or dead desktop) →
+    // discover from SecureStore first (§1.3.3). MANUAL_ENTRY_REQUIRED aborts
+    // the request — RootNavigator shows the ConnectScreen for pairing.
+    if (!useConnectionStore.getState().mobileBaseUrl) {
+      await useConnectionStore.getState().resolveBaseUrl();
+    }
     updateApiBaseUrl();
     const token = await getToken();
     if (token) {
@@ -150,7 +169,13 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error: unknown) => Promise.reject(error),
+  (error: unknown) => {
+    // Request interception is async: a MANUAL_ENTRY_REQUIRED throw from
+    // resolveBaseUrl lands here. Every api.* caller observes its own
+    // friendly failure (getSettingsValue → defaults, hydrate → logged out,
+    // useSync → logged) instead of each racing localhost every time.
+    return Promise.reject(error);
+  },
 );
 
 let isRefreshing = false;

@@ -54,7 +54,9 @@ async def _pair_device(
     """Pair via the real endpoints, mirroring the server's HMAC computation.
 
     The signing secret is read from the same test session the API uses (the
-    API itself never returns it). Returns the one-time device token.
+    API itself never returns it). Sends the Step 1.7 ConnectScreen shape —
+    the raw parsed QR payload forwarded verbatim as ``qr_payload``. Returns
+    the one-time device token.
     """
     qr = await client.get("/api/v1/devices/qr-payload", headers=auth)
     assert qr.status_code == 200, qr.text
@@ -68,12 +70,15 @@ async def _pair_device(
     resp = await client.post(
         "/api/v1/auth/mobile-register",
         json={
-            "instance_id": payload["instance_id"],
             "device_id": "test-device-uuid",
             "device_name": "Test Phone",
-            "url": payload["url"],
-            "network_key": network_key,
-            "qr_expires_at": payload["expires_at"],
+            "qr_payload": {
+                "url": payload["url"],
+                "networkKey": network_key,
+                "instanceId": payload["instance_id"],
+                "apiVersion": payload["api_version"],
+                "expiresAt": payload["expires_at"],
+            },
         },
         headers=auth,
     )
@@ -134,11 +139,60 @@ async def test_pair_rejects_expired_qr(
             "url": payload["url"],
             "network_key": network_key,
             "qr_expires_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+            "qr_payload": None,  # Step 1.7 shape absent — flat fields only
         },
         headers=auth,
     )
     assert resp.status_code == 401
     assert "expired" in resp.json()["detail"].lower()
+
+
+# ── Step 1.7: raw-qr_payload (camelCase) pairing shape ──────────────────────
+@pytest.mark.asyncio
+async def test_pair_accepts_nested_qr_payload(
+    client: AsyncClient, auth: dict[str, str], session: AsyncSession
+) -> None:
+    """The ConnectScreen forwards the parsed QR verbatim as qr_payload.
+
+    The server lifts camelCase keys into the flat fields and runs CHECK A
+    over exactly the scanned values; a valid payload pairs normally.
+    """
+    payload = (await client.get("/api/v1/devices/qr-payload", headers=auth)).json()
+    secret = await get_qr_secret(session)
+    network_key = compute_network_key(
+        payload["url"], payload["instance_id"], payload["expires_at"], secret
+    )
+    resp = await client.post(
+        "/api/v1/auth/mobile-register",
+        json={
+            "device_id": "scan-device-uuid",
+            "device_name": "Scanned Phone",
+            "qr_payload": {
+                "url": payload["url"],
+                "networkKey": network_key,
+                "instanceId": payload["instance_id"],
+                "apiVersion": payload["api_version"],
+                "expiresAt": payload["expires_at"],
+            },
+        },
+        headers=auth,
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["device_token"].startswith("phd_")
+
+
+@pytest.mark.asyncio
+async def test_pair_rejects_missing_qr_fields(
+    client: AsyncClient, auth: dict[str, str]
+) -> None:
+    """Neither flat fields nor a qr_payload → 400 (broken client), not 500."""
+    resp = await client.post(
+        "/api/v1/auth/mobile-register",
+        json={"device_id": "d-1", "device_name": "Broken Client"},
+        headers=auth,
+    )
+    assert resp.status_code == 400
+    assert "QR payload" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio

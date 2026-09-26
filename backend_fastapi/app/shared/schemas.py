@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal, Optional
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, computed_field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, computed_field, model_validator
 
 
 # ── Text sanitization / limits (Phase 3 diagnostics) ────────────────────────
@@ -1941,14 +1941,40 @@ class MobileRegisterRequest(BaseModel):
     ``network_key`` must be the HMAC from the scanned QR (verified against
     qr_secret_key server-side); ``qr_expires_at`` is echoed from the payload
     so a tampered/replayed pairing cannot outlive the original QR.
+
+    Step 1.7: the mobile ConnectScreen forwards the RAW parsed QR payload
+    (camelCase, exactly as it came off the camera) as ``qr_payload`` instead
+    of re-mapping it — the server-side CHECK A verifies the signature over
+    exactly the bytes the QR carried. Both shapes are accepted; flat fields
+    win when both are present.
     """
 
-    instance_id: str
+    instance_id: Optional[str] = None
     device_id: str
     device_name: str
-    url: str
-    network_key: str
-    qr_expires_at: str
+    url: Optional[str] = None
+    network_key: Optional[str] = None
+    qr_expires_at: Optional[str] = None
+    # Raw camelCase QR payload as scanned (Step 1.7 ConnectScreen shape).
+    # Deliberately a plain dict: the before-validator lifts its keys into the
+    # flat fields above, which then carry the real validation.
+    qr_payload: Optional[dict[str, Any]] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _lift_qr_payload(cls, data: Any) -> Any:
+        if isinstance(data, dict) and isinstance(data.get("qr_payload"), dict):
+            qr = data["qr_payload"]
+            aliases = {
+                "url": "url",
+                "instanceId": "instance_id",
+                "networkKey": "network_key",
+                "expiresAt": "qr_expires_at",
+            }
+            for src, dst in aliases.items():
+                if data.get(dst) is None and qr.get(src) is not None:
+                    data[dst] = qr[src]
+        return data
 
 
 class MobileRegisterResponse(BaseModel):

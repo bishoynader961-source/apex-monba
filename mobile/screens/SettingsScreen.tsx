@@ -4,6 +4,8 @@ import { useAuthStore } from "../stores/authStore";
 import { getStoredDeviceId, getDeviceName } from "../lib/deviceId";
 import { readCrashLog } from "../lib/diagnostics/classifier";
 import { RecoveryActions } from "./MobileRecoveryScreen";
+import { clearStoredDesktopUrl, getStoredDesktopUrl } from "../lib/api/baseUrl";
+import { useConnectionStore } from "../stores/connectionStore";
 
 export default function SettingsScreen() {
   const {
@@ -18,12 +20,38 @@ export default function SettingsScreen() {
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState<string>("");
   const [licenseStatus, setLicenseStatus] = useState<string>("");
+  // Step 1.7: Reconnect — desktop IP changes (DHCP) make the cached origin
+  // stale. Forgetting it routes back to the ConnectScreen (QR scan), which
+  // writes the new origin. Device pairing is NOT lost: the server-side
+  // device token survives and pairing continues to work against the new IP.
+  const [desktopUrl, setDesktopUrl] = useState<string | null>(null);
 
   useEffect(() => {
     getStoredDeviceId().then(setDeviceId);
     setDeviceName(getDeviceName());
     setLicenseStatus(license.status);
   }, [license.status]);
+
+  useEffect(() => {
+    getStoredDesktopUrl().then(setDesktopUrl);
+  }, []);
+
+  const handleReconnect = async () => {
+    Alert.alert(
+      "Reconnect to desktop",
+      "Forget the current pharmacy computer connection and scan a new pairing QR code? Your sign-in and paired-device status are kept.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Scan New QR",
+          onPress: async () => {
+            await clearStoredDesktopUrl();
+            useConnectionStore.setState({ mobileBaseUrl: null });
+          },
+        },
+      ],
+    );
+  };
 
   const handleLogout = async () => {
     Alert.alert("Confirm", "Log out?", [
@@ -91,6 +119,17 @@ export default function SettingsScreen() {
             <Text style={styles.value}>{deviceId}</Text>
           </>
         )}
+        {desktopUrl && (
+          <>
+            <Text style={styles.label}>Connected To</Text>
+            <Text style={styles.value}>{desktopUrl}</Text>
+          </>
+        )}
+        <TouchableOpacity style={styles.recoveryToggle} onPress={handleReconnect}>
+          <Text style={{ color: "#9ca3af", fontSize: 13 }}>
+            Desktop moved or unreachable? Tap to scan a new pairing QR
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Step 1.3: session security (mirrors desktop sessionStore limits) */}

@@ -2214,3 +2214,12 @@ export interface DeviceRead {
   last_seen_at?: string | null;
   revoked: number;
 }
+
+// Step 1.7: pairing result. device_token is shown ONCE (mobile stores it in
+// SecureStore under ph_device_token) and only its bcrypt hash lives serverside.
+export interface MobileRegisterResponse {
+  device_id_internal: number;
+  device_token: string;
+  device_name: string;
+  url: string;
+}

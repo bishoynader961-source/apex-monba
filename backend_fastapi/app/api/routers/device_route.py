@@ -143,6 +143,11 @@ async def mobile_register(payload: MobileRegisterRequest, session: AsyncSession 
     On success: generate a one-time device token, persist ONLY its bcrypt
     hash, and return the plain token exactly once.
     """
+    # Step 1.7: ConnectScreen sends the raw parsed QR as qr_payload; the
+    # schema validator lifts it into the flat fields. A request with neither
+    # shape complete is a broken client — answer 400, never a 500.
+    if None in (payload.url, payload.instance_id, payload.network_key, payload.qr_expires_at):
+        raise HTTPException(status_code=400, detail="Missing QR payload fields")
     try:
         expires_at_dt = datetime.fromisoformat(payload.qr_expires_at.replace("Z", "+00:00"))
     except ValueError:

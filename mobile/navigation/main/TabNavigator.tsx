@@ -9,6 +9,7 @@ import ShiftsScreen from "../../screens/ShiftsScreen";
 import AnalyticsScreen from "../../screens/AnalyticsScreen";
 import RxQueueScreen from "../../screens/RxQueueScreen";
 import SettingsScreen from "../../screens/SettingsScreen";
+import PatientSearchScreen from "../../screens/PatientSearchScreen";
 
 export type TabParamList = {
   POS: undefined;
@@ -18,6 +19,7 @@ export type TabParamList = {
   Shifts: undefined;
   Analytics: undefined;
   RxQueue: undefined;
+  Patients: undefined;
   Settings: undefined;
 };
 
@@ -45,6 +47,7 @@ export default function MainTabNavigator() {
       <Tab.Screen name="Shifts" component={ShiftsScreen} />
       <Tab.Screen name="Analytics" component={AnalyticsScreen} />
       <Tab.Screen name="RxQueue" component={RxQueueScreen} />
+      <Tab.Screen name="Patients" component={PatientSearchScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );

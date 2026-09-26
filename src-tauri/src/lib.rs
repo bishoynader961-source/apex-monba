@@ -1,3 +1,10 @@
+// ── Recovery Layer 1: crash handler must be the FIRST module initialized ────
+// The panic hook inside is installed before any Tauri/WebView code runs so
+// that even a WebView2 startup failure produces a diagnostic + user dialog.
+pub mod crash_handler;
+// Fix Engine (Step 2.4): verification of signed support fix codes.
+pub mod fix_engine;
+
 use tauri::{Manager, WindowEvent};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -70,6 +77,21 @@ fn assign_child_to_job(pid: u32) {
 #[cfg(not(windows))]
 fn assign_child_to_job(_pid: u32) {}
 
+/// Data dir for the fix engine (no AppHandle available).
+/// Must match get_data_dir(): %APPDATA%\PharmacySuite first.
+pub fn data_dir_for_fixes() -> Result<std::path::PathBuf, String> {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let dir = std::path::PathBuf::from(appdata).join("PharmacySuite");
+            if std::fs::create_dir_all(&dir).is_ok() {
+                return Ok(dir);
+            }
+        }
+    }
+    std::env::current_dir().map_err(|e| format!("no data dir available: {e}"))
+}
+
 fn kill_sidecars() {
     if let Ok(mut guard) = SIDECAR_NODE.lock() {
         if let Some(mut child) = guard.take() {
@@ -83,6 +105,46 @@ fn kill_sidecars() {
             info!("Killed FastAPI backend sidecar process");
         }
     }
+}
+
+/// Write one SystemSetting row directly to the SQLite DB.
+/// Called only by the fix engine's whitelisted update_setting op.
+/// Creates the row if missing (fix codes may need to add defaults).
+pub fn update_system_setting(key: &str, value: &str) -> Result<(), String> {
+    let data_dir = data_dir_for_fixes()?;
+    let db_path = data_dir.join("pharmacy.db");
+    if !db_path.exists() {
+        return Err("database not found".to_string());
+    }
+    use sqlite::State;
+    let conn = sqlite::open(&db_path).map_err(|e| e.to_string())?;
+    // Key and value are bound parameters, never string-interpolated.
+    let mut stmt = conn
+        .prepare("INSERT INTO system_settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+        .map_err(|e| e.to_string())?;
+    // sqlite crate: Bindable is implemented for (index, value) tuples.
+    stmt.bind((1, key)).map_err(|e| e.to_string())?;
+    stmt.bind((2, value.as_bytes())).map_err(|e| e.to_string())?;
+    stmt.next().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// Recovery-window commands (Step 2.3/2.4). Declared HERE (not in the
+// fix_engine module) because tauri-build generates the allow-* permissions
+// for commands found in this file; logic itself lives in fix_engine.rs.
+#[tauri::command]
+fn recovery_get_diagnostics() -> String {
+    fix_engine::recovery_get_diagnostics()
+}
+
+#[tauri::command]
+fn recovery_apply_fix(admin_key: String, fix_code: String) -> Result<String, String> {
+    fix_engine::recovery_apply_fix(admin_key, fix_code)
+}
+
+#[tauri::command]
+fn recovery_reset_config(admin_key: String) -> Result<String, String> {
+    fix_engine::recovery_reset_config(admin_key)
 }
 
 #[tauri::command]
@@ -318,8 +380,14 @@ async fn print_label(image_data: String, _canvas_width: f64, _canvas_height: f64
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![open_label_window, close_label_window, print_label, start_udp_broadcast, stop_udp_broadcast, scan_udp_broadcast, setup_main_device])
+    // Step 2.1: install the panic hook before ANY other initialization.
+    // Everything after this line can panic into the crash-report path.
+    crash_handler::install_panic_hook();
+
+    // Step 2.3: register the recovery:// protocol before building the app.
+    let builder = register_recovery_protocol(tauri::Builder::default());
+    builder
+        .invoke_handler(tauri::generate_handler![open_label_window, close_label_window, print_label, start_udp_broadcast, stop_udp_broadcast, scan_udp_broadcast, setup_main_device, recovery_get_diagnostics, recovery_apply_fix, recovery_reset_config])
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -527,6 +595,10 @@ async fn spawn_servers(app: &tauri::AppHandle) {
 
     match found_server_js {
         Some(server_js) => {
+            // Step 2.2: fail fast with an actionable log line if :3000 is taken.
+            if !port_is_bindable(3000) {
+                log_to_file(&log_path, "[node] PORT CONFLICT: 127.0.0.1:3000 is already in use by another process");
+            }
             let js = server_js.to_string_lossy().to_string();
             let standalone_dir = server_js
                 .parent()
@@ -592,6 +664,10 @@ async fn spawn_servers(app: &tauri::AppHandle) {
             Ok(data_dir) => {
                 let _ = std::fs::create_dir_all(&data_dir);
                 log_to_file(&log_path, &format!("[backend] data_dir = {}", data_dir.display()));
+                // Step 2.2: fail fast with an actionable log line if :8000 is taken.
+                if !port_is_bindable(8000) {
+                    log_to_file(&log_path, "[backend] PORT CONFLICT: 127.0.0.1:8000 is already in use (another Pharmacy Suite instance or unrelated service?)");
+                }
                 match app.shell().sidecar("backend") {
                     Ok(cmd) => match cmd
                         .args(["--host", "127.0.0.1", "--port", "8000"])
@@ -656,6 +732,147 @@ async fn spawn_servers(app: &tauri::AppHandle) {
             log_to_file(&log_path, "[poll] server failed to start within 90 s");
             let _ = window.eval(SHOW_ERROR);
         }
+    }
+
+    // ── 4. Step 2.2: HTTP-level health verification of both sidecars ──
+    // TCP readiness is not service readiness; verify actual HTTP responses.
+    // Only fixed codes reach the recovery UI (invariant #7); detail goes to log.
+    match poll_health(3000, "/api/health", 30).await {
+        Ok(()) => log_to_file(&log_path, "[poll] frontend /api/health OK"),
+        Err(reason) => {
+            log_to_file(&log_path, &format!("[poll] FRONTEND HEALTH FAILED: {reason}"));
+            show_recovery_window(app, "FRONTEND_UNHEALTHY");
+        }
+    }
+    match poll_health(8000, "/api/v1/health", 30).await {
+        Ok(()) => log_to_file(&log_path, "[poll] backend /api/v1/health OK"),
+        Err(reason) => {
+            log_to_file(&log_path, &format!("[poll] BACKEND HEALTH FAILED: {reason}"));
+            show_recovery_window(app, "BACKEND_UNHEALTHY");
+        }
+    }
+}
+
+// ─ Step 2.3: recovery window assets, compiled into the binary ────
+// include_str! guarantees these exist even if the resource layout breaks,
+// matching the recovery window's zero-dependency guarantee.
+const RECOVERY_HTML: &str = include_str!("../recovery.html");
+const RECOVERY_JS: &str = include_str!("../recovery-app.js");
+
+/// Serve the recovery window from a dedicated recovery:// scheme so the
+/// files never depend on the Next.js server, bundler output, or disk state.
+/// CSP-safe: recovery-app.js is served same-origin, satisfying script-src 'self'.
+fn register_recovery_protocol(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
+    // register_asynchronous_uri_scheme_protocol returns Self; hand it back.
+    builder.register_asynchronous_uri_scheme_protocol("recovery", move |_ctx, request, responder| {
+        let uri = request.uri().to_string();
+        // Strip the scheme and serve only the two known files.
+        let path = uri.trim_start_matches("recovery://").trim_start_matches('/');
+        let (body, content_type) = match path {
+            "recovery-app.js" => (RECOVERY_JS, "application/javascript"),
+            _ => (RECOVERY_HTML, "text/html"),
+        };
+        responder.respond(
+            http::Response::builder()
+                .status(200)
+                .header("Content-Type", content_type)
+                .header("Access-Control-Allow-Origin", "recovery://localhost")
+                .header("Cache-Control", "no-store")
+                .body(body.as_bytes().to_vec())
+                .unwrap(),
+        );
+    })
+}
+
+// ─ Step 2.2: Sidecar health polling (HTTP-level, not just TCP) ────
+// A TCP connect proves a socket is listening; only an HTTP 200 proves the
+// service is actually serving. Both matter for recovery decisions, so the
+// recovery path triggers on health failure, not merely on port failure.
+//
+// Security: poll_health and show_recovery_window exchange ONLY fixed error
+// codes (invariant #7). Detailed causes (port conflict, spawn error text)
+// go to the sidecar log file for support — never into the recovery UI.
+
+/// Minimal HTTP GET check over a raw tokio TcpStream.
+/// Deliberately dependency-free: a full HTTP client is unnecessary for
+/// asking one endpoint whether it returns 200.
+async fn poll_health(port: u16, path: &str, timeout_secs: u64) -> Result<(), String> {
+    let start = std::time::Instant::now();
+    let timeout = Duration::from_secs(timeout_secs);
+    let addr = format!("127.0.0.1:{port}");
+    let request = format!(
+        "GET {path} HTTP/1.1
+Host: 127.0.0.1:{port}
+Connection: close
+
+"
+    );
+
+    loop {
+        let attempt = async {
+            let mut stream = tokio::net::TcpStream::connect(&addr)
+                .await
+                .map_err(|e| format!("connect failed: {e}"))?;
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+            stream.write_all(request.as_bytes())
+                .await
+                .map_err(|e| format!("write failed: {e}"))?;
+            let mut buf = [0u8; 64];
+            let n = stream.read(&mut buf).await.unwrap_or(0);
+            let head = String::from_utf8_lossy(&buf[..n]).to_string();
+            // Status line looks like "HTTP/1.1 200 OK" — check the code only.
+            if head.starts_with("HTTP/") && head.contains(" 200") {
+                Ok(())
+            } else {
+                Err(head.lines().next().unwrap_or("empty response").to_string())
+            }
+        };
+
+        match tokio::time::timeout(Duration::from_secs(2), attempt).await {
+            Ok(Ok(())) => return Ok(()),
+            Ok(Err(reason)) => return Err(format!("HTTP check failed: {reason}")),
+            Err(_) => { /* connect/read timed out — retry until budget exhausted */ }
+        }
+
+        if start.elapsed() >= timeout {
+            return Err("health check timed out".to_string());
+        }
+        sleep(Duration::from_millis(500)).await;
+    }
+}
+
+/// Pre-spawn port ownership check: proves the port is bindable BEFORE the
+/// sidecar tries, so a port conflict produces an actionable log line instead
+/// of a mysterious sidecar exit. The probe listener is dropped immediately,
+/// releasing the port for the real sidecar.
+fn port_is_bindable(port: u16) -> bool {
+    std::net::TcpListener::bind(("127.0.0.1", port)).is_ok()
+}
+
+/// Open the bundled recovery window (recovery.html — Step 2.3).
+/// Idempotent: a second failure focuses nothing, just logs. The window reads
+/// its diagnostics via Tauri IPC; no error detail travels through URLs.
+fn show_recovery_window(app: &tauri::AppHandle, code: &str) {
+    use tauri::{WebviewUrl, WebviewWindowBuilder};
+    if app.get_webview_window("recovery").is_some() {
+        return;
+    }
+    log_to_file(
+        &get_log_path(app),
+        &format!("[recovery] opening recovery window, code={code}"),
+    );
+    let built = WebviewWindowBuilder::new(
+        app,
+        "recovery",
+        // Serve the compiled-in recovery UI from the dedicated scheme.
+        WebviewUrl::External("http://recovery.localhost/recovery.html".parse().unwrap()),
+    )
+    .title("Pharmacy Suite Recovery")
+    .inner_size(620.0, 540.0)
+    .resizable(true)
+    .build();
+    if let Err(e) = built {
+        log_to_file(&get_log_path(app), &format!("[recovery] window build failed: {e}"));
     }
 }
 

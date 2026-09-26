@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Pharmacy Suite — Offline Recovery Guide</title>
+  <!--
+    Step 2.5 — Layer 3: zero-dependency offline recovery guide.
+    Deployed to %APPDATA%\PharmacySuite\recovery\ by the installer.
+    Opens in ANY browser with NO internet, NO frameworks, NO app processes.
+    Security: static text only — no scripts, no network, nothing to exploit.
+  -->
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc;
+           color: #1e293b; max-width: 760px; margin: 0 auto; padding: 32px 20px; line-height: 1.6; }
+    h1 { font-size: 22px; margin-bottom: 4px; }
+    h2 { font-size: 16px; margin: 24px 0 8px; color: #3730a3; }
+    .sub { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+    .box { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+           padding: 16px 20px; margin-bottom: 14px; }
+    ol { padding-left: 22px; }
+    li { margin-bottom: 6px; font-size: 14px; }
+    .email { font-weight: 700; color: #1d4ed8; }
+    .warn { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px;
+            padding: 10px 14px; font-size: 13px; color: #92400e; margin: 14px 0; }
+    .ok { color: #15803d; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
+    th { color: #475569; }
+    code { background: #eef2ff; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Pharmacy Suite won't open — here's what to do</h1>
+  <p class="sub">Keep this file. It works without internet, without the app, and without the pharmacy network.</p>
+
+  <div class="warn">
+    <span class="ok">Your patient data is safe.</span> The database file is separate from the
+    program — startup problems never affect it.
+  </div>
+
+  <h2>Step 1 — Try the Recovery tool</h2>
+  <div class="box">
+    <ol>
+      <li>Open the <strong>Start Menu</strong> and search for <strong>&ldquo;Pharmacy Suite Recovery&rdquo;</strong>.</li>
+      <li>Use its <em>Copy Diagnostic Info</em> and <em>Email Support</em> buttons.</li>
+      <li>If support sent you a <strong>fix code</strong> and <strong>admin key</strong>, enter both there.</li>
+    </ol>
+  </div>
+
+  <h2>Step 2 — Email support</h2>
+  <div class="box">
+    <p>Email: <span class="email">pharmacypro.support@gmail.com</span></p>
+    <p>Attach the newest file from this folder (type it into the file picker):</p>
+    <p><code>%APPDATA%\PharmacySuite\crashes</code></p>
+    <p>To open that folder: press <strong>Windows key + R</strong>, paste the path above, press Enter.</p>
+  </div>
+
+  <h2>What the error categories mean</h2>
+  <div class="box">
+    <table>
+      <tr><th>Code</th><th>Meaning</th></tr>
+      <tr><td><code>FRONTEND_UNHEALTHY</code></td><td>The app's screen service didn't start. Usually fixed by restarting the PC.</td></tr>
+      <tr><td><code>BACKEND_UNHEALTHY</code></td><td>The app's data service didn't start. Another program may be using it — restart the PC and close other apps.</td></tr>
+      <tr><td><code>ERR_SESSION_EXPIRED</code></td><td>Your session timed out. Log in again.</td></tr>
+      <tr><td><code>ERR_NO_CONNECTION</code></td><td>Cannot reach the pharmacy server. Check WiFi/network.</td></tr>
+      <tr><td><code>EXPIRED</code> (fix code)</td><td>The fix code support sent has passed its validity window — ask for a fresh one.</td></tr>
+      <tr><td><code>VERSION_MISMATCH</code> (fix code)</td><td>The fix code is for a different app version — update first, then retry.</td></tr>
+    </table>
+  </div>
+
+  <h2>What support will and won't ask for</h2>
+  <div class="box">
+    <p>Support <strong>will</strong> ask for: the diagnostic file, the error category you see, your app version.</p>
+    <p>Support <strong>will never</strong> ask for: your password, your PIN, or remote access to &ldquo;check something&rdquo;. If someone does, it is a scam.</p>
+  </div>
+
+  <h2>While you wait for support</h2>
+  <div class="box">
+    <ol>
+      <li><strong>Restart the computer</strong> — this resolves most startup failures.</li>
+      <li>Close other programs that may use the same services, then try again.</li>
+      <li>If you need records urgently, they are untouched — once the app starts, everything is exactly as you left it.</li>
+    </ol>
+  </div>
+
+  <p class="sub" style="margin-top:24px">Pharmacy Suite · Recovery guide v1.0 · This page is updated automatically with each app update.</p>
+</body>
+</html>

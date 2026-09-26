@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "recovery",
+  "description": "Recovery window only: access to the three fix-engine commands plus opening mailto: links. Scoped deliberately narrower than the main window (blueprint Point 2: minimal permissions for the recovery surface).",
+  "windows": ["recovery"],
+  "permissions": [
+    "core:default",
+    "allow-recovery-get-diagnostics",
+    "allow-recovery-apply-fix",
+    "allow-recovery-reset-config",
+    "shell:allow-open"
+  ]
+}

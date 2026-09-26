@@ -1,0 +1,14 @@
+[[permission]]
+identifier = "allow-recovery-get-diagnostics"
+description = "Allows the recovery window to read sanitized diagnostic info (app version, OS, latest crash filename)"
+commands.allow = ["recovery_get_diagnostics"]
+
+[[permission]]
+identifier = "allow-recovery-apply-fix"
+description = "Allows the recovery window to submit an admin key plus a signed fix code to the fix engine"
+commands.allow = ["recovery_apply_fix"]
+
+[[permission]]
+identifier = "allow-recovery-reset-config"
+description = "Allows the recovery window to reset configuration files (never the database) after admin-key verification"
+commands.allow = ["recovery_reset_config"]

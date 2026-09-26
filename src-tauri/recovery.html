@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Pharmacy Suite Recovery</title>
+  <!--
+    Step 2.3 — Recovery window markup.
+    SECURITY RULES FOR THIS FILE:
+      * Zero frameworks, zero network requests (no CDN, no fonts, no images).
+      * No inline <script> (CSP script-src 'self'): all logic is in
+        recovery-app.js, served by the same recovery:// origin.
+      * This page must render even when the main app database, sidecars,
+        and network are all unavailable. It is compiled into the binary.
+      * Every piece of text shown to the user must remain a friendly code or
+        instruction. Raw errors, ports, and paths are forbidden here except
+        the single crash-file path the user must attach to an email.
+  -->
+  <style>
+    /* Inline minimal CSS — dark theme matching the app; style-src allows it */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0f0f23; color: #e0e0e0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      padding: 24px; line-height: 1.5;
+    }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+    h2 { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #a5b4fc; }
+    .sub { color: #888; font-size: 12px; margin-bottom: 20px; }
+    section {
+      background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 10px;
+      padding: 16px; margin-bottom: 14px;
+    }
+    p { font-size: 13px; margin-bottom: 8px; }
+    button {
+      background: #4f46e5; color: #fff; border: none; border-radius: 6px;
+      padding: 9px 16px; font-size: 13px; cursor: pointer; margin: 4px 6px 4px 0;
+    }
+    button:hover { background: #6366f1; }
+    button:disabled { background: #3730a3; cursor: default; opacity: .7; }
+    button.danger { background: #b91c1c; }
+    button.danger:hover { background: #dc2626; }
+    button.ghost { background: transparent; border: 1px solid #4b5563; }
+    button.ghost:hover { background: #1f2937; }
+    input[type="password"], textarea {
+      width: 100%; background: #0d0d20; color: #e5e7eb;
+      border: 1px solid #4b5563; border-radius: 6px;
+      padding: 8px; font-size: 13px; margin: 6px 0;
+      font-family: 'Consolas', monospace;
+    }
+    textarea { height: 90px; resize: vertical; }
+    .ok   { color: #4ade80; font-size: 12px; }
+    .err  { color: #f87171; font-size: 12px; }
+    .hint { color: #9ca3af; font-size: 11px; }
+    code  { color: #a5b4fc; font-family: 'Consolas', monospace; }
+    .diag { background: #0d0d20; border-radius: 6px; padding: 10px; font-size: 12px;
+            font-family: 'Consolas', monospace; white-space: pre-wrap; margin: 8px 0; }
+    .email { color: #93c5fd; font-weight: 600; }
+    .hidden { display: none; }
+    /* Security notice matches the in-app Support page styling */
+    .notice { border: 1px solid #fcd34d; background: #78350f33; border-radius: 8px;
+              padding: 10px 12px; font-size: 12px; color: #fcd34d; margin-bottom: 14px; }
+  </style>
+</head>
+<body>
+  <h1>&#9888; Pharmacy Suite Recovery Mode</h1>
+  <p class="sub">The application did not start correctly. Your data is safe.</p>
+
+  <div class="notice">
+    &#128274; Support will never ask for your password or PIN.
+    Only share the diagnostic file using the button below.
+  </div>
+
+  <!-- ── Step 1: Diagnostic info ─────────────────────────────────────────── -->
+  <section>
+    <h2>Step 1 — Diagnostic info</h2>
+    <p class="hint">Contains app version, operating system, and an error category. No patient data, no passwords.</p>
+    <div id="diag" class="diag">Loading diagnostic info&hellip;</div>
+    <button id="btn-copy">&#128203; Copy Diagnostic Info</button>
+    <span id="copy-result" class="ok"></span>
+  </section>
+
+  <!-- ── Step 2: Email support ───────────────────────────────────────────── -->
+  <section>
+    <h2>Step 2 — Email support</h2>
+    <p>
+      Email: <span class="email">pharmacypro.support@gmail.com</span><br />
+      <span class="hint">You will see the email before it is sent &mdash; nothing is sent automatically.</span>
+    </p>
+    <button id="btn-email">&#9993; Open Email Client</button>
+    <button id="btn-copy-email" class="ghost">Copy Email Address</button>
+    <span id="email-result" class="ok"></span>
+  </section>
+
+  <!-- ── Step 3: Apply fix code ──────────────────────────────────────────── -->
+  <section>
+    <h2>Step 3 — Apply fix code</h2>
+    <p class="hint">If support gave you a fix code, paste it below. A fix code is a signed data patch, never a program.</p>
+    <input type="password" id="fix-admin-key" placeholder="Enter the admin key provided with the fix code" autocomplete="off" />
+    <textarea id="fix-code" placeholder="Paste the fix code (JSON envelope) here&hellip;" spellcheck="false"></textarea>
+    <button id="btn-fix">Apply Fix</button>
+    <span id="fix-result"></span>
+  </section>
+
+  <!-- ── Step 4: Emergency reset ─────────────────────────────────────────── -->
+  <section>
+    <h2>Step 4 — Emergency reset</h2>
+    <p class="hint">
+      Resets configuration (network settings, login sessions) to defaults.
+      <strong>Your pharmacy database is never touched.</strong>
+    </p>
+    <div id="reset-confirm" class="hidden">
+      <p>This will sign out all users and reset settings. Continue?</p>
+      <button id="btn-reset-yes" class="danger">Yes, reset configuration</button>
+      <button id="btn-reset-no" class="ghost">Cancel</button>
+    </div>
+    <button id="btn-reset">Reset Configuration (keeps database)</button>
+    <span id="reset-result"></span>
+  </section>
+
+  <!-- ── Step 5: Relaunch ────────────────────────────────────────────────── -->
+  <section>
+    <h2>Step 5 — After fixing</h2>
+    <p class="hint">Close this window and start Pharmacy Suite again from the Start Menu.</p>
+    <button id="btn-exit" class="ghost">Close Recovery Window</button>
+  </section>
+
+  <script src="recovery-app.js"></script>
+</body>
+</html>

@@ -14,6 +14,13 @@ rust-version = "1.77.2"
 name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# Step 2.6: standalone recovery binary. Shares fix_engine/crash_handler
+# with the main app (one audited implementation) but has NO Tauri,
+# NO WebView2, NO sidecars — works when the app cannot start.
+[[bin]]
+name = "pharmacysuite-recovery"
+path = "src/bin/recovery_main.rs"
+
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }
 
@@ -31,6 +38,13 @@ tauri-plugin-process = "2"
 tauri-plugin-updater = "2"
 tokio = { version = "1", features = ["net", "time"] }
 uuid = { version = "1", features = ["v4"] }
+chrono = "0.4"
+# Fix-code verification (Step 2.4): audited implementations only — crypto is
+# never hand-rolled. sha2+hmac reproduce the backend's HMAC-SHA256 exactly.
+sha2 = "0.10"
+hmac = "0.12"
+# recovery:// protocol responses (Step 2.3) reuse Tauri's http types.
+http = "1"
 base64 = "0.22"
 sqlite = "0.37"
 windows-sys = { version = "0.59", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_Foundation", "Win32_Security"] }

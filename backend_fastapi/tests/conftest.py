@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.database import Base, build_engine, get_session
 from app.core.lock_manager import reset_locks
+from app.core.models import SystemSetting
 from app.core.ttl_cache import cache_clear
 from app.main import app
 from app.shared.rate_limit import limiter
@@ -84,6 +85,11 @@ async def client(session_factory):
             yield s
 
     app.dependency_overrides[get_session] = _override
+    # Sprint 2D: the first-run setup gate is active suite-wide only in the
+    # dedicated gate tests; every other test runs post-setup.
+    async with session_factory() as s:
+        s.add(SystemSetting(key="setup_complete", value="true".encode("utf-8")))
+        await s.commit()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c

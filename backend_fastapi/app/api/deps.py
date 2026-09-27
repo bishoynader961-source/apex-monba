@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.core.models import Device, LockedFeature, Role
+from app.core.models import Device, LockedFeature, Role, SystemSetting
 from app.core.repositories import UserRepository
 from app.core.ttl_cache import cache_get, cache_invalidate_prefix, cache_set
 from app.shared.exceptions import AppException, ForbiddenError
@@ -236,3 +236,29 @@ def require_unlocked(feature_key: str):
         return user
     
     return _check
+
+
+async def require_setup_complete(session: AsyncSession = Depends(get_session)) -> None:
+    """First-run gate (Sprint 2D): 503 until the admin completes setup.
+
+    Reads the ``setup_complete`` SystemSetting (seeded ``false`` by
+    ``seed_default_settings``); the admin flips it via
+    ``POST /api/v1/admin/setup/complete`` once pharmacy identity is configured.
+    Exempt routes (health, auth, setup, docs/static) are listed in main.py —
+    this dependency is applied app-wide to everything else via dependency
+    injection into the catch-all router.
+    """
+    # Router-level dependencies run BEFORE route-level ones, so this read is
+    # the session's first use in the request. Close it with an explicit
+    # begin()/commit() — a plain read would leave an implicit transaction open
+    # (breaking get_current_user's session.begin() below), and a rollback
+    # would discard the caller's pending, not-yet-committed state.
+    async with session.begin():
+        setting = await session.get(SystemSetting, "setup_complete")
+        value = (setting.value or b"").decode("utf-8").strip().lower() if setting else ""
+    if value != "true":
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "Setup not complete"},
+            headers={"X-Setup-Required": "true"},
+        )

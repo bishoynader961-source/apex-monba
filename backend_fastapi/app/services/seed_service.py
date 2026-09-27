@@ -398,6 +398,9 @@ async def seed_default_settings(session: AsyncSession) -> None:
         # Demo mode (Task 4 Step 4.7): disabled by default; admins toggle it
         # (and seed/reset the sample data) from Settings via /api/v1/admin/demo/*.
         ("demo_mode", "false"),
+        # First-run gate (Sprint 2D): false until the admin completes setup;
+        # non-setup API surface returns 503 until this is flipped.
+        ("setup_complete", "false"),
     ]
     try:
         for key, value in defaults:

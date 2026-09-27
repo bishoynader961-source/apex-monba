@@ -282,94 +282,101 @@ async def handle_validation_error(_request: Request, exc: RequestValidationError
     )
 
 # Register all routers with the FastAPI app
-app.include_router(admin_router)
+from app.api.deps import require_setup_complete
+
+# Sprint 2D first-run gate: applied AT include time (dependencies baked into
+# routes by include_router are the only DI-correct global gate). Exempt
+# routers (health, auth, setup-complete) are simply not given _SETUP_GATE.
+_SETUP_GATE = [Depends(require_setup_complete)]
+
+app.include_router(admin_router, dependencies=_SETUP_GATE)
 # Additional routers
-app.include_router(integrations_router)
+app.include_router(integrations_router, dependencies=_SETUP_GATE)
 app.include_router(auth_router)
-app.include_router(audit_router)
-app.include_router(dictionaries_router)
-app.include_router(dispense_router)
-app.include_router(drug_confirm_router)
-app.include_router(email_router)
+app.include_router(audit_router, dependencies=_SETUP_GATE)
+app.include_router(dictionaries_router, dependencies=_SETUP_GATE)
+app.include_router(dispense_router, dependencies=_SETUP_GATE)
+app.include_router(drug_confirm_router, dependencies=_SETUP_GATE)
+app.include_router(email_router, dependencies=_SETUP_GATE)
 app.include_router(health_router)
-app.include_router(inventory_router)
-app.include_router(analytics_router)
-app.include_router(dashboard_router)
-app.include_router(insurance_router)
-app.include_router(members_router)
-app.include_router(patients_router)
-app.include_router(mobile_router)
-app.include_router(device_router)
-app.include_router(device_pairing_router)
-app.include_router(device_router)
-app.include_router(device_pairing_router)
-app.include_router(pos_router)
-app.include_router(prescriber_router)
-app.include_router(region_router)
-app.include_router(region_strategy_router)
-app.include_router(prior_auth_router)
-app.include_router(epcs_router)
-app.include_router(compound_router)
-app.include_router(clinical_router)
-app.include_router(roles_router)
-app.include_router(rx_queue_router)
-app.include_router(settings_router)
-app.include_router(support_router)
-app.include_router(support_fix_router)
-app.include_router(sync_router)
+app.include_router(inventory_router, dependencies=_SETUP_GATE)
+app.include_router(analytics_router, dependencies=_SETUP_GATE)
+app.include_router(dashboard_router, dependencies=_SETUP_GATE)
+app.include_router(insurance_router, dependencies=_SETUP_GATE)
+app.include_router(members_router, dependencies=_SETUP_GATE)
+app.include_router(patients_router, dependencies=_SETUP_GATE)
+app.include_router(mobile_router, dependencies=_SETUP_GATE)
+app.include_router(device_router, dependencies=_SETUP_GATE)
+app.include_router(device_pairing_router, dependencies=_SETUP_GATE)
+app.include_router(device_router, dependencies=_SETUP_GATE)
+app.include_router(device_pairing_router, dependencies=_SETUP_GATE)
+app.include_router(pos_router, dependencies=_SETUP_GATE)
+app.include_router(prescriber_router, dependencies=_SETUP_GATE)
+app.include_router(region_router, dependencies=_SETUP_GATE)
+app.include_router(region_strategy_router, dependencies=_SETUP_GATE)
+app.include_router(prior_auth_router, dependencies=_SETUP_GATE)
+app.include_router(epcs_router, dependencies=_SETUP_GATE)
+app.include_router(compound_router, dependencies=_SETUP_GATE)
+app.include_router(clinical_router, dependencies=_SETUP_GATE)
+app.include_router(roles_router, dependencies=_SETUP_GATE)
+app.include_router(rx_queue_router, dependencies=_SETUP_GATE)
+app.include_router(settings_router, dependencies=_SETUP_GATE)
+app.include_router(support_router, dependencies=_SETUP_GATE)
+app.include_router(support_fix_router, dependencies=_SETUP_GATE)
+app.include_router(sync_router, dependencies=_SETUP_GATE)
 app.include_router(setup_router)
-app.include_router(users_router)
-app.include_router(ocr_router)
-app.include_router(excel_router)
-app.include_router(vendors_router)
-app.include_router(wc_router)
+app.include_router(users_router, dependencies=_SETUP_GATE)
+app.include_router(ocr_router, dependencies=_SETUP_GATE)
+app.include_router(excel_router, dependencies=_SETUP_GATE)
+app.include_router(vendors_router, dependencies=_SETUP_GATE)
+app.include_router(wc_router, dependencies=_SETUP_GATE)
 # Additional routers
 from app.api.routers.coupon_route import router as coupon_router
-app.include_router(coupon_router)
+app.include_router(coupon_router, dependencies=_SETUP_GATE)
 
 from app.api.routers.receiving_route import router as receiving_router
-app.include_router(receiving_router)
+app.include_router(receiving_router, dependencies=_SETUP_GATE)
 
 from app.api.routers.crash_report_route import router as crash_report_router
-app.include_router(crash_report_router)
+app.include_router(crash_report_router, dependencies=_SETUP_GATE)
 
 from app.api.routers.quick_sig_route import router as quick_sig_router
-app.include_router(quick_sig_router)
+app.include_router(quick_sig_router, dependencies=_SETUP_GATE)
 
 from app.api.routers.po_route import router as po_router
-app.include_router(po_router)
+app.include_router(po_router, dependencies=_SETUP_GATE)
 
 from app.api.routers.receipt_template_route import router as receipt_template_router
 from app.api.routers.receipt_route import router as receipt_router
-app.include_router(receipt_template_router)
-app.include_router(receipt_router)
+app.include_router(receipt_template_router, dependencies=_SETUP_GATE)
+app.include_router(receipt_router, dependencies=_SETUP_GATE)
 
 from app.api.routers.drug_interaction_route import router as drug_interaction_router
-app.include_router(drug_interaction_router)
+app.include_router(drug_interaction_router, dependencies=_SETUP_GATE)
 
 from app.api.routers.invoice_parse_route import router as invoice_parse_router
-app.include_router(invoice_parse_router)
+app.include_router(invoice_parse_router, dependencies=_SETUP_GATE)
 
 from app.api.routers.label_template_route import router as label_template_router
 from app.api.routers.label_template_route import product_router as product_label_router
 from app.api.routers.label_assignment_route import router as label_assignment_router
 from app.api.routers.barcode_route import router as barcode_router
-app.include_router(label_template_router)
-app.include_router(product_label_router)
-app.include_router(label_assignment_router)
-app.include_router(barcode_router)
+app.include_router(label_template_router, dependencies=_SETUP_GATE)
+app.include_router(product_label_router, dependencies=_SETUP_GATE)
+app.include_router(label_assignment_router, dependencies=_SETUP_GATE)
+app.include_router(barcode_router, dependencies=_SETUP_GATE)
 
 from app.api.routers.version_route import router as version_router
-app.include_router(version_router)
+app.include_router(version_router, dependencies=_SETUP_GATE)
 
 from app.api.routers.templates_route import router as templates_router
-app.include_router(templates_router)
+app.include_router(templates_router, dependencies=_SETUP_GATE)
 
 from app.api.routers.gift_card_route import router as gift_card_router
-app.include_router(gift_card_router)
+app.include_router(gift_card_router, dependencies=_SETUP_GATE)
 
 from app.api.routers.patient_fields_route import router as patient_fields_router
-app.include_router(patient_fields_router)
+app.include_router(patient_fields_router, dependencies=_SETUP_GATE)
 
 # Sprint 2D: the one endpoint that ENDS first-run mode must itself be exempt
 # from the gate (same prefix as admin for client-contract stability).

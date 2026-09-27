@@ -105,6 +105,19 @@ class InventoryService:
             remaining -= take
         return consumed
 
+    async def get_expired_lot(self, product_name: str) -> Optional[str]:
+        """Return the expiration date of the first expired lot for a product, or None.
+
+        Mirror of the fifo_deduct sellability predicate (recalled/expired lots are
+        never sellable); used by POS checkout to fail loudly when expired stock
+        is still on the shelf instead of silently skipping it (D8 critical fix).
+        """
+        today = date.today().isoformat()
+        for lot in await BatchRepository(self.session).get_lots_for_product(product_name):
+            if lot.expiration_date and lot.expiration_date < today:
+                return str(lot.expiration_date)
+        return None
+
     async def return_stock(self, product_name: str, quantity: int) -> None:
         """Restock ``quantity`` of ``product_name`` for a refund (B5).
 

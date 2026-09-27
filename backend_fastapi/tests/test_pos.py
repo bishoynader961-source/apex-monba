@@ -127,6 +127,27 @@ async def test_checkout_insufficient_stock_returns_400(
     assert lot_total == 2
 
 
+async def test_checkout_expired_batch_returns_400(
+    client: AsyncClient, session: AsyncSession, auth: dict[str, str], catalogue: dict[str, float]
+) -> None:
+    """Critical fix: checkout with an expired batch must be rejected with 400
+    expired_stock before any stock is decremented."""
+    await _receive(session, "Ibuprofen", 10, -30)  # expired 30 days ago
+    resp = await client.post(
+        "/api/v1/pos/checkout",
+        json={"line_items": [{"product_name": "Ibuprofen", "quantity": 2}], "payment_method": "Cash"},
+        headers=auth,
+    )
+    assert resp.status_code == 400, resp.text
+    body = resp.json()
+    assert body["error"]["code"] == "expired_stock"
+    assert "Cannot sell expired stock: Ibuprofen expired" in body["error"]["message"]
+    # stock untouched on failure
+    lot_total = await BatchRepository(session).sum_on_hand("Ibuprofen")
+    assert lot_total == 10
+    assert (await session.execute(text("SELECT COUNT(*) FROM receipts"))).scalar() == 0
+
+
 async def test_concurrent_checkouts_serialize_on_single_sku(
     client: AsyncClient, session: AsyncSession, auth: dict[str, str]
 ) -> None:

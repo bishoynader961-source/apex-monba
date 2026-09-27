@@ -143,9 +143,11 @@ async def test_drawer_movement_requires_approval(
     assert resp3.status_code in (401, 403)
 
 
-async def test_expired_lot_checkout_returns_410(
+async def test_expired_lot_checkout_returns_400(
     client: AsyncClient, session: AsyncSession, auth: dict[str, str]
 ) -> None:
+    """D8 critical fix: any expired batch on the shelf blocks the sale (400
+    expired_stock) even when fresher lots could technically cover the line."""
     await _add_product(session, "Paracetamol", 10.0)
     await InventoryService(session).receive_batch("Paracetamol", "L1", "2000-01-01", 5, Decimal("1.0"), "Acme")
     await session.commit()
@@ -154,8 +156,9 @@ async def test_expired_lot_checkout_returns_410(
         json={"line_items": [{"product_name": "Paracetamol", "quantity": 1}]},
         headers=auth,
     )
-    assert resp.status_code == 410
-    assert resp.json()["error"]["code"] == "expired_lot"
+    assert resp.status_code == 400
+    assert resp.json()["error"]["code"] == "expired_stock"
+    assert "Cannot sell expired stock: Paracetamol expired 2000-01-01" in resp.json()["error"]["message"]
 
 
 async def test_recalled_lot_checkout_returns_410(

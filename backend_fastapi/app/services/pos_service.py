@@ -128,6 +128,17 @@ class PosService:
                     product = await product_repo.get_by_name(name)
                     if product is None:
                         raise NotFoundError("Medicine", name)
+                    # Critical fix (D8): refuse to sell any medicine that still has an
+                    # expired batch on the shelf. FEFO in fifo_deduct silently skips
+                    # expired lots, which could mask expired stock behind fresher lots —
+                    # the sale must fail loudly instead. Runs before the batch decrement.
+                    expired = await inventory.get_expired_lot(name)
+                    if expired is not None:
+                        raise AppException(
+                            f"Cannot sell expired stock: {name} expired {expired}",
+                            status_code=400,
+                            error_code="expired_stock",
+                        )
                     consumed = await inventory.fifo_deduct(name, qty)
                     consumed_rows.extend(consumed)
                     # Price override: use caller-supplied price when present.

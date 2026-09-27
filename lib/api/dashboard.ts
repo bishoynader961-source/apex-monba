@@ -10,6 +10,10 @@ export interface DashboardMetrics {
   low_stock: { name: string; on_hand: number; threshold: number; barcode: string }[];
   expiring_soon: { name: string; on_hand: number; expiry: string; barcode: string }[];
   recent_activity: { action: string; details: string; time: string }[];
+  // Sprint 4D: backup reminder (amber banner on the dashboard when the last
+  // successful backup is missing or > 7 days old).
+  backup_reminder?: boolean;
+  backup_days_ago?: number | null;
 }
 
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {

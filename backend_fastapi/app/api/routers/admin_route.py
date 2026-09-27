@@ -42,6 +42,7 @@ async def create_backup(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Backup unavailable for the configured database",
         )
+    await _touch_last_backup_at(session)
     size = os.path.getsize(path) if os.path.exists(path) else 0
     return BackupResult(path=path, compressed=path.endswith(".gz"), size_bytes=size)
 
@@ -49,8 +50,22 @@ async def create_backup(
 # ── Encrypted backup (Sprint 2A) ────────────────────────────────────────────
 
 
+async def _touch_last_backup_at(session: AsyncSession) -> None:
+    """Sprint 4D: stamp the backup reminder clock (idempotent upsert)."""
+    from datetime import datetime, timezone
+
+    setting = await session.get(SystemSetting, "last_backup_at")
+    stamp = datetime.now(timezone.utc).isoformat()
+    if setting is None:
+        session.add(SystemSetting(key="last_backup_at", value=stamp.encode("utf-8")))
+    else:
+        setting.value = stamp.encode("utf-8")
+    await session.commit()
+
+
 @router.post("/backup/encrypted", response_model=EncryptedBackupResult, status_code=status.HTTP_201_CREATED)
 async def create_encrypted_backup(
+    session: AsyncSession = Depends(get_session),
     _user: CurrentUser = Depends(require_permission("backup.create")),
 ) -> EncryptedBackupResult:
     """Create an AES-256-GCM encrypted snapshot (``.backup.enc``).
@@ -68,6 +83,7 @@ async def create_encrypted_backup(
     key = generate_key()
     enc_path = await write_encrypted_backup(os.path.dirname(gz_path) or "snapshots", Path(gz_path), key)
     size = enc_path.stat().st_size
+    await _touch_last_backup_at(session)
     return EncryptedBackupResult(
         path=str(enc_path),
         filename=enc_path.name,

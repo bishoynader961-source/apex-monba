@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback } from "react";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { RouteGuard } from "@/components/RouteGuard";
+import { BackupReminderBanner } from "@/components/BackupReminderBanner";
 import { useAuthStore } from "@/stores/authStore";
 import { useI18n } from "@/components/I18nProvider";
 import { getDashboardMetrics, type DashboardMetrics } from "@/lib/api/dashboard";
@@ -67,6 +68,7 @@ export default function DashboardPage() {
   return (
     <DashboardLayout>
       <RouteGuard permission="inventory.read">
+        <BackupReminderBanner />
         <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--fg)", marginBottom: 4 }}>
         {t("dashboard.title")}
       </h1>

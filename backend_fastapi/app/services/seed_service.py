@@ -407,6 +407,9 @@ async def seed_default_settings(session: AsyncSession) -> None:
         # MS Store listing (Sprint 4C): public privacy policy URL placeholder;
         # surfaces in-app once the admin sets it.
         ("privacy_policy_url", ""),
+        # Backup reminder (Sprint 4D): empty = never backed up; stamped on every
+        # successful backup. Dashboard shows a reminder when empty or > 7 days.
+        ("last_backup_at", ""),
     ]
     try:
         for key, value in defaults:

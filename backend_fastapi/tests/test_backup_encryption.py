@@ -135,3 +135,57 @@ async def test_encrypted_backup_route_and_restore(
             headers=auth,
         )
     assert bad.status_code == 400
+
+
+# ── Sprint 4D: backup reminder flag ──────────────────────────────────────────
+
+
+async def test_backup_reminder_flag_after_seven_days(
+    client: AsyncClient, session: AsyncSession, engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """last_backup_at > 7 days (or never) -> dashboard metrics flag a reminder;
+    a fresh stamp (including a successful encrypted backup) clears it."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.core.models import SystemSetting
+
+    auth = await _admin(client, session)
+
+    async def set_backup(value: str) -> None:
+        setting = await session.get(SystemSetting, "last_backup_at")
+        if setting is None:
+            session.add(SystemSetting(key="last_backup_at", value=value.encode("utf-8")))
+        else:
+            setting.value = value.encode("utf-8")
+        await session.commit()
+
+    # Never backed up -> reminder, no day count.
+    await set_backup("")
+    resp = await client.get("/api/v1/dashboard/metrics", headers=auth)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["backup_reminder"] is True
+    assert body["backup_days_ago"] is None
+
+    # 8 days ago -> reminder with the day count.
+    old = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
+    await set_backup(old)
+    resp = await client.get("/api/v1/dashboard/metrics", headers=auth)
+    body = resp.json()
+    assert body["backup_reminder"] is True
+    assert body["backup_days_ago"] == 8
+
+    # Fresh stamp -> reminder cleared.
+    await set_backup(datetime.now(timezone.utc).isoformat())
+    resp = await client.get("/api/v1/dashboard/metrics", headers=auth)
+    assert resp.json()["backup_reminder"] is False
+
+    # A successful encrypted backup re-stamps the clock.
+    await set_backup(old)
+    import app.core.backup as backup_mod
+
+    monkeypatch.setattr(backup_mod, "_engine", engine)
+    created = await client.post("/api/v1/admin/backup/encrypted", headers=auth)
+    if created.status_code == 201:  # skipped only if the DB has no file path
+        resp = await client.get("/api/v1/dashboard/metrics", headers=auth)
+        assert resp.json()["backup_reminder"] is False

@@ -405,7 +405,49 @@ pub fn run() {
                         .level(log::LevelFilter::Info)
                         .build(),
                 )?;
-            } else {
+            }
+            // ── Sprint 4A: window state persistence ──────────────────────────
+            // Restore saved (validated) bounds and only THEN show the window
+            // (tauri.conf sets visible:false); persist on move/resize with a
+            // 500ms debounce and on close so the final position is captured.
+            if let Some(window) = app.get_webview_window("main") {
+                restore_window_state(&window, app.handle());
+                let win = window.clone();
+                let app_for_events = app.handle().clone();
+                let last_save: std::sync::Arc<std::sync::Mutex<Option<std::time::Instant>>> =
+                    std::sync::Arc::new(std::sync::Mutex::new(None));
+                window.on_window_event(move |event| {
+                    match event {
+                        WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
+                            let due = {
+                                let mut last = match last_save.lock() {
+                                    Ok(l) => l,
+                                    Err(_) => return,
+                                };
+                                match *last {
+                                    Some(t) if t.elapsed() < Duration::from_millis(500) => false,
+                                    _ => {
+                                        *last = Some(std::time::Instant::now());
+                                        true
+                                    }
+                                }
+                            };
+                            if due {
+                                if let Some(state) = current_window_state(&win) {
+                                    save_window_state(&app_for_events, &state);
+                                }
+                            }
+                        }
+                        WindowEvent::CloseRequested { .. } => {
+                            if let Some(state) = current_window_state(&win) {
+                                save_window_state(&app_for_events, &state);
+                            }
+                        }
+                        _ => {}
+                    }
+                });
+            }
+            if !cfg!(debug_assertions) {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.eval(LOADING_HTML);
                     // Kill sidecar processes when main window closes.
@@ -427,6 +469,14 @@ pub fn run() {
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
                     spawn_servers(&handle).await;
+                });
+                // Sprint 4A: deep-sleep recovery watchdog (release only — in
+                // dev the sidecars are run manually and must not be respawned).
+                let watchdog_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    // Startup grace period: let the initial health-poll settle.
+                    tokio::time::sleep(Duration::from_secs(60)).await;
+                    sleep_recovery_watchdog(watchdog_handle).await;
                 });
             }
             Ok(())
@@ -921,6 +971,149 @@ async fn wait_for_port(host: &str, port: u16, timeout_secs: u64) -> bool {
                 }
                 sleep(Duration::from_millis(500)).await;
             }
+        }
+    }
+}
+
+// ── Sprint 4A: window state persistence + deep-sleep recovery ───────────────
+// Position/size are saved on move/resize (debounced) to
+// %APPDATA%\PharmacySuite\config\window_state.json and restored on startup
+// BEFORE the window is shown (conf sets visible:false). Saved bounds are
+// validated against current monitors: an off-screen restore (monitor was
+// unplugged) falls back to a centered default instead of an invisible window.
+// A resume watchdog polls backend /api/v1/health after system resume and
+// restarts the sidecars after 3 consecutive failures.
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug)]
+struct WindowState {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    maximized: bool,
+}
+
+fn window_state_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = get_data_dir(app)?.join("config");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("create config dir failed: {e}"))?;
+    Ok(dir.join("window_state.json"))
+}
+
+fn save_window_state(app: &tauri::AppHandle, state: &WindowState) {
+    match window_state_path(app) {
+        Ok(path) => {
+            match serde_json::to_string_pretty(state) {
+                Ok(json) => {
+                    if let Err(e) = std::fs::write(&path, json) {
+                        log_to_file(&get_log_path(app), &format!("[window_state] write failed: {e}"));
+                    }
+                }
+                Err(e) => log_to_file(&get_log_path(app), &format!("[window_state] serialize failed: {e}")),
+            }
+        }
+        Err(e) => log_to_file(&get_log_path(app), &format!("[window_state] path failed: {e}")),
+    }
+}
+
+fn load_window_state(app: &tauri::AppHandle) -> Option<WindowState> {
+    let path = window_state_path(app).ok()?;
+    let text = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+/// True when at least `min_pixels` of the window would be visible on some
+/// connected monitor (in global coordinates). Monitors are resolved through
+/// the window handle (Tauri 2 has no static monitor enumeration).
+fn bounds_on_screen(window: &tauri::WebviewWindow, state: &WindowState, min_pixels: i32) -> bool {
+    let monitors = match window.available_monitors() {
+        Ok(list) => list,
+        Err(_) => return true, // cannot validate — assume visible, never strand the user
+    };
+    for monitor in monitors {
+        let pos = monitor.position();
+        let size = monitor.size();
+        let left = pos.x;
+        let top = pos.y;
+        let right = left + size.width as i32;
+        let bottom = top + size.height as i32;
+        let vis_left = state.x.max(left);
+        let vis_top = state.y.max(top);
+        let vis_right = (state.x + state.width as i32).min(right);
+        let vis_bottom = (state.y + state.height as i32).min(bottom);
+        if vis_right - vis_left >= min_pixels && vis_bottom - vis_top >= min_pixels {
+            return true;
+        }
+    }
+    false
+}
+/// Restore saved bounds (validated) or fall back to the configured default,
+/// then show the window. Called during setup so the user never sees a jump.
+fn restore_window_state(window: &tauri::WebviewWindow, app: &tauri::AppHandle) {
+    let log_path = get_log_path(app);
+    if let Some(mut saved) = load_window_state(app) {
+        // Validate: at least 120px must be visible on some monitor, else center.
+        if saved.width < 400 || saved.height < 300 {
+            saved.width = 1280;
+            saved.height = 800;
+        }
+        if bounds_on_screen(window, &saved, 120) {
+            let _ = window.set_position(tauri::LogicalPosition::new(saved.x as f64, saved.y as f64));
+            let _ = window.set_size(tauri::LogicalSize::new(saved.width as f64, saved.height as f64));
+            if saved.maximized {
+                let _ = window.maximize();
+            }
+            log_to_file(&log_path, "[window_state] restored saved bounds");
+        } else {
+            log_to_file(&log_path, "[window_state] saved bounds off-screen; centering instead");
+            let _ = window.center();
+        }
+    } else {
+        let _ = window.center();
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+/// Persist the current bounds (called from the debounced event handler).
+fn current_window_state(window: &tauri::WebviewWindow) -> Option<WindowState> {
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let pos = window.outer_position().ok()?;
+    let size = window.outer_size().ok()?;
+    Some(WindowState {
+        x: pos.x,
+        y: pos.y,
+        width: (size.width as f64 / scale).round() as u32,
+        height: (size.height as f64 / scale).round() as u32,
+        maximized: window.is_maximized().unwrap_or(false),
+    })
+}
+
+/// Deep-sleep recovery watchdog: after a system resume the sidecars may have
+/// been killed (Windows can reap services on sleep). Poll backend health
+/// every 10s; after 3 consecutive failures, kill and respawn everything.
+async fn sleep_recovery_watchdog(app: tauri::AppHandle) {
+    let log_path = get_log_path(&app);
+    let mut consecutive_failures: u32 = 0;
+    loop {
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        // A single quick health probe (2s budget) — cheap and dependency-free.
+        let healthy = poll_health(8000, "/api/v1/health", 2).await.is_ok();
+        if healthy {
+            consecutive_failures = 0;
+            continue;
+        }
+        consecutive_failures += 1;
+        log_to_file(
+            &log_path,
+            &format!("[watchdog] backend health failure #{consecutive_failures}"),
+        );
+        if consecutive_failures >= 3 {
+            log_to_file(&log_path, "[watchdog] restarting sidecars after 3 failures");
+            kill_sidecars();
+            // Give the OS a moment to release the sockets before respawn.
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            spawn_servers(&app).await;
+            consecutive_failures = 0;
         }
     }
 }

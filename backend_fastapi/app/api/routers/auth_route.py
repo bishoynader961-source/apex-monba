@@ -95,8 +95,19 @@ async def get_me(
 
 
 @router.post("/logout", status_code=200)
-async def logout(user: CurrentUser = Depends(get_current_user)) -> dict[str, str]:
-    # Stateless JWT: logout is client-side (discard tokens). Endpoint confirms auth.
+async def logout(
+    request: Request,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, str]:
+    # Sprint 1C: logout is still client-side token discard, but the event is
+    # now audit-logged (user_id + timestamp, IP when the request carries one).
+    await AuditRepository(session).log(
+        action="auth.logout",
+        subject_type="user",
+        subject_id=user.id,
+        details=f"username={user.username} ip={request.client.host if request.client else 'unknown'}",
+    )
     return {"status": "ok", "message": f"Logged out {user.username}"}
 
 

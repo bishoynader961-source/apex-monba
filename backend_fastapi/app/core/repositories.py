@@ -415,6 +415,9 @@ class AuditRepository:
         )
         entry_hash = hashlib.sha256((prev + "|" + canonical).encode("utf-8")).hexdigest()
         entry = AuditLog(
+            # Sprint 1C: rows were previously written with timestamp=None; the
+            # audit criteria (and the UI) require a server-canonical timestamp.
+            timestamp=datetime.now(timezone.utc).isoformat(),
             action=action,
             user_pin=user_pin,
             details=details,

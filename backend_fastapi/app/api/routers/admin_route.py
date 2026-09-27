@@ -1,20 +1,31 @@
-"""Admin routes: server-managed compressed backup (T7/admin, backup.create)."""
+"""Admin routes: server-managed compressed backup (T7/admin, backup.create) +
+AES-256-GCM encrypted backup (Sprint 2A) + demo mode (Task 4 Step 4.7)."""
 from __future__ import annotations
 
 import glob
 import os
 import shutil
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permission
 from app.core.backup import vacuum_backup
+from app.core.backup_crypto import (
+    DecryptError,
+    decode_key,
+    decrypt_to_gzip_bytes,
+    encode_key,
+    generate_key,
+    gunzip_to_db_bytes,
+    write_encrypted_backup,
+)
 from app.core.database import get_session
+from app.core.models import SystemSetting
 from app.core.seed_demo_data import clear_demo_data, is_demo_mode, reset_demo_data, seed_demo_data, set_demo_mode
-from app.core.database import get_session
-from app.shared.schemas import BackupResult, CurrentUser
+from app.shared.schemas import BackupResult, CurrentUser, EncryptedBackupResult
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -33,6 +44,36 @@ async def create_backup(
         )
     size = os.path.getsize(path) if os.path.exists(path) else 0
     return BackupResult(path=path, compressed=path.endswith(".gz"), size_bytes=size)
+
+
+# ── Encrypted backup (Sprint 2A) ────────────────────────────────────────────
+
+
+@router.post("/backup/encrypted", response_model=EncryptedBackupResult, status_code=status.HTTP_201_CREATED)
+async def create_encrypted_backup(
+    _user: CurrentUser = Depends(require_permission("backup.create")),
+) -> EncryptedBackupResult:
+    """Create an AES-256-GCM encrypted snapshot (``.backup.enc``).
+
+    A fresh random key is generated per backup and returned exactly once in
+    this response — it is never stored on disk or in the database. Lose the
+    key, lose the backup.
+    """
+    gz_path = await vacuum_backup(compress=True)
+    if gz_path is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Backup unavailable for the configured database",
+        )
+    key = generate_key()
+    enc_path = await write_encrypted_backup(os.path.dirname(gz_path) or "snapshots", Path(gz_path), key)
+    size = enc_path.stat().st_size
+    return EncryptedBackupResult(
+        path=str(enc_path),
+        filename=enc_path.name,
+        size_bytes=size,
+        recovery_key=encode_key(key),
+    )
 
 
 @router.get("/backups")
@@ -100,6 +141,49 @@ async def restore_backup(
             os.remove(tmp_path)
 
     return {"message": "Backup restored successfully. Please restart the application."}
+
+
+@router.post("/restore/encrypted", status_code=status.HTTP_200_OK)
+async def restore_encrypted_backup(
+    file: UploadFile = File(...),
+    key: str = Form(...),
+    _auth: CurrentUser = Depends(require_permission("backup.create")),
+) -> dict[str, str]:
+    """Restore an AES-256-GCM encrypted backup (``.backup.enc``) + admin key.
+
+    Wrong key / tampered / non-encrypted file → 400. On success the decrypted
+    ``.db`` flows through the same replace-then-restart path as plain restore.
+    """
+    from app.core.database import _write_db_path
+
+    if not file.filename or not file.filename.endswith(".backup.enc"):
+        raise HTTPException(status_code=400, detail="Upload a .backup.enc file")
+    db_path = _write_db_path()
+    if db_path is None:
+        raise HTTPException(status_code=400, detail="Cannot restore: not using a file-based database")
+
+    try:
+        decryption_key = decode_key(key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    blob = await file.read()
+    try:
+        gz_data = decrypt_to_gzip_bytes(blob, decryption_key)
+        plaintext = gunzip_to_db_bytes(gz_data)
+    except DecryptError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    tmp_path = db_path + ".restore_tmp"
+    try:
+        with open(tmp_path, "wb") as f:
+            f.write(plaintext)
+        shutil.copy2(tmp_path, db_path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+    return {"message": "Encrypted backup restored successfully. Please restart the application."}
 
 
 # ── Demo mode (Task 4 Step 4.7) — settings.manage gate, DB session per call ──

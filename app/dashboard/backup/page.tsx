@@ -6,7 +6,14 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useI18n } from "@/components/I18nProvider";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useAuthStore, useCan } from "@/stores/authStore";
-import { createBackup, listBackups, restoreBackup, type BackupEntry } from "@/lib/api/admin";
+import {
+  createBackup,
+  createEncryptedBackup,
+  listBackups,
+  restoreBackup,
+  restoreEncryptedBackup,
+  type BackupEntry,
+} from "@/lib/api/admin";
 import { RouteGuard } from "@/components/RouteGuard";
 import type { BackupResult } from "@/types/contracts";
 
@@ -32,6 +39,15 @@ const canWrite = useCan("backup.create");
   const [backups, setBackups] = useState<BackupEntry[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [restoring, setRestoring] = useState(false);
+
+  // Sprint 2A: encrypted backup state. The recovery key is displayed ONCE and
+  // never persisted — leaving the page (or copying another backup) clears it.
+  const [encBacking, setEncBacking] = useState(false);
+  const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
+  const [encFile, setEncFile] = useState<File | null>(null);
+  const [encKey, setEncKey] = useState("");
+  const [encRestoring, setEncRestoring] = useState(false);
+  const encFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isAuthenticated()) router.replace("/login");
@@ -65,6 +81,38 @@ const canWrite = useCan("backup.create");
       setError(e instanceof Error ? e.message : "Backup failed");
     } finally {
       setBacking(false);
+    }
+  }
+
+  async function handleEncryptedBackup() {
+    setEncBacking(true);
+    setError(null);
+    try {
+      const res = await createEncryptedBackup();
+      setRecoveryKey(res.recovery_key); // shown ONCE; never persisted
+      void loadBackups();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Encrypted backup failed");
+    } finally {
+      setEncBacking(false);
+    }
+  }
+
+  async function handleEncryptedRestore() {
+    if (!encFile) return;
+    if (!confirm("This will replace the current database from the encrypted backup. Are you sure?")) return;
+    setEncRestoring(true);
+    setError(null);
+    try {
+      const res = await restoreEncryptedBackup(encFile, encKey.trim());
+      alert(res.message);
+      setEncFile(null);
+      setEncKey("");
+      if (encFileRef.current) encFileRef.current.value = "";
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Encrypted restore failed");
+    } finally {
+      setEncRestoring(false);
     }
   }
 
@@ -116,6 +164,90 @@ const canWrite = useCan("backup.create");
         >
           {backing ? t("backup.creating") : t("backup.createBackup")}
         </button>
+      </div>
+
+      {/* Encrypted Backup (Sprint 2A) */}
+      <div style={SECTION_STYLE}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)", marginBottom: 8 }}>Encrypted Backup</h2>
+        <p style={{ fontSize: 13, color: "var(--fg-muted)", marginBottom: 12 }}>
+          Creates an AES-256 encrypted snapshot (.backup.enc). The decryption key is
+          shown once and never stored — keep it somewhere safe.
+        </p>
+        <button
+          onClick={() => void handleEncryptedBackup()}
+          disabled={encBacking || !canWrite}
+          style={{
+            padding: "8px 20px", fontSize: 13, fontWeight: 600, borderRadius: 6, border: "none", cursor: encBacking || !canWrite ? "default" : "pointer",
+            background: encBacking ? "var(--bg-hover)" : "var(--primary)", color: "var(--primary-fg, #fff)", opacity: encBacking || !canWrite ? 0.6 : 1,
+          }}
+        >
+          {encBacking ? "Encrypting..." : "Create Encrypted Backup"}
+        </button>
+
+        {recoveryKey && (
+          <div style={{ marginTop: 16, padding: 16, borderRadius: 8, border: "1px solid var(--warning, #d97706)", background: "rgba(217, 119, 6, 0.08)" }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: "var(--warning, #d97706)", margin: 0 }}>
+              ⚠️ Save this key — you cannot recover your backup without it
+            </p>
+            <code style={{ display: "block", marginTop: 8, padding: "8px 12px", borderRadius: 6, background: "var(--bg-input)", fontFamily: "monospace", fontSize: 13, wordBreak: "break-all", color: "var(--fg)" }}>
+              {recoveryKey}
+            </code>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button
+                onClick={() => void navigator.clipboard.writeText(recoveryKey)}
+                style={{ padding: "6px 14px", fontSize: 12, borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--fg)", cursor: "pointer" }}
+              >
+                Copy key
+              </button>
+              <button
+                onClick={() => setRecoveryKey(null)}
+                style={{ padding: "6px 14px", fontSize: 12, borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--fg-muted)", cursor: "pointer" }}
+              >
+                I&apos;ve saved it — hide forever
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ borderTop: "1px solid var(--border)", marginTop: 16, paddingTop: 12 }}>
+          <p style={{ fontSize: 13, color: "var(--fg-muted)", marginBottom: 8 }}>
+            Restore an encrypted backup: choose the .backup.enc file and enter its key.
+          </p>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label
+              style={{
+                padding: "8px 16px", fontSize: 13, fontWeight: 600, borderRadius: 6, border: "1px solid var(--border)",
+                background: "var(--bg-input)", color: "var(--fg)", cursor: encRestoring ? "default" : "pointer", display: "inline-block",
+              }}
+            >
+              {encFile ? encFile.name : "Choose .backup.enc file"}
+              <input
+                ref={encFileRef}
+                type="file"
+                accept=".backup.enc"
+                className="hidden"
+                disabled={encRestoring}
+                onChange={(e) => setEncFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            <input
+              value={encKey}
+              onChange={(e) => setEncKey(e.target.value)}
+              placeholder="64-character recovery key"
+              style={{ flex: 1, minWidth: 240, padding: "8px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--fg)", fontSize: 13, fontFamily: "monospace" }}
+            />
+            <button
+              onClick={() => void handleEncryptedRestore()}
+              disabled={encRestoring || !encFile || encKey.trim().length !== 64}
+              style={{
+                padding: "8px 20px", fontSize: 13, fontWeight: 600, borderRadius: 6, border: "none", cursor: encRestoring || !encFile || encKey.trim().length !== 64 ? "default" : "pointer",
+                background: "var(--danger)", color: "#fff", opacity: encRestoring || !encFile || encKey.trim().length !== 64 ? 0.6 : 1,
+              }}
+            >
+              {encRestoring ? "Restoring..." : "Restore Encrypted"}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Restore Backup */}

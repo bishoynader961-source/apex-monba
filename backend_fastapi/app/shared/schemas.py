@@ -1216,6 +1216,19 @@ class BackupResult(BaseModel):
     size_bytes: int
 
 
+class EncryptedBackupResult(BaseModel):
+    """AES-256-GCM encrypted backup (Sprint 2A).
+
+    ``recovery_key`` is shown to the admin ONCE in the UI and never stored on
+    disk or in the database — losing it means the backup cannot be restored.
+    """
+
+    path: str
+    filename: str
+    size_bytes: int
+    recovery_key: str
+
+
 class InsuranceBindRequest(BaseModel):
     """Bind (or rebind) an insurance plan to a patient (F4 Insurance tab)."""
 

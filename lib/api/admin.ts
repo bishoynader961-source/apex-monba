@@ -29,3 +29,28 @@ export async function restoreBackup(file: File): Promise<{ message: string }> {
   });
   return data;
 }
+
+export interface EncryptedBackupResult {
+  path: string;
+  filename: string;
+  size_bytes: number;
+  recovery_key: string;
+}
+
+/** Sprint 2A: create an AES-256-GCM encrypted snapshot (.backup.enc).
+ * The recovery key is returned exactly once — never stored anywhere. */
+export async function createEncryptedBackup(): Promise<EncryptedBackupResult> {
+  const { data } = await api.post<EncryptedBackupResult>("/api/v1/admin/backup/encrypted");
+  return data;
+}
+
+/** Sprint 2A: restore an encrypted backup from file + admin-held key. */
+export async function restoreEncryptedBackup(file: File, key: string): Promise<{ message: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("key", key);
+  const { data } = await api.post<{ message: string }>("/api/v1/admin/restore/encrypted", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}

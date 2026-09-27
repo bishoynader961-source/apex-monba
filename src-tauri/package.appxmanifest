@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Pharmacy Suite — MSIX Appx manifest (Sprint 4C packaging preparation).
+
+  This manifest is a PREPARATION artifact for Microsoft Store submission:
+  it is not wired into the Tauri build pipeline yet (bundle target in
+  tauri.conf.json is the switch). Values marked PLACEHOLDER must be
+  finalized before submission — see MSIX_SUBMISSION_CHECKLIST.md at the
+  repository root.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
+
+  <Identity
+    Name="PharmacySuite"
+    Publisher="CN=PLACEHOLDER-EV-CERT-SUBJECT"
+    Version="1.0.0.0" />
+
+  <Properties>
+    <DisplayName>Pharmacy Suite</DisplayName>
+    <PublisherDisplayName>PLACEHOLDER-PUBLISHER-DISPLAY-NAME</PublisherDisplayName>
+    <Description>
+      Pharmacy management desktop suite: point of sale, inventory with expiry
+      tracking, prescriptions, workers' compensation claims, and a mobile
+      companion over the local network.
+    </Description>
+    <Logo>icons\StoreLogo.png</Logo>
+  </Properties>
+
+  <Resources>
+    <Resource Language="en-us" />
+    <Resource Language="ar" />
+  </Resources>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Capabilities>
+    <!-- Internet (client) is needed for the optional auto-updater check and
+         crash-report upload; there is no server-side telemetry. -->
+    <Capability Name="internetClient" />
+    <!-- rescap: required by MS Store review for desktop apps packaged as MSIX. -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+  <!--
+    AGE RATING PLACEHOLDER: GPA/Store submission questionnaire determines the
+    final rating (expected: Everyone / 3+ — no user-generated content, no
+    violence, no ads). Set <AgeRating> accordingly in Partner Center.
+  -->
+
+  <Applications>
+    <Application Id="PharmacySuite"
+      Executable="Pharmacy Suite.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        BackgroundColor="#0f0f23"
+        DisplayName="Pharmacy Suite"
+        Square150x150Logo="icons\150x150.png"
+        Square44x44Logo="icons\44x44.png"
+        Description="Pharmacy management suite — POS, inventory, prescriptions."
+      >
+        <uap:DefaultTile ShortName="Pharmacy Suite" Square310x310Logo="icons\310x310.png" />
+        <uap:SplashScreen Image="icons\SplashScreen.png" BackgroundColor="#0f0f23" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+</Package>

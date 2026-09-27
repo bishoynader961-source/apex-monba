@@ -404,6 +404,9 @@ async def seed_default_settings(session: AsyncSession) -> None:
         # Auto-updater (Sprint 4B): desktop shell reads this once per launch;
         # empty = no update server yet, check is skipped silently.
         ("update_endpoint_url", ""),
+        # MS Store listing (Sprint 4C): public privacy policy URL placeholder;
+        # surfaces in-app once the admin sets it.
+        ("privacy_policy_url", ""),
     ]
     try:
         for key, value in defaults:

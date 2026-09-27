@@ -395,6 +395,9 @@ async def seed_default_settings(session: AsyncSession) -> None:
         # documented future option and intentionally has no seed.
         ("mobile_access_mode", "shared"),
         ("qr_secret_key", ""),
+        # Demo mode (Task 4 Step 4.7): disabled by default; admins toggle it
+        # (and seed/reset the sample data) from Settings via /api/v1/admin/demo/*.
+        ("demo_mode", "false"),
     ]
     try:
         for key, value in defaults:

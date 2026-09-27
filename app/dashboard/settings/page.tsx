@@ -15,6 +15,7 @@ import { Plug, Plus, X, Check, Loader2, Building2, Receipt, ShieldAlert, Mail, C
 import { api } from "@/lib/api";
 import { useUiStore } from "@/stores/uiStore";
 import { UpdateChecker } from "@/components/UpdateChecker";
+import { useDemoMode, refreshDemoMode } from "@/hooks/useDemoMode";
 
 interface Integration {
   id: string;
@@ -136,6 +137,37 @@ export default function SettingsPage() {
   const [accountSuccess, setAccountSuccess] = useState(false);
 
   const { toast } = useToast();
+
+  // ── Demo mode (Step 4.7) ──
+  const demoMode = useDemoMode();
+  const [demoBusy, setDemoBusy] = useState(false);
+
+  const demoAction = async (action: "seed" | "reset" | "clear", confirmText?: string) => {
+    if (confirmText && !confirm(confirmText)) return;
+    setDemoBusy(true);
+    try {
+      await api.post(`/api/v1/admin/demo/${action}`);
+      await refreshDemoMode();
+      toast({
+        title: "Success",
+        message:
+          action === "clear"
+            ? "Demo data cleared. Demo mode is off."
+            : action === "reset"
+              ? "Demo data reset."
+              : "Demo data seeded. Demo mode is on.",
+        variant: "success",
+      });
+    } catch (e: unknown) {
+      toast({
+        title: "Error",
+        message: e instanceof Error ? e.message : "Demo action failed",
+        variant: "destructive",
+      });
+    } finally {
+      setDemoBusy(false);
+    }
+  };
 
   // Region form
   const [regionCode, setRegionCode] = useState("US");
@@ -650,6 +682,44 @@ export default function SettingsPage() {
               {saving ? "Saving..." : t("common.save")}
             </button>
           </div>
+
+          {/* ── Demo Mode (Step 4.7) ──────────────────────────────────── */}
+          {isAdmin && (
+            <div style={SECTION_STYLE}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                <Monitor size={20} style={{ color: "var(--primary)" }} />
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)" }}>Demo Mode</h2>
+              </div>
+              <p style={{ fontSize: 13, color: "var(--fg-muted)", marginBottom: 12 }}>
+                {demoMode
+                  ? "Demo mode is ON — a banner shows app-wide and sample data (5 medicines, 3 patients, prescriptions, receipts, 1 WC claim) is available for sales demos."
+                  : "Seed clearly-marked sample data for sales demos. Demo data never touches real records."}
+              </p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => void demoAction("seed")}
+                  disabled={demoBusy}
+                  style={{ padding: "8px 20px", background: "var(--primary)", color: "var(--primary-fg)", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: demoBusy ? "default" : "pointer", opacity: demoBusy ? 0.6 : 1 }}
+                >
+                  {demoBusy ? "Working..." : demoMode ? "Re-seed demo data" : "Seed demo data"}
+                </button>
+                <button
+                  onClick={() => void demoAction("reset", "Reset demo data? All demo rows are cleared and re-seeded.")}
+                  disabled={demoBusy}
+                  style={{ padding: "8px 20px", background: "transparent", color: "var(--fg)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: demoBusy ? "default" : "pointer", opacity: demoBusy ? 0.6 : 1 }}
+                >
+                  Reset demo data
+                </button>
+                <button
+                  onClick={() => void demoAction("clear", "Turn off demo mode and remove all demo data?")}
+                  disabled={demoBusy}
+                  style={{ padding: "8px 20px", background: "transparent", color: "var(--danger)", border: "1px solid var(--danger)", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: demoBusy ? "default" : "pointer", opacity: demoBusy ? 0.6 : 1 }}
+                >
+                  Clear & turn off
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ── Account (Password Change) ───────────────────────────────────── */}
           <div style={SECTION_STYLE}>

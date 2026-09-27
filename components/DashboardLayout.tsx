@@ -14,6 +14,8 @@ import { Breadcrumbs } from "@/components/navigation/Breadcrumbs";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { Toaster } from "@/components/Toaster";
 import { TOOLTIPS } from "@/lib/constants/tooltips";
+import { useDemoMode } from "@/hooks/useDemoMode";
+import { OnboardingModal } from "@/components/OnboardingModal";
 
 const NAV_SECTIONS = [
   {
@@ -85,6 +87,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
   const logout = useAuthStore((s) => s.logout);
+  const demoMode = useDemoMode();
 
   // Redirect to login when user becomes null AND token is null (true logout).
   // Do NOT redirect when token exists but user is null — that's a cold-start
@@ -136,6 +139,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Toaster />
+      <OnboardingModal />
       {/* Sidebar */}
       <aside className="flex w-56 flex-shrink-0 flex-col bg-sidebar text-gray-900 dark:text-white">
         {/* Logo */}
@@ -237,6 +241,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </div>
         <div className="flex-1 p-6">
           <RegionBanner />
+          {demoMode && (
+            <div
+              role="status"
+              aria-label="Demo mode active"
+              className="mb-3 flex items-center justify-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-600 dark:text-amber-400"
+            >
+              <span aria-hidden="true">◉</span> DEMO MODE — sample data, not real patients
+            </div>
+          )}
           {children}
         </div>
       </main>

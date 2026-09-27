@@ -12,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import require_permission
 from app.core.backup import vacuum_backup
 from app.core.database import get_session
+from app.core.seed_demo_data import clear_demo_data, is_demo_mode, reset_demo_data, seed_demo_data, set_demo_mode
+from app.core.database import get_session
 from app.shared.schemas import BackupResult, CurrentUser
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -98,3 +100,46 @@ async def restore_backup(
             os.remove(tmp_path)
 
     return {"message": "Backup restored successfully. Please restart the application."}
+
+
+# ── Demo mode (Task 4 Step 4.7) — settings.manage gate, DB session per call ──
+
+
+@router.get("/demo/status")
+async def demo_status(
+    session: AsyncSession = Depends(get_session),
+    _auth: CurrentUser = Depends(require_permission("settings.manage")),
+) -> dict[str, bool]:
+    """Whether demo mode is currently enabled (SystemSetting demo_mode)."""
+    return {"enabled": await is_demo_mode(session)}
+
+
+@router.post("/demo/seed", status_code=status.HTTP_201_CREATED)
+async def demo_seed(
+    session: AsyncSession = Depends(get_session),
+    _auth: CurrentUser = Depends(require_permission("settings.manage")),
+) -> dict[str, Any]:
+    """Seed sample data (idempotent) and enable demo mode."""
+    counts = await seed_demo_data(session)
+    await set_demo_mode(session, True)
+    return {"enabled": True, "counts": counts}
+
+
+@router.post("/demo/reset")
+async def demo_reset(
+    session: AsyncSession = Depends(get_session),
+    _auth: CurrentUser = Depends(require_permission("settings.manage")),
+) -> dict[str, Any]:
+    """Clear all demo-marked rows, then re-seed; leaves demo mode ON."""
+    return await reset_demo_data(session)
+
+
+@router.post("/demo/clear")
+async def demo_clear(
+    session: AsyncSession = Depends(get_session),
+    _auth: CurrentUser = Depends(require_permission("settings.manage")),
+) -> dict[str, Any]:
+    """Clear all demo-marked rows and disable demo mode (back to real data)."""
+    counts = await clear_demo_data(session)
+    await set_demo_mode(session, False)
+    return {"enabled": False, "counts": counts}

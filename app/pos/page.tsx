@@ -151,7 +151,7 @@ function SearchResult({
           <p className="text-sm font-medium text-[--text-main] truncate">{product.name}</p>
           <p className="text-xs text-[--text-muted]">
             {product.vendor_name && product.vendor_name !== "N/A" && (
-              <span className="mr-2">{product.vendor_name}</span>
+              <span className="me-2">{product.vendor_name}</span>
             )}
             {product.expiry_date && (
               <span
@@ -424,7 +424,7 @@ export default function PosPage() {
           {/* Search bar */}
           <div className="px-4 pt-3 pb-2 bg-white border-b border-[--border] flex-shrink-0">
             <div className="relative" ref={dropdownRef}>
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 dark:text-slate-400 pointer-events-none" />
+              <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-600 dark:text-slate-400 pointer-events-none" />
               <input
                 ref={searchRef}
                 id="pos-search"
@@ -433,7 +433,7 @@ export default function PosPage() {
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onFocus={() => searchResults.length > 0 && setShowResults(true)}
                 placeholder="Search medicine by name or barcode… (Enter to add first result)"
-                className="w-full pl-9 pr-4 py-2.5 text-sm border border-[--border] rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 bg-[--bg-primary] text-[--text-main] placeholder:text-slate-400"
+                className="w-full ps-9 pe-4 py-2.5 text-sm border border-[--border] rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 bg-[--bg-primary] text-[--text-main] placeholder:text-slate-400"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && searchResults.length > 0) {
                     handleAddProduct(searchResults[0]);
@@ -442,7 +442,7 @@ export default function PosPage() {
                 autoComplete="off"
               />
               {searchLoading && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <div className="absolute end-3 top-1/2 -translate-y-1/2">
                   <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
                 </div>
               )}

@@ -1,4 +1,13 @@
 import type { NextConfig } from "next";
+import bundleAnalyzer from "@next/bundle-analyzer";
+
+// Sprint 3C: bundle analysis. Inert in normal builds; run with
+// `ANALYZE=true npx next build --webpack` to emit .next/analyze/*.html
+// (the analyzer is webpack-only — Turbopack builds skip it).
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+  openAnalyzer: false,
+});
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -40,4 +49,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

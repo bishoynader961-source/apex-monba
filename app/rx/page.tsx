@@ -138,7 +138,7 @@ const [clinicalOpen, setClinicalOpen] = useState(false);
               {menu}
             </button>
             {activeMenu === menu && (
-              <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[200px] z-50">
+              <div className="absolute top-full start-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[200px] z-50">
                 {menu === "File" && (
                   <>
                     <button className="w-full text-left px-4 py-2 text-sm hover:bg-blue-600/30" onClick={() => { setActiveMenu(null); router.push("/patients"); }}>New Patient</button>
@@ -375,7 +375,7 @@ const [clinicalOpen, setClinicalOpen] = useState(false);
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-4 right-4 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white shadow-lg z-50 animate-pulse">
+        <div className="fixed bottom-4 end-4 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white shadow-lg z-50 animate-pulse">
           {toast}
         </div>
       )}

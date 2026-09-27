@@ -248,7 +248,7 @@ export default function InventoryPage() {
                 Low stock: {l.total_on_hand} on hand (threshold {l.reorder_threshold ?? "—"})
               </span>
               {l.expiring_soon_count > 0 && (
-                <span className="ml-2 text-red-300">
+                <span className="ms-2 text-red-300">
                   (also {l.expiring_soon_count} expiring soon)
                 </span>
               )}
@@ -399,7 +399,7 @@ export default function InventoryPage() {
                     >
                       {r.status}
                     </span>
-                    {r.isLow && <span className="ml-2 text-amber-400">{t("inventory.lowBadge")}</span>}
+                    {r.isLow && <span className="ms-2 text-amber-400">{t("inventory.lowBadge")}</span>}
                   </td>
                   <td className="px-3 py-2 text-right">
                     {canWrite && (
@@ -434,9 +434,9 @@ export default function InventoryPage() {
 
         {/* Floating batch-action toolbar */}
         {selectedIds.size > 0 && (
-          <div className="fixed bottom-4 right-4 z-40 animate-fade-in-up">
+          <div className="fixed bottom-4 end-4 z-40 animate-fade-in-up">
             <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-3 flex items-center gap-2 min-w-[280px]">
-              <span className="text-sm font-medium text-gray-900 dark:text-white mr-2">
+              <span className="text-sm font-medium text-gray-900 dark:text-white me-2">
                 {selectedIds.size} selected
               </span>
               <button

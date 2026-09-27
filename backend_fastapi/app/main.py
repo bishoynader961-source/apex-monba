@@ -8,10 +8,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Callable
 
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.staticfiles import StaticFiles
@@ -211,6 +212,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Sprint 2C (D4): gzip response compression (audit: not enabled). Stacked
+# after CORS; Starlette applies it to responses >= minimum_size bytes and
+# skips already-compressed content types.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 _static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=_static_dir), name="static")
@@ -364,4 +369,76 @@ from app.api.routers.gift_card_route import router as gift_card_router
 app.include_router(gift_card_router)
 
 from app.api.routers.patient_fields_route import router as patient_fields_router
-app.include_router(patient_fields_router)  # D1 critical fix: mount RBAC-gated (was imported but never included)
+app.include_router(patient_fields_router)
+
+# Sprint 2D: the one endpoint that ENDS first-run mode must itself be exempt
+# from the gate (same prefix as admin for client-contract stability).
+from app.api.routers.setup_complete_route import router as setup_complete_router
+app.include_router(setup_complete_router)  # deliberately NOT gated  # D1 critical fix: mount RBAC-gated (was imported but never included)
+
+# ── First-run setup gate (Sprint 2D) ─────────────────────────────────────
+# Until SystemSetting ``setup_complete`` is true (admin flips it via
+# POST /api/v1/admin/setup/complete), every non-exempt API route returns 503
+# {"error": "Setup not complete"}. Implemented as router-level dependencies:
+# every non-exempt router gets require_setup_complete appended; exempt
+# surfaces (health, auth, setup wizard, docs/static) stay ungated so the app
+# remains reachable for setup and login on first run.
+from app.api.deps import require_setup_complete
+
+_GATED_ROUTERS = (
+    admin_router,
+    integrations_router,
+    audit_router,
+    dictionaries_router,
+    dispense_router,
+    drug_confirm_router,
+    email_router,
+    inventory_router,
+    analytics_router,
+    dashboard_router,
+    insurance_router,
+    members_router,
+    patients_router,
+    mobile_router,
+    device_router,
+    device_pairing_router,
+    pos_router,
+    prescriber_router,
+    region_router,
+    region_strategy_router,
+    prior_auth_router,
+    epcs_router,
+    compound_router,
+    clinical_router,
+    roles_router,
+    rx_queue_router,
+    settings_router,
+    support_router,
+    support_fix_router,
+    sync_router,
+    setup_router,
+    users_router,
+    ocr_router,
+    excel_router,
+    vendors_router,
+    wc_router,
+    coupon_router,
+    receiving_router,
+    crash_report_router,
+    quick_sig_router,
+    po_router,
+    receipt_template_router,
+    receipt_router,
+    drug_interaction_router,
+    invoice_parse_router,
+    label_template_router,
+    product_label_router,
+    label_assignment_router,
+    barcode_router,
+    version_router,
+    templates_router,
+    gift_card_router,
+    patient_fields_router,
+)
+for _router in _GATED_ROUTERS:
+    _router.dependencies.append(Depends(require_setup_complete))

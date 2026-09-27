@@ -598,17 +598,26 @@ class PosService:
     # ── Receipt History ─────────────────────────────────────────────────────
 
     async def recent_receipts(self, limit: int = 50) -> list[ReceiptRead]:
-        """Return the last *limit* receipts (newest first) with line items."""
+        """Return the last *limit* receipts (newest first) with line items.
+
+        Sprint 2B (N+1): line items are fetched in ONE ``IN`` query and grouped
+        in memory (was: one SELECT per receipt inside the loop).
+        """
         result = await self.session.execute(
             select(Receipt).order_by(Receipt.id.desc()).limit(limit)
         )
         receipts = result.scalars().all()
+        receipt_ids = [r.id for r in receipts]
+        items_by_receipt: dict[int, list[ReceiptItem]] = {}
+        if receipt_ids:
+            items_result = await self.session.execute(
+                select(ReceiptItem).where(ReceiptItem.receipt_id.in_(receipt_ids))
+            )
+            for item in items_result.scalars().all():
+                items_by_receipt.setdefault(item.receipt_id, []).append(item)
         out: list[ReceiptRead] = []
         for r in receipts:
-            items_result = await self.session.execute(
-                select(ReceiptItem).where(ReceiptItem.receipt_id == r.id)
-            )
-            items = items_result.scalars().all()
+            items = items_by_receipt.get(r.id, [])
             out.append(
                 ReceiptRead(
                     id=r.id,

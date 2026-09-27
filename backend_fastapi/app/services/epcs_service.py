@@ -176,8 +176,59 @@ class EPCSService:
         )
         items = result.scalars().all()
 
+        # Sprint 2B (N+1): _build_read issues 2 queries per row (patient name,
+        # prescriber name). Prefetch BOTH in two IN queries and resolve names in
+        # memory — the list endpoint drops from ~2N+1 queries to a constant.
+        patient_ids = {e.patient_id for e in items}
+        prescriber_ids = {e.prescriber_id for e in items}
+        patient_names: dict[int, str] = {}
+        prescriber_names: dict[int, str] = {}
+        if patient_ids:
+            for pid, pname in (
+                await self.session.execute(
+                    select(Patient.id, Patient.name).where(Patient.id.in_(patient_ids))
+                )
+            ).all():
+                patient_names[pid] = pname
+        if prescriber_ids:
+            for prid, pfirst, plast in (
+                await self.session.execute(
+                    select(Prescriber.id, Prescriber.first_name, Prescriber.last_name).where(
+                        Prescriber.id.in_(prescriber_ids)
+                    )
+                )
+            ).all():
+                prescriber_names[prid] = f"{pfirst} {plast}".strip()
+
         return EPCSPrescriptionListResponse(
-            items=[await self._build_read(e) for e in items],
+            items=[
+                EPCSPrescriptionRead(
+                    id=e.id,
+                    patient_id=e.patient_id,
+                    patient_name=patient_names.get(e.patient_id) or f"Patient #{e.patient_id}",
+                    prescriber_id=e.prescriber_id,
+                    prescriber_name=prescriber_names.get(e.prescriber_id) or f"Prescriber #{e.prescriber_id}",
+                    product_name=e.product_name,
+                    ndc_code=e.ndc_code,
+                    schedule=e.schedule,
+                    quantity=e.quantity,
+                    days_supply=e.days_supply,
+                    sig_code=e.sig_code,
+                    diagnosis_codes=json.loads(e.diagnosis_codes or "[]"),
+                    refills=e.refills,
+                    daw_code=e.daw_code,
+                    notes=e.notes,
+                    status=e.status,
+                    signed_at=e.signed_at,
+                    signature_hash=e.signature_hash,
+                    transmitted_at=e.transmitted_at,
+                    transmission_id=e.transmission_id,
+                    created_at=e.created_at,
+                    updated_at=e.updated_at,
+                    created_by=e.created_by,
+                )
+                for e in items
+            ],
             total=total,
             page=filters.page,
             page_size=filters.page_size,

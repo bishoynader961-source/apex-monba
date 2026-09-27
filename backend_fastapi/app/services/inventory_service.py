@@ -142,17 +142,26 @@ class InventoryService:
         )
 
     async def low_stock(self, threshold_override: Optional[int] = None) -> list[ProductRead]:
-        repo = BatchRepository(self.session)
-        products = (await self.session.execute(
-            select(Product).where(Product.reorder_threshold.is_not(None))
-        )).scalars().all()
+        """Sprint 2B (N+1): one grouped LEFT JOIN computes on-hand for ALL
+        threshold products (was: one SUM query per product inside the loop)."""
+        agg = (
+            await self.session.execute(
+                select(
+                    Product,
+                    func.coalesce(func.sum(InventoryExtended.on_hand), 0).label("on_hand"),
+                )
+                .select_from(Product)
+                .outerjoin(InventoryExtended, InventoryExtended.drug_name == Product.name)
+                .where(Product.reorder_threshold.is_not(None))
+                .group_by(Product.id)
+            )
+        ).all()
         result: list[ProductRead] = []
-        for product in products:
-            on_hand = await repo.sum_on_hand(product.name)
+        for product, on_hand in agg:
             threshold = threshold_override if threshold_override is not None else (
                 product.reorder_threshold or 0
             )
-            if on_hand <= threshold:
+            if int(on_hand or 0) <= threshold:
                 result.append(ProductRead.model_validate(product))
         return result
 

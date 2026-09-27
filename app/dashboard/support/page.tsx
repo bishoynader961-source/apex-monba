@@ -104,6 +104,9 @@ export default function SupportPage() {
   const [copied, setCopied] = useState(false);
   const [fallbackReport, setFallbackReport] = useState<string | null>(null);
 
+  // Step 4.6: copy-support-email feedback (users without a mail client).
+  const [emailCopied, setEmailCopied] = useState(false);
+
   // Use the auth store for role gating (single source of truth — no props)
   const { user } = useAuthStore();
 
@@ -302,7 +305,6 @@ export default function SupportPage() {
             {settings?.security_notice ?? SECURITY_NOTICE_FALLBACK}
           </p>
         </div>
-  );
 
       <div className="space-y-4">
         <div>
@@ -317,6 +319,21 @@ export default function SupportPage() {
           >
             {settings?.support_email ?? "pharmacypro.support@gmail.com"}
           </a>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(settings?.support_email ?? "pharmacypro.support@gmail.com");
+                setEmailCopied(true);
+                setTimeout(() => setEmailCopied(false), 3000);
+              } catch {
+                // Clipboard blocked — the address remains visible above for manual copy.
+              }
+            }}
+            className="ml-3 rounded border border-gray-200 dark:border-gray-600 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            {emailCopied ? "✓ Copied" : "Copy Email"}
+          </button>
         </div>
 
         {/* Microsoft Store requirement: privacy policy reachable from within the app. */}
@@ -342,7 +359,7 @@ export default function SupportPage() {
             {copying ? (
               <span>Gathering info...</span>
             ) : copied ? (
-              <span>✓ Copied to clipboard</span>
+              <span className="text-green-600 dark:text-green-400">✓ Copied to clipboard</span>
             ) : (
               <span>📋 Copy Diagnostic Info</span>
             )}

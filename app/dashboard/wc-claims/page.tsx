@@ -9,6 +9,8 @@ import { useI18n } from "@/components/I18nProvider";
 import { useAuthStore, useCan } from "@/stores/authStore";
 import type { WCClaimCreate, WCClaimRead } from "@/types/contracts";
 import * as wcApi from "@/lib/api/wc";
+import { searchPatients } from "@/lib/api/patients";
+import type { PatientRead } from "@/types/contracts";
 import { DataTable } from "@/components/DataTable";
 import type { Column } from "@/components/DataTable";
 
@@ -56,6 +58,12 @@ export default function WCClaimsPage() {
   const [form, setForm] = useState<WCClaimCreate>({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
 
+  // Step 4.6: patient autocomplete + dirty-form tracking.
+  const [patientQuery, setPatientQuery] = useState("");
+  const [patientMatches, setPatientMatches] = useState<PatientRead[]>([]);
+  const [showPatientMatches, setShowPatientMatches] = useState(false);
+  const [initialForm, setInitialForm] = useState<string>("");
+
   useEffect(() => {
     if (canRead) loadClaims();
   }, [canRead, statusFilter, patientIdFilter]);
@@ -80,15 +88,48 @@ export default function WCClaimsPage() {
     void loadClaims();
   }, [statusFilter, patientIdFilter]);
 
+  // Step 4.6: real-time financial validation — total == insurance + patient.
+  const totalsMismatch = useMemo(() => {
+    const total = Number(form.total_charges ?? "0");
+    const insurance = Number(form.insurance_paid ?? "0");
+    const patient = Number(form.patient_responsibility ?? "0");
+    const touched = (form.total_charges ?? "") !== "" || (form.insurance_paid ?? "") !== "" || (form.patient_responsibility ?? "") !== "";
+    return touched && Math.abs(total - (insurance + patient)) > 0.009;
+  }, [form.total_charges, form.insurance_paid, form.patient_responsibility]);
+
+  // Step 4.6: debounced patient search for the claim-form autocomplete.
+  useEffect(() => {
+    if (!showPatientMatches) return;
+    const q = patientQuery.trim();
+    if (q.length < 2) {
+      setPatientMatches([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          setPatientMatches(await searchPatients(q));
+        } catch {
+          setPatientMatches([]);
+        }
+      })();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [patientQuery, showPatientMatches]);
+
   function openCreate() {
     setEditingId(null);
-    setForm({ ...EMPTY_FORM, patient_id: patientIdFilter ? Number(patientIdFilter) : (claims[0]?.patient_id ?? 0) });
+    const next = { ...EMPTY_FORM, patient_id: patientIdFilter ? Number(patientIdFilter) : (claims[0]?.patient_id ?? 0) };
+    setForm(next);
+    setInitialForm(JSON.stringify(next));
+    setPatientQuery("");
+    setShowPatientMatches(false);
     setShowForm(true);
   }
 
   function openEdit(claim: WCClaimRead) {
     setEditingId(claim.id);
-    setForm({
+    const next: WCClaimCreate = {
       patient_id: claim.patient_id,
       claim_number: claim.claim_number,
       carrier_id: claim.carrier_id ?? "",
@@ -103,12 +144,17 @@ export default function WCClaimsPage() {
       insurance_paid: claim.insurance_paid ?? "0",
       patient_responsibility: claim.patient_responsibility ?? "0",
       notes: claim.notes ?? "",
-    });
+    };
+    setForm(next);
+    setInitialForm(JSON.stringify(next));
+    setPatientQuery("");
+    setShowPatientMatches(false);
     setShowForm(true);
   }
 
   async function handleSave() {
     if (!form.claim_number.trim() || !form.patient_id) return;
+    if (totalsMismatch) return;
     setSaving(true);
     try {
       if (editingId) {
@@ -123,6 +169,12 @@ export default function WCClaimsPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // Step 4.6: confirm before discarding an edited claim form.
+  function handleCancel() {
+    if (JSON.stringify(form) !== initialForm && !confirm("Discard unsaved changes?")) return;
+    setShowForm(false);
   }
 
   async function handleDelete(id: number) {
@@ -208,9 +260,41 @@ export default function WCClaimsPage() {
             <h2 className="mb-4 text-lg font-bold text-gray-800 dark:text-gray-100">{editingId ? t("wcClaims.modalEdit") : t("wcClaims.modalNew")}</h2>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <div>
+                <div className="relative">
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400" htmlFor="page-field-2">{t("wcClaims.fieldPatientId")}</label>
-                  <input id="page-field-2" type="number" className="mt-1 w-full rounded border border-gray-800 bg-[#0d0d20] px-2 py-1 text-sm text-gray-800 dark:text-gray-100" value={form.patient_id || ""} onChange={(e) => setForm((f) => ({ ...f, patient_id: Number(e.target.value) }))} />
+                  <input
+                    id="page-field-2"
+                    className="mt-1 w-full rounded border border-gray-800 bg-[#0d0d20] px-2 py-1 text-sm text-gray-800 dark:text-gray-100"
+                    placeholder="Search patient by name…"
+                    autoComplete="off"
+                    value={patientQuery}
+                    onChange={(e) => { setPatientQuery(e.target.value); setShowPatientMatches(true); }}
+                    onFocus={() => setShowPatientMatches(true)}
+                    onBlur={() => setTimeout(() => setShowPatientMatches(false), 150)}
+                  />
+                  <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                    {form.patient_id ? `Selected: patient #${form.patient_id}` : "No patient selected"}
+                  </p>
+                  {showPatientMatches && patientMatches.length > 0 && (
+                    <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded border border-gray-700 bg-[#111] shadow-xl">
+                      {patientMatches.map((p) => (
+                        <li key={p.id}>
+                          <button
+                            type="button"
+                            className="w-full px-2 py-1.5 text-left text-sm text-gray-200 hover:bg-gray-800"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setForm((f) => ({ ...f, patient_id: p.id }));
+                              setPatientQuery(p.name);
+                              setShowPatientMatches(false);
+                            }}
+                          >
+                            #{p.id} — {p.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400" htmlFor="page-field-3">{t("wcClaims.fieldClaimNumber")}</label>
@@ -267,15 +351,27 @@ export default function WCClaimsPage() {
                   <input id="page-field-13" type="number" step="0.01" className="mt-1 w-full rounded border border-gray-800 bg-[#0d0d20] px-2 py-1 text-sm text-gray-800 dark:text-gray-100" value={form.patient_responsibility ?? "0"} onChange={(e) => setForm((f) => ({ ...f, patient_responsibility: e.target.value }))} />
                 </div>
               </div>
+              {totalsMismatch && (
+                <p className="text-xs text-red-400" role="alert">
+                  Total must equal Insurance Paid + Patient Responsibility.
+                </p>
+              )}
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400" htmlFor="page-field-14">{t("wcClaims.fieldNotes")}</label>
                 <textarea id="page-field-14" className="mt-1 w-full rounded border border-gray-800 bg-[#0d0d20] px-2 py-1 text-sm text-gray-800 dark:text-gray-100" rows={2} value={form.notes ?? ""} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
               </div>
             </div>
             <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => setShowForm(false)} className="rounded border border-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800">{t("common.cancel")}</button>
-              <button onClick={() => void handleSave()} disabled={saving || !form.claim_number.trim()} className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-                {saving ? t("common.saving") : t("common.save")}
+              <button onClick={handleCancel} className="rounded border border-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800">{t("common.cancel")}</button>
+              <button onClick={() => void handleSave()} disabled={saving || totalsMismatch || !form.claim_number.trim() || !form.patient_id} className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                {saving ? (
+                  <span className="flex items-center gap-2">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" aria-hidden="true" />
+                    {t("common.saving")}
+                  </span>
+                ) : (
+                  t("common.save")
+                )}
               </button>
             </div>
           </div>

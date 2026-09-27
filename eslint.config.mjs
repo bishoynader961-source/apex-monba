@@ -1,3 +1,4 @@
+import jsxA11y from "eslint-plugin-jsx-a11y";
 import coreWebVitals from "eslint-config-next/core-web-vitals";
 import nextTypescript from "eslint-config-next/typescript";
 
@@ -43,6 +44,41 @@ const eslintConfig = [
   },
   ...coreWebVitals,
   ...nextTypescript,
+  {
+    // Sprint 3D: dedicated a11y audit scope (the three most-used pages).
+    // Critical/Serious rules error; Moderate/Minor stay off the gate and are
+    // tracked for the backlog. (The jsx-a11y plugin itself is already
+    // registered by eslint-config-next's core-web-vitals preset.)
+    files: ["app/pos/page.tsx", "app/dashboard/inventory/page.tsx", "app/rx/page.tsx"],
+    rules: {
+      ...jsxA11y.configs.recommended.rules,
+      // Severity triage (axe mapping): error = Critical/Serious, off = Moderate/Minor.
+      "jsx-a11y/alt-text": "error",
+      "jsx-a11y/anchor-is-valid": "error",
+      "jsx-a11y/aria-activedescendant-has-tabindex": "error",
+      "jsx-a11y/aria-props": "error",
+      "jsx-a11y/aria-proptypes": "error",
+      "jsx-a11y/aria-role": "error",
+      "jsx-a11y/aria-unsupported-elements": "error",
+      "jsx-a11y/autocomplete-valid": "error",
+      "jsx-a11y/heading-has-content": "error",
+      "jsx-a11y/iframe-has-title": "error",
+      "jsx-a11y/interactive-supports-focus": "error",
+      "jsx-a11y/label-has-associated-control": "error",
+      "jsx-a11y/media-has-caption": "error",
+      "jsx-a11y/mouse-events-have-key-events": "error",
+      "jsx-a11y/no-access-key": "error",
+      "jsx-a11y/no-aria-hidden-on-focusable": "error",
+      "jsx-a11y/no-noninteractive-element-interactions": "off",
+      "jsx-a11y/no-noninteractive-tabindex": "off",
+      "jsx-a11y/no-redundant-roles": "off",
+      "jsx-a11y/no-static-element-interactions": "off",
+      "jsx-a11y/role-has-required-aria-props": "error",
+      "jsx-a11y/role-supports-aria-props": "error",
+      "jsx-a11y/scope": "off",
+      "jsx-a11y/tabindex-no-positive": "error",
+    },
+  },
   {
     // Scoped to JS/TS files (flat configs cannot set rules globally).
     files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],

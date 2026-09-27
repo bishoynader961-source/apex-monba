@@ -133,6 +133,9 @@ class User(Base):
     is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     locked_until: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Sprint 1B refresh-token rotation: bumped on credential change; JWTs carry the
+    # version at issue time and are rejected when it lags the stored value.
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 

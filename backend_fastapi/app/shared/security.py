@@ -138,8 +138,14 @@ def create_access_token(
     permissions: list[str],
     username: Optional[str] = None,
     expires_minutes: int | None = None,
+    token_version: int = 1,
 ) -> str:
-    exp = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes or settings.access_token_expire_minutes)
+    # Sprint 1B (D5): blueprint mandates ≤ 15-minute access tokens. A hard cap
+    # at the code level keeps an operator's .env override (e.g.
+    # ACCESS_TOKEN_EXPIRE_MINUTES=480) from silently reintroducing day-long
+    # sessions; tests that need other lifetimes mint tokens explicitly.
+    effective_minutes = min(expires_minutes or settings.access_token_expire_minutes, 15)
+    exp = datetime.now(timezone.utc) + timedelta(minutes=effective_minutes)
     payload: dict[str, Any] = {
         "sub": subject,
         "username": username,
@@ -149,17 +155,19 @@ def create_access_token(
         "type": "access",
         "iat": datetime.now(timezone.utc),
         "exp": exp,
+        "tvr": token_version,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
-def create_refresh_token(subject: str, expires_days: int | None = None) -> str:
+def create_refresh_token(subject: str, expires_days: int | None = None, token_version: int = 1) -> str:
     exp = datetime.now(timezone.utc) + timedelta(days=expires_days or settings.refresh_token_expire_days)
     payload: dict[str, Any] = {
         "sub": subject,
         "type": "refresh",
         "iat": datetime.now(timezone.utc),
         "exp": exp,
+        "tvr": token_version,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 

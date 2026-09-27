@@ -658,6 +658,8 @@ class TokenPayload(BaseModel):
     permissions: list[str] = Field(default_factory=list)
     type: str = "access"
     exp: Optional[int] = None
+    # Sprint 1B rotation: token-version-at-issue; pre-rotation columns default to 1.
+    tvr: int = 1
     iat: Optional[int] = None
 
 

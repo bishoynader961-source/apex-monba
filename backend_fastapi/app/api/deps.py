@@ -93,6 +93,11 @@ async def get_current_user(
     if user is None or user.is_active != 1:
         raise HTTPException(status_code=401, detail="User not found or inactive")
 
+    # Sprint 1B rotation: a token minted before a token_version bump (password
+    # change) is revoked — 401 so clients clear credentials and re-authenticate.
+    if int(getattr(payload, "tvr", 1) or 1) != int(user.token_version or 1):
+        raise HTTPException(status_code=401, detail="Token has been revoked")
+
     # ── Device binding (Phase 4 Step 1.5, owner CHECK B) ────────────
     user_device_id: Optional[int] = None
     # When a request presents X-Device-Token, that device must still exist

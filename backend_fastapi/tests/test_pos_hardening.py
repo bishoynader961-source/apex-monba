@@ -190,7 +190,11 @@ async def test_migration_idempotent(engine) -> None:
             r[0]
             for r in (await conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
         }
-        assert v1 == 27 and v2 == 27
+        # Sprint 1B: v28 adds users.token_version — track SCHEMA_VERSION, not a
+        # hardcoded literal, so this pin cannot rot on the next migration.
+        from app.core.database import SCHEMA_VERSION
+
+        assert v1 == SCHEMA_VERSION and v2 == SCHEMA_VERSION
         assert {
             "drawer_movements",
             "receipts",

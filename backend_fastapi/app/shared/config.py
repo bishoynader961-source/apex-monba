@@ -140,7 +140,9 @@ class Settings(BaseSettings):
         default_factory=lambda: SecretStr(_resolve_secret_key()),
         alias="SECRET_KEY",
     )
-    access_token_expire_minutes: int = Field(default=480, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    # Sprint 1B (D5): blueprint mandates short-lived access tokens (≤ 15 min).
+    # The client's 401→refresh interceptor in lib/api.ts renews transparently.
+    access_token_expire_minutes: int = Field(default=15, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(default=30, alias="REFRESH_TOKEN_EXPIRE_DAYS")
 
     # ── PIN kiosk auth + device-bound peppering (C.4 hardening) ──

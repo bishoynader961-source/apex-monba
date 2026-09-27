@@ -95,15 +95,37 @@ class AuthService:
             role_name = db_role_name
         from app.shared.security import create_access_token, create_refresh_token
         access = create_access_token(
-            str(user.id), role_name, user.role_id, permissions, username=user.username
+            str(user.id),
+            role_name,
+            user.role_id,
+            permissions,
+            username=user.username,
+            token_version=int(user.token_version or 1),
         )
-        refresh = create_refresh_token(str(user.id))
+        refresh = create_refresh_token(str(user.id), token_version=int(user.token_version or 1))
         return Token(access_token=access, refresh_token=refresh, user=UserPublic.model_validate(user))
 
     async def login(self, username: str, password: str) -> Token:
         logger.info("login_attempt", username=username)
-        user = await self.authenticate(username, password)
+        # Sprint 1C: auth events are audit-logged (success and failure) so the
+        # hash-chained audit trail covers every credential presentation.
+        try:
+            user = await self.authenticate(username, password)
+        except UnauthorizedError:
+            await AuditRepository(self.session).log(
+                action="auth.login.failed",
+                subject_type="user",
+                subject_id=None,
+                details=f"username={username}",
+            )
+            raise
         logger.info("login_success", username=username, user_id=user.id, role_id=user.role_id)
+        await AuditRepository(self.session).log(
+            action="auth.login.success",
+            subject_type="user",
+            subject_id=user.id,
+            details=f"username={username}",
+        )
         return await self._build_token(user)
 
     async def refresh(self, refresh_token: str) -> Token:
@@ -113,6 +135,14 @@ class AuthService:
         user = await self.session.get(User, int(claims["sub"]))
         if user is None or user.is_active != 1:
             raise UnauthorizedError("User no longer active")
+        # Sprint 1B rotation: the presented token must carry the CURRENT stored
+        # version — replays of already-consumed refresh tokens fail here, and
+        # each successful refresh bumps the version, invalidating every
+        # previously issued refresh token for the user.
+        if int(claims.get("tvr") or 1) != int(user.token_version or 1):
+            raise UnauthorizedError("Refresh token has been revoked")
+        user.token_version = int(user.token_version or 1) + 1
+        await self.session.commit()
         return await self._build_token(user)
 
     async def register(self, payload: UserCreate) -> UserPublic:
@@ -153,6 +183,12 @@ class AuthService:
         user.pin_locked_until = None
         user.lockout_hmac = seal_lockout(0, None, pepper)
         await self.session.commit()
+        await AuditRepository(self.session).log(
+            action="auth.pin.change",
+            subject_type="user",
+            subject_id=user.id,
+            details=f"username={username}",
+        )
 
     async def pin_login(self, username: str, pin: str) -> Token:
         """Kiosk PIN login (C.4): device-bound, peppered PBKDF2 with tamper-evident
@@ -290,6 +326,10 @@ class AuthService:
         if user is None:
             raise UnauthorizedError("User not found")
         await repo.update_password_hash(user, hash_password(new_password))
+        # Sprint 1B rotation: a credential change revokes every outstanding
+        # token (access and refresh) minted before this point.
+        user.token_version = int(user.token_version or 1) + 1
+        await self.session.commit()
         await AuditRepository(self.session).log(
             action="password.change",
             subject_type="user",

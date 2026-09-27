@@ -1237,9 +1237,17 @@ async def migrate_schema(conn: Any) -> None:
         )
         version = 27
 
+    # ── v28: refresh-token rotation (Sprint 1B) ─────────────────
+    if version < 28:
+        if not await _table_has_column(conn, "users", "token_version"):
+            await conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 1"
+            )
+        version = 28
+
     await conn.exec_driver_sql(f"PRAGMA user_version={SCHEMA_VERSION}")
 
 
 
-SCHEMA_VERSION = 27
+SCHEMA_VERSION = 28
 

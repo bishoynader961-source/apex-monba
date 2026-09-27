@@ -364,3 +364,4 @@ from app.api.routers.gift_card_route import router as gift_card_router
 app.include_router(gift_card_router)
 
 from app.api.routers.patient_fields_route import router as patient_fields_router
+app.include_router(patient_fields_router)  # D1 critical fix: mount RBAC-gated (was imported but never included)

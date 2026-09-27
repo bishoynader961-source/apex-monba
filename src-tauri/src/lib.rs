@@ -822,7 +822,14 @@ async fn spawn_servers(app: &tauri::AppHandle) {
         }
     }
     match poll_health(8000, "/api/v1/health", 30).await {
-        Ok(()) => log_to_file(&log_path, "[poll] backend /api/v1/health OK"),
+        Ok(()) => {
+            log_to_file(&log_path, "[poll] backend /api/v1/health OK");
+            // Sprint 4B: one updater check per launch, only after sidecars are ready.
+            let updater_handle = app.clone();
+            tauri::async_runtime::spawn(async move {
+                check_for_updates(updater_handle).await;
+            });
+        }
         Err(reason) => {
             log_to_file(&log_path, &format!("[poll] BACKEND HEALTH FAILED: {reason}"));
             show_recovery_window(app, "BACKEND_UNHEALTHY");
@@ -1115,5 +1122,121 @@ async fn sleep_recovery_watchdog(app: tauri::AppHandle) {
             spawn_servers(&app).await;
             consecutive_failures = 0;
         }
+    }
+}
+
+// ── Sprint 4B: auto-updater stub ────────────────────────────────────────────
+// The updater plugin is registered but has no update server yet. The check
+// runs once per launch AFTER the sidecars report healthy: the endpoint URL
+// comes from the SystemSetting ``update_endpoint_url`` (seeded empty). Empty
+// setting → silent skip (no dialog, no error); a URL that fails to respond
+// is logged and skipped as well. When an update IS available, a native
+// Yes/No dialog drives download_and_install (Tauri handles the install and
+// relaunch on Windows).
+
+/// Read the updater endpoint from the DB-backed SystemSetting. Empty or
+/// missing setting -> None (silent skip, per the owner's stub spec).
+fn updater_endpoint(app: &tauri::AppHandle) -> Option<String> {
+    let data_dir = get_data_dir(app).ok()?;
+    let db_path = data_dir.join("pharmacy.db");
+    if !db_path.exists() {
+        return None;
+    }
+
+    use sqlite::State;
+    let conn = sqlite::open(&db_path).ok()?;
+    let mut stmt = conn
+        .prepare("SELECT value FROM system_settings WHERE key = ?1")
+        .ok()?;
+    stmt.bind((1, "update_endpoint_url")).ok()?;
+
+    match stmt.next() {
+        Ok(State::Row) => {
+            let raw: String = stmt.read(0).unwrap_or_default();
+            let trimmed = raw.trim().to_string();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
+        }
+        _ => None,
+    }
+}
+
+async fn check_for_updates(app: tauri::AppHandle) {
+    let log_path = get_log_path(&app);
+
+    // Owner gate: no update server configured -> silent skip, every launch.
+    let Some(endpoint) = updater_endpoint(&app) else {
+        log_to_file(&log_path, "[updater] update_endpoint_url empty; skipping check");
+        return;
+    };
+
+    use tauri_plugin_updater::UpdaterExt;
+
+    let parsed = match endpoint.parse() {
+        Ok(url) => url,
+        Err(e) => {
+            log_to_file(&log_path, &format!("[updater] invalid endpoint URL '{endpoint}': {e}"));
+            return;
+        }
+    };
+
+    let updater = match app.updater_builder().endpoints(vec![parsed]) {
+        Ok(builder) => builder,
+        Err(e) => {
+            log_to_file(&log_path, &format!("[updater] endpoint rejected: {e}"));
+            return;
+        }
+    };
+
+    let updater = match updater.build() {
+        Ok(u) => u,
+        Err(e) => {
+            log_to_file(&log_path, &format!("[updater] builder failed: {e}"));
+            return;
+        }
+    };
+
+    let update = match updater.check().await {
+        Ok(Some(update)) => update,
+        Ok(None) => {
+            log_to_file(&log_path, "[updater] no update available");
+            return;
+        }
+        Err(e) => {
+            log_to_file(&log_path, &format!("[updater] check failed: {e}"));
+            return;
+        }
+    };
+
+    let target = update.version.clone();
+    log_to_file(&log_path, &format!("[updater] update available: v{target}"));
+
+    // Native Yes/No dialog. Only "Yes" downloads and installs.
+    let proceed = tauri_plugin_dialog::DialogExt::dialog(&app)
+        .message(format!("Update available: v{target} — Install now?"))
+        .title("Pharmacy Suite Update")
+        .buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancelCustom(
+            "Yes".into(),
+            "No".into(),
+        ))
+        .blocking_show();
+
+    if proceed {
+        log_to_file(&log_path, "[updater] user accepted; downloading and installing");
+        let mut downloaded: u64 = 0;
+        let on_chunk = |chunk: usize, _total: Option<u64>| {
+            downloaded += chunk as u64;
+        };
+        let on_finish = || {
+            log_to_file(&log_path, "[updater] download complete; installing");
+        };
+        if let Err(e) = update.download_and_install(on_chunk, on_finish).await {
+            log_to_file(&log_path, &format!("[updater] install failed: {e}"));
+        }
+    } else {
+        log_to_file(&log_path, "[updater] user declined; will check again next launch");
     }
 }

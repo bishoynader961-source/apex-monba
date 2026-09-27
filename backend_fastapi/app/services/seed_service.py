@@ -401,6 +401,9 @@ async def seed_default_settings(session: AsyncSession) -> None:
         # First-run gate (Sprint 2D): false until the admin completes setup;
         # non-setup API surface returns 503 until this is flipped.
         ("setup_complete", "false"),
+        # Auto-updater (Sprint 4B): desktop shell reads this once per launch;
+        # empty = no update server yet, check is skipped silently.
+        ("update_endpoint_url", ""),
     ]
     try:
         for key, value in defaults:

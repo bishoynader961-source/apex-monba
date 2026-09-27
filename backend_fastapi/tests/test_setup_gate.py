@@ -85,3 +85,53 @@ async def test_setup_complete_endpoint_flips_gate(
         assert ungated.status_code != 503
     finally:
         await _flip_setup(session, "true")
+
+
+async def test_setup_complete_idempotent(client: AsyncClient, session: AsyncSession) -> None:
+    """Sprint 3A: the onboarding "Get Started" flow may retry the call; the
+    endpoint must stay idempotent (second call still 200, flag still true)."""
+    await _flip_setup(session, "false")
+    try:
+        auth = await _admin(client, session)
+        first = await client.post("/api/v1/admin/setup/complete", headers=auth)
+        assert first.status_code == 200
+        second = await client.post("/api/v1/admin/setup/complete", headers=auth)
+        assert second.status_code == 200
+        from app.core.models import SystemSetting
+
+        setting = await session.get(SystemSetting, "setup_complete")
+        assert (setting.value or b"").decode("utf-8") == "true"
+    finally:
+        await _flip_setup(session, "true")
+
+
+async def test_setup_complete_requires_settings_manage(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Non-admin users (e.g. cashiers) see the onboarding modal too but must
+    NOT be able to flip the first-run gate — the UI routes them around it."""
+    from app.core.models import Permission, Role, RolePermission
+
+    # role_id 1 is the admin-bypass; burn id 1 with a throwaway role so the
+    # cashier below gets a real non-admin id (fresh DB autoincrements from 1).
+    session.add(Role(name="burn-id-1", description="", is_system=1))
+    await session.commit()
+    role = Role(name="cashier", description="cashier", is_system=1)
+    session.add(role)
+    await session.commit()
+    perm = Permission(feature_key="pos.checkout", description="pos.checkout")
+    session.add(perm)
+    await session.commit()
+    session.add(RolePermission(role_id=role.id, permission_id=perm.id, granted=1))
+    await session.commit()
+    await UserRepository(session).create(
+        "cashier1", "Cashier", hash_password("password123"), role.id
+    )
+    login = await client.post(
+        "/api/v1/auth/login", json={"username": "cashier1", "password": "password123"}
+    )
+    assert login.status_code == 200, login.text
+    auth = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    resp = await client.post("/api/v1/admin/setup/complete", headers=auth)
+    assert resp.status_code == 403

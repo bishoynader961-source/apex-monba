@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-import { useAuthStore } from "@/stores/authStore";
+import { api } from "@/lib/api";
+import { useAuthStore, useCan } from "@/stores/authStore";
 
 // Step 4.7: first-run onboarding. Shown once per install (per OS user),
 // with a skip option and a link into the setup sections in Settings.
@@ -29,7 +30,13 @@ const FEATURES = [
 
 export function OnboardingModal() {
   const user = useAuthStore((s) => s.user);
+  const router = useRouter();
   const [visible, setVisible] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+  // Only admins can flip the backend first-run gate (settings.manage);
+  // everyone else just proceeds into the dashboard.
+  const canCompleteSetup = useCan("settings.manage");
 
   useEffect(() => {
     if (!user) return;
@@ -49,6 +56,31 @@ export function OnboardingModal() {
       // Storage unavailable — the modal may re-show next session; acceptable.
     }
     setVisible(false);
+  }
+
+  // Sprint 3A: mark first-run complete server-side, then proceed to the
+  // dashboard. On failure the modal stays open with the error shown.
+  async function handleGetStarted() {
+    setStarting(true);
+    setStartError(null);
+    try {
+      await api.post("/api/v1/admin/setup/complete");
+      dismiss();
+      router.push("/dashboard");
+    } catch (e: unknown) {
+      setStartError(
+        e instanceof Error
+          ? `Could not complete setup: ${e.message}`
+          : "Could not complete setup. Please try again."
+      );
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  function handleExplore() {
+    dismiss();
+    router.push("/dashboard");
   }
 
   if (!visible || !user) return null;
@@ -88,14 +120,31 @@ export function OnboardingModal() {
             </li>
           ))}
         </ul>
+        {startError && (
+          <p className="mt-3 text-center text-xs text-red-500" role="alert">
+            {startError}
+          </p>
+        )}
         <div className="mt-5 flex flex-col gap-2">
-          <Link
-            href="/dashboard/settings"
-            onClick={dismiss}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            Set up your pharmacy →
-          </Link>
+          {/* Sprint 3A: completing onboarding flips the backend first-run gate
+              (setup_complete) so admin routes unlock immediately. Non-admins
+              proceed without the flag flip — it is admin-gated by design. */}
+          {canCompleteSetup ? (
+            <button
+              onClick={() => void handleGetStarted()}
+              disabled={starting}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {starting ? "Starting…" : "Get Started →"}
+            </button>
+          ) : (
+            <button
+              onClick={handleExplore}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Explore Pharmacy Suite →
+            </button>
+          )}
           <button
             onClick={dismiss}
             className="rounded-lg px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"

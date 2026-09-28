@@ -1245,9 +1245,31 @@ async def migrate_schema(conn: Any) -> None:
             )
         version = 28
 
+    # ── v29: backfill public privacy policy URL (Sprint 4C follow-up) ──────
+    # Fills only empty/null values — never overwrites a URL the admin set.
+    # Value is written as a hex BLOB literal because SystemSetting.value is
+    # LargeBinary (utf-8 bytes), matching the seed_service encoding.
+    if version < 29:
+        if await _table_exists(conn, "system_settings"):
+            await conn.exec_driver_sql(
+                """
+                INSERT INTO system_settings (key, value)
+                SELECT 'privacy_policy_url', X'68747470733a2f2f6769746875622e636f6d2f626973686f796e616465723936312d736f757263652f617065782d6d6f6e62612f626c6f622f6d61737465722f505249564143595f504f4c4943592e6d64'
+                WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'privacy_policy_url')
+                """
+            )
+            await conn.exec_driver_sql(
+                """
+                UPDATE system_settings SET value = X'68747470733a2f2f6769746875622e636f6d2f626973686f796e616465723936312d736f757263652f617065782d6d6f6e62612f626c6f622f6d61737465722f505249564143595f504f4c4943592e6d64'
+                WHERE key = 'privacy_policy_url'
+                  AND (value IS NULL OR CAST(value AS TEXT) = '')
+                """
+            )
+        version = 29
+
     await conn.exec_driver_sql(f"PRAGMA user_version={SCHEMA_VERSION}")
 
 
 
-SCHEMA_VERSION = 28
+SCHEMA_VERSION = 29
 

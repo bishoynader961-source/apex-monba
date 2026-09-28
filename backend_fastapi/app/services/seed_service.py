@@ -404,9 +404,9 @@ async def seed_default_settings(session: AsyncSession) -> None:
         # Auto-updater (Sprint 4B): desktop shell reads this once per launch;
         # empty = no update server yet, check is skipped silently.
         ("update_endpoint_url", ""),
-        # MS Store listing (Sprint 4C): public privacy policy URL placeholder;
-        # surfaces in-app once the admin sets it.
-        ("privacy_policy_url", ""),
+        # MS Store listing (Sprint 4C): public privacy policy URL; surfaces
+        # in-app once the admin sets it. Seeded to the public GitHub location.
+        ("privacy_policy_url", "https://github.com/bishoynader961-source/apex-monba/blob/master/PRIVACY_POLICY.md"),
         # Backup reminder (Sprint 4D): empty = never backed up; stamped on every
         # successful backup. Dashboard shows a reminder when empty or > 7 days.
         ("last_backup_at", ""),

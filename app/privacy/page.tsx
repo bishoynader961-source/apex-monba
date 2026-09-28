@@ -49,6 +49,10 @@ const SECTIONS: { title: string; body: string[] }[] = [
   },
 ];
 
+// Public copy of this policy (Microsoft Store listing points here too).
+const PUBLIC_POLICY_URL =
+  "https://github.com/bishoynader961-source/apex-monba/blob/master/PRIVACY_POLICY.md";
+
 export default function PrivacyPolicyPage() {
   return (
     <DashboardLayout>
@@ -81,6 +85,17 @@ export default function PrivacyPolicyPage() {
               <span className="font-mono text-gray-800 dark:text-gray-100">pharmacypro.support@gmail.com</span>
             </p>
           </section>
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            The full privacy policy is also available at:{" "}
+            <a
+              href={PUBLIC_POLICY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-gray-800 dark:hover:text-gray-100"
+            >
+              GitHub
+            </a>
+          </p>
         </div>
       </div>
     </DashboardLayout>

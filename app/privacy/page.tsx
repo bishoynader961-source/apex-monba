@@ -30,7 +30,8 @@ const SECTIONS: { title: string; body: string[] }[] = [
   {
     title: "Network access",
     body: [
-      "Pharmacy Suite connects to the internet only to check for software updates and to process license payments through our payment provider. These connections never include your pharmacy's operational data.",
+      "Pharmacy Suite connects to the internet only to check for software updates, and only when your pharmacy has configured an update address in settings. If no update address is configured, the app makes no connections at all. Update checks contain none of your pharmacy's operational data.",
+      "Support contact happens through your own email client: the Support page opens a pre-filled email to our support address, and the app never sends email in the background. Installing or updating the app through the Microsoft Store is handled by Windows under Microsoft's own terms.",
       "The optional mobile companion app connects directly to your desktop computer over your local pharmacy network. That traffic stays on your network and does not pass through our servers.",
     ],
   },

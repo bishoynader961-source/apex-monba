@@ -56,3 +56,12 @@ mobile/lib/security/fixEngine.ts
 # Bare-name guards: the same files must be ignored at ANY path (root, subdir, future moves)
 fix_key.txt
 fix_admin_key.txt
+
+# ── Batch 1 hygiene (audit H1/L2): never track credentials, certs, or binaries ──
+# (.env* / !.env.example, __pycache__/, *.pyc and venv/ rules already exist above)
+*.pfx
+*.exe
+debug_*.txt
+login.json
+validate.json
+test_verify.json

@@ -229,15 +229,9 @@ fn setup_main_device(app: tauri::AppHandle) -> Result<(), String> {
         msg
     })?;
 
-    let config_path = data_dir.join(".env");
-    let env_content = "DB_HOST=127.0.0.1\nDB_PORT=5432\nDB_USER=postgres\nDB_PASS=localpass\n";
-    std::fs::write(&config_path, env_content).map_err(|e| {
-        let msg = format!("[setup] write {} failed: {e}", config_path.display());
-        log_to_file(&log_path, &msg);
-        msg
-    })?;
-
-    log_to_file(&log_path, &format!("[setup] SUCCESS: .env written to {}", config_path.display()));
+    // Batch 1 (audit L3): the legacy .env write (DB_HOST/DB_PORT/DB_USER/
+    // DB_PASS=localpass) was removed — nothing in the app reads those keys
+    // (verified repo-wide; the FastAPI settings schema ignores unknown keys).
     Ok(())
 }
 

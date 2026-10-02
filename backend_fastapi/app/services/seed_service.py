@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.models import DrugDictionary, LockedFeature, Permission, ProductTemplate, RolePermission, Role, SigCode, PriceCode, SystemSetting
 from app.core.repositories import UserRepository
 from app.shared.logging_config import get_logger
-from app.shared.security import hash_password
+from app.shared.exceptions import AppException
+from app.shared.security import hash_password, validate_password_complexity
 
 logger = get_logger("seeder")
 
@@ -176,6 +177,20 @@ async def seed_admin_if_absent(session: AsyncSession) -> bool:
         logger.info("seed_admin_skipped", reason="not_development_env", app_env=app_env)
         return False
         
+    # Batch 1 (audit H2): an explicitly supplied INITIAL_ADMIN_PASSWORD must
+    # satisfy the app's password policy (validate_password_complexity) — a weak
+    # operator password refuses to seed rather than shipping a guessable
+    # superuser. The built-in development default still seeds (tests depend on
+    # it) and logs a loud warning below.
+    if os.getenv("INITIAL_ADMIN_PASSWORD") is not None:
+        try:
+            validate_password_complexity(DEFAULT_ADMIN_PASSWORD)
+        except AppException:
+            logger.error(
+                "seed_admin_refused_weak_password",
+                reason="INITIAL_ADMIN_PASSWORD does not meet the password policy",
+            )
+            return False
     try:
         repo = UserRepository(session)
         existing = await repo.get_by_username(DEFAULT_ADMIN_USERNAME)
@@ -188,6 +203,12 @@ async def seed_admin_if_absent(session: AsyncSession) -> bool:
             username=DEFAULT_ADMIN_USERNAME,
             display_name=DEFAULT_ADMIN_DISPLAY_NAME,
             password_hash=password_hash,
+            role_id=DEFAULT_ADMIN_ROLE_ID,
+        )
+        logger.warning(
+            "seed_admin_default_credentials_created",
+            message="Default admin account seeded with well-known credentials — change this password immediately",
+            username=DEFAULT_ADMIN_USERNAME,
             role_id=DEFAULT_ADMIN_ROLE_ID,
         )
         logger.info(

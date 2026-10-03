@@ -86,10 +86,16 @@ Needed before Phase 2/3: app display name (current internal: "Pharmacy Suite" / 
 - `@paddle/paddle-js` + `@paddle/paddle-node-sdk` still in `package.json` dependencies; `paddle-js` import found only in `app/dashboard/invoice-parse/page.tsx` (naming overlap with PaddleOCR — re-verify before removing).
 - Freemius integration plan (Phase 3.4) must define migration/coexistence for these.
 
-## 10. Open questions → owner (Phase 0 gate)
+## 10. Open questions → owner (Phase 0 gate) — ANSWERED 2026-10-03
 
-1. Pricing: Option A or B (§6)?
-2. Target market (§7)? 3. Buyer currency (§7)?
-4. App display name? 5. Publisher name? 6. Support email? 7. Logo 512×512 ready?
+| # | Question | Owner answer |
+|---|---|---|
+| 1 | Pricing model | **Option A — one-time license** ($149 + optional $59/yr renewal, per DISCOVERY §6) |
+| 2 | Target market | **Egypt + Arab world** |
+| 3 | Buyer currency | **USD base** (Freemius checkout handles local display; fees verified in Phase 3) |
+| 4 | App display name | **Pharmacy Suite** (unchanged; matches identifier + installer) |
+| 5 | Publisher name | **Apex Software** |
+| 6 | Support email | *not answered* → HUMAN_TODO item before Phase 3 product creation |
+| 7 | Logo 512×512 | *not answered* → HUMAN_TODO item |
 
-**Phase 0 status: COMPLETE. Waiting for owner answers before Phase 1.**
+**Phase 0 status: COMPLETE. Gate cleared → Phase 1 started.**

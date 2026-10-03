@@ -131,3 +131,19 @@ Run on your Windows dev machine:
     cargo test --lib
 All 14 tests in the udp_discovery and fix_engine modules must pass.
 Report any failures before merging PR #32.
+
+---
+
+## LAUNCH PREP — Phase 0 follow-ups (owner, added 2026-10-03, branch release/launch-prep)
+
+### L1 — Support email inbox
+Needed before Freemius product creation (Phase 3.3) and store listing.
+1. Create/choose a support inbox you will actually read (recommended: `support@apexsoftware…` on a domain you own, or a dedicated Gmail).
+2. Enable 2FA on it.
+3. Reply with the address so it can go into `release/DECISIONS.md` and the Freemius listing.
+
+### L2 — App logo 512×512 PNG
+Needed for the Freemius product icon, store listing, and installer branding.
+1. Export the app logo as a square PNG, exactly 512×512, transparent or solid background is fine (Freemius accepts PNG).
+2. Also keep a 1024×1024 master if available.
+3. Save as `release/branding/logo-512.png` (create the folder) or reply where it lives.

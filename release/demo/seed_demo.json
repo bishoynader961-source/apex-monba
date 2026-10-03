@@ -1,0 +1,108 @@
+{
+  "_meta": {
+    "purpose": "Screenshot/demo dataset for Pharmacy Suite. ALL data is fake. No real patients, phones, or prescriptions.",
+    "currency": "EGP (display only; stored as Decimal amounts)",
+    "required_counts": { "products": 20, "patients": 5, "receipts": 10, "suppliers": 2 },
+    "markers": "Internal barcodes prefixed 'DEMO-'; supplier tax ids prefixed 'DEMO-'. Loader deletes only DEMO-marked rows on --clean."
+  },
+  "suppliers": [
+    {
+      "name": "Nile Pharma Distribution",
+      "contact_name": "Karim Fahmy (demo)",
+      "contact_email": "sales@nilepharma-demo.example",
+      "contact_phone": "+20 100 000 0001",
+      "address": "12 Industrial Zone, 6th of October City (demo)",
+      "tax_id": "DEMO-TAX-001",
+      "preferred": 1,
+      "lead_time_days": 3,
+      "min_stock_level": 10
+    },
+    {
+      "name": "Delta Med Supply",
+      "contact_name": "Salma Rashed (demo)",
+      "contact_email": "orders@deltamed-demo.example",
+      "contact_phone": "+20 100 000 0002",
+      "address": "45 Corniche El Nil, Mansoura (demo)",
+      "tax_id": "DEMO-TAX-002",
+      "preferred": 0,
+      "lead_time_days": 5,
+      "min_stock_level": 15
+    }
+  ],
+  "patients": [
+    {
+      "name": "Amir Hassan (demo)",
+      "dob": "1985-04-12", "sex": "M", "address": "15 Talaat Harb St, Cairo (demo)",
+      "contact_phone": "+20 100 000 0011", "email": "amir.hassan.demo@example.com",
+      "insurance_provider": "Misr Insurance (demo)", "policy_number": "DEMO-POL-1001",
+      "group_number": "DEMO-GRP-01", "patient_allergies": "Penicillin (demo entry)"
+    },
+    {
+      "name": "Layla Mostafa (demo)",
+      "dob": "1992-09-30", "sex": "F", "address": "8 Gazayer St, Alexandria (demo)",
+      "contact_phone": "+20 100 000 0012", "email": "layla.mostafa.demo@example.com",
+      "insurance_provider": "", "policy_number": "", "group_number": "", "patient_allergies": ""
+    },
+    {
+      "name": "Omar El-Sayed (demo)",
+      "dob": "1968-01-22", "sex": "M", "address": "77 El Geish Rd, Giza (demo)",
+      "contact_phone": "+20 100 000 0013", "email": "omar.elsayed.demo@example.com",
+      "insurance_provider": "HealthCare Partner (demo)", "policy_number": "DEMO-POL-1002",
+      "group_number": "DEMO-GRP-02", "patient_allergies": "Sulfa drugs (demo entry)"
+    },
+    {
+      "name": "Nour Abdelrahman (demo)",
+      "dob": "2001-06-05", "sex": "F", "address": "23 El Nasr St, Tanta (demo)",
+      "contact_phone": "+20 100 000 0014", "email": "nour.a.demo@example.com",
+      "insurance_provider": "", "policy_number": "", "group_number": "", "patient_allergies": ""
+    },
+    {
+      "name": "Youssef Kamal (demo)",
+      "dob": "1959-11-18", "sex": "M", "address": "5 El Bahr St, Damietta (demo)",
+      "contact_phone": "+20 100 000 0015", "email": "youssef.kamal.demo@example.com",
+      "insurance_provider": "Misr Insurance (demo)", "policy_number": "DEMO-POL-1003",
+      "group_number": "DEMO-GRP-01", "patient_allergies": "None recorded (demo entry)"
+    }
+  ],
+  "products": [
+    { "name": "Paracetamol 500mg (20 tabs)",  "price": "45.00",  "wholesale_price": "32.00", "category": "Analgesics",   "form": "Tablet",    "strength": "500 mg",  "manufacturer_name": "Demo Pharma Egypt",  "is_generic": 1, "manufacturer_barcode": "6220000000017", "expiry_offset_days": 540, "on_hand": 120 },
+    { "name": "Ibuprofen 400mg (30 tabs)",    "price": "68.50",  "wholesale_price": "49.00", "category": "Analgesics",   "form": "Tablet",    "strength": "400 mg",  "manufacturer_name": "Demo Pharma Egypt",  "is_generic": 1, "manufacturer_barcode": "6220000000024", "expiry_offset_days": 365, "on_hand": 85 },
+    { "name": "Amoxicillin 500mg (21 caps)",  "price": "92.00",  "wholesale_price": "70.00", "category": "Antibiotics",  "form": "Capsule",   "strength": "500 mg",  "manufacturer_name": "Demo Antibiotics Co","is_generic": 0, "manufacturer_barcode": "6220000000031", "expiry_offset_days": 300, "on_hand": 40 },
+    { "name": "Azithromycin 250mg (6 tabs)",  "price": "110.25", "wholesale_price": "85.00", "category": "Antibiotics",  "form": "Tablet",    "strength": "250 mg",  "manufacturer_name": "Demo Antibiotics Co","is_generic": 0, "manufacturer_barcode": "6220000000048", "expiry_offset_days": 410, "on_hand": 30 },
+    { "name": "Omeprazole 20mg (14 caps)",    "price": "77.75",  "wholesale_price": "58.00", "category": "Gastro",       "form": "Capsule",   "strength": "20 mg",   "manufacturer_name": "Demo Pharma Egypt",  "is_generic": 1, "manufacturer_barcode": "6220000000055", "expiry_offset_days": 600, "on_hand": 55 },
+    { "name": "Metformin 850mg (60 tabs)",    "price": "95.00",  "wholesale_price": "72.00", "category": "Diabetes",     "form": "Tablet",    "strength": "850 mg",  "manufacturer_name": "Demo Generics",      "is_generic": 1, "manufacturer_barcode": "6220000000062", "expiry_offset_days": 700, "on_hand": 90 },
+    { "name": "Amlodipine 5mg (30 tabs)",     "price": "58.00",  "wholesale_price": "41.00", "category": "Cardio",       "form": "Tablet",    "strength": "5 mg",    "manufacturer_name": "Demo Generics",      "is_generic": 1, "manufacturer_barcode": "6220000000079", "expiry_offset_days": 250, "on_hand": 70 },
+    { "name": "Atorvastatin 20mg (30 tabs)",  "price": "132.40", "wholesale_price": "102.00","category": "Cardio",       "form": "Tablet",    "strength": "20 mg",   "manufacturer_name": "Demo Antibiotics Co","is_generic": 0, "manufacturer_barcode": "6220000000086", "expiry_offset_days": 480, "on_hand": 45 },
+    { "name": "Salbutamol Inhaler 100mcg",    "price": "148.00", "wholesale_price": "115.00","category": "Respiratory",  "form": "Inhaler",   "strength": "100 mcg", "manufacturer_name": "Demo Respiratory",   "is_generic": 0, "manufacturer_barcode": "6220000000093", "expiry_offset_days": 330, "on_hand": 25 },
+    { "name": "Cetirizine 10mg (20 tabs)",    "price": "39.50",  "wholesale_price": "27.00", "category": "Antihistamines","form": "Tablet",   "strength": "10 mg",   "manufacturer_name": "Demo Generics",      "is_generic": 1, "manufacturer_barcode": "6220000000109", "expiry_offset_days": 660, "on_hand": 140 },
+    { "name": "Loratadine 10mg (10 tabs)",    "price": "32.00",  "wholesale_price": "22.00", "category": "Antihistamines","form": "Tablet",   "strength": "10 mg",   "manufacturer_name": "Demo Generics",      "is_generic": 1, "manufacturer_barcode": "6220000000116", "expiry_offset_days": 585, "on_hand": 95 },
+    { "name": "Insulin Glargine Pen 100IU",   "price": "520.00", "wholesale_price": "430.00","category": "Diabetes",     "form": "Pen",       "strength": "100 IU",  "manufacturer_name": "Demo Biologics",     "is_generic": 0, "manufacturer_barcode": "6220000000123", "expiry_offset_days": 210, "on_hand": 12 },
+    { "name": "Vitamin D3 50000IU (4 caps)",  "price": "85.00",  "wholesale_price": "63.00", "category": "Supplements",  "form": "Capsule",   "strength": "50000 IU","manufacturer_name": "Demo Nutra",         "is_generic": 0, "manufacturer_barcode": "6220000000130", "expiry_offset_days": 720, "on_hand": 110 },
+    { "name": "Iron+Folic Acid (30 tabs)",    "price": "54.25",  "wholesale_price": "38.00", "category": "Supplements",  "form": "Tablet",    "strength": "60 mg",   "manufacturer_name": "Demo Nutra",         "is_generic": 1, "manufacturer_barcode": "6220000000147", "expiry_offset_days": 450, "on_hand": 80 },
+    { "name": "ORS Sachets (10 pack)",        "price": "25.00",  "wholesale_price": "16.00", "category": "OTC",          "form": "Powder",    "strength": "",        "manufacturer_name": "Demo Pharma Egypt",  "is_generic": 1, "manufacturer_barcode": "6220000000154", "expiry_offset_days": 540, "on_hand": 160 },
+    { "name": "Diclofenac Gel 1% (50g)",      "price": "72.50",  "wholesale_price": "55.00", "category": "Analgesics",   "form": "Gel",       "strength": "1%",      "manufacturer_name": "Demo Pharma Egypt",  "is_generic": 1, "manufacturer_barcode": "6220000000161", "expiry_offset_days": 395, "on_hand": 65 },
+    { "name": "Cough Syrup 100ml",            "price": "48.00",  "wholesale_price": "34.00", "category": "OTC",          "form": "Syrup",     "strength": "",        "manufacturer_name": "Demo Respiratory",   "is_generic": 0, "manufacturer_barcode": "6220000000178", "expiry_offset_days": 275, "on_hand": 58 },
+    { "name": "Blood Glucose Test Strips 50", "price": "185.00", "wholesale_price": "150.00","category": "Devices",      "form": "Strips",    "strength": "",        "manufacturer_name": "Demo Devices",       "is_generic": 0, "manufacturer_barcode": "6220000000185", "expiry_offset_days": 500, "on_hand": 35 },
+    { "name": "Digital Thermometer",          "price": "145.00", "wholesale_price": "110.00","category": "Devices",      "form": "Device",    "strength": "",        "manufacturer_name": "Demo Devices",       "is_generic": 0, "manufacturer_barcode": "6220000000192", "expiry_offset_days": 1825,"on_hand": 22 },
+    { "name": "Surgical Face Masks (50 box)", "price": "60.00",  "wholesale_price": "40.00", "category": "OTC",          "form": "Mask",      "strength": "",        "manufacturer_name": "Demo Devices",       "is_generic": 0, "manufacturer_barcode": "6220000000208", "expiry_offset_days": 730, "on_hand": 75 }
+  ],
+  "receipts_note": "receipt_offsets_days are relative to the load date; items reference products by list index (0-based); patient_index: null = walk-in OTC.",
+  "receipts": [
+    { "days_ago": 13, "payment_method": "Cash",     "patient_index": null, "items": [ { "p": 0,  "qty": 2 }, { "p": 14, "qty": 1 } ] },
+    { "days_ago": 12, "payment_method": "Card",     "patient_index": 0,    "items": [ { "p": 2,  "qty": 1 }, { "p": 5,  "qty": 1 } ] },
+    { "days_ago": 11, "payment_method": "Cash",     "patient_index": null, "items": [ { "p": 9,  "qty": 3 } ] },
+    { "days_ago": 9,  "payment_method": "Card",     "patient_index": 2,    "items": [ { "p": 7,  "qty": 1 }, { "p": 6,  "qty": 2 } ] },
+    { "days_ago": 8,  "payment_method": "Cash",     "patient_index": null, "items": [ { "p": 15, "qty": 1 }, { "p": 0,  "qty": 1 }, { "p": 10, "qty": 1 } ] },
+    { "days_ago": 6,  "payment_method": "InstaPay", "patient_index": 1,    "items": [ { "p": 8,  "qty": 1 } ] },
+    { "days_ago": 5,  "payment_method": "Cash",     "patient_index": null, "items": [ { "p": 12, "qty": 2 }, { "p": 13, "qty": 1 } ] },
+    { "days_ago": 4,  "payment_method": "Card",     "patient_index": 4,    "items": [ { "p": 11, "qty": 1 }, { "p": 17, "qty": 1 } ] },
+    { "days_ago": 2,  "payment_method": "Cash",     "patient_index": 3,    "items": [ { "p": 3,  "qty": 1 }, { "p": 16, "qty": 1 }, { "p": 14, "qty": 2 } ] },
+    { "days_ago": 1,  "payment_method": "Card",     "patient_index": null, "items": [ { "p": 1,  "qty": 2 }, { "p": 18, "qty": 1 }, { "p": 19, "qty": 1 } ] }
+  ],
+  "demo_admin": {
+    "username": "demo",
+    "display_name": "Demo Owner",
+    "password_note": "Default demo password is set by load_demo.py --admin-password (default 'demo-admin-2026'). Change before public demos.",
+    "note": "Loader sets setup_complete=true so screenshots skip the first-run wizard."
+  }
+}

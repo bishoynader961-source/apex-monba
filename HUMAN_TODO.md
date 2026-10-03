@@ -147,3 +147,20 @@ Needed for the Freemius product icon, store listing, and installer branding.
 1. Export the app logo as a square PNG, exactly 512×512, transparent or solid background is fine (Freemius accepts PNG).
 2. Also keep a 1024×1024 master if available.
 3. Save as `release/branding/logo-512.png` (create the folder) or reply where it lives.
+
+### L3 — Clean-machine install test (PRE-SALE GATE, from Phase 1 audit)
+Cannot be automated here. Do this on a Windows 10/11 machine with NO Node, Python, or Rust installed:
+1. Build the installer: `npm run tauri build` (on your dev machine) and take the NSIS `.exe` from `src-tauri/target/release/bundle/nsis/`.
+2. Copy ONLY the installer to a clean machine (or a fresh Windows VM).
+3. Run the installer → app must start with no errors.
+4. First-run wizard must appear; create the owner admin account (password rules: ≥12 chars, upper+lower+digit+symbol).
+5. Log in, add one product, make one sale, then quit and relaunch — data must persist.
+6. Check Settings → Backup: create an encrypted backup and confirm the `.backup.enc` file exists.
+7. Report pass/fail back (any failure blocks the release).
+Why: the security audit verified code-level first-run behavior, but only a clean machine proves the shipped sidecars/updater work without dev tools.
+
+### L4 — Arabic/RTL visual confirmation (folds into Phase 3.2 screenshots)
+When capturing the 8 store screenshots, capture at least 2 with the UI language set to Arabic:
+1. Settings → Language → العربية.
+2. Confirm the layout flips to right-to-left and no text is cut off in the POS and Inventory screens.
+3. Keep those as 2 of the 8 screenshots (Arabic-speaking buyers need to see RTL support).

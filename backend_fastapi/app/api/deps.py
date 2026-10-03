@@ -28,10 +28,27 @@ from app.core.models import Device, LockedFeature, Role, SystemSetting
 from app.core.repositories import UserRepository
 from app.core.ttl_cache import cache_get, cache_invalidate_prefix, cache_set
 from app.shared.exceptions import AppException, ForbiddenError
+from app.shared.logging_config import get_logger
 from app.shared.schemas import CurrentUser, TokenPayload
-from app.shared.security import consume_approval_token, decode_token, verify_password
+from app.shared.security import (
+    consume_approval_token,
+    decode_token,
+    device_token_prefix,
+    verify_password,
+)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+
+_logger = get_logger("deps")
+_legacy_device_scan_warned = False
+
+
+def _warn_legacy_device_scan_once(legacy_count: int) -> None:
+    """Warn once per process when pre-v31 device rows hit the full scan (M7)."""
+    global _legacy_device_scan_warned
+    if not _legacy_device_scan_warned:
+        _legacy_device_scan_warned = True
+        _logger.warning("device_legacy_token_full_scan", legacy_devices=legacy_count)
 
 
 async def get_current_user(
@@ -107,14 +124,36 @@ async def get_current_user(
     # without the header (desktop web session, health probes) are unaffected.
     if device_token:
         matched_device = None
+        prefix = device_token_prefix(device_token)
         async with session.begin():
+            # Audit M7: the indexed prefix lookup narrows bcrypt to the rows
+            # sharing this token's SHA-256 prefix. Previously every unrevoked
+            # device row was bcrypt-verified on every request (O(N) × ~100 ms).
             candidates = await session.execute(
-                select(Device).where(Device.revoked == 0)
+                select(Device).where(
+                    Device.revoked == 0, Device.token_prefix == prefix
+                )
             )
             for device in candidates.scalars():
                 if verify_password(device_token, device.device_token_hash):
                     matched_device = device
                     break
+            if matched_device is None:
+                # Devices paired before schema v31 have token_prefix NULL (the
+                # raw token is unrecoverable) — fall back to the old full scan
+                # for the transition window. Logged once per process.
+                legacy = await session.execute(
+                    select(Device).where(
+                        Device.revoked == 0, Device.token_prefix.is_(None)
+                    )
+                )
+                legacy_rows = list(legacy.scalars())
+                if legacy_rows:
+                    _warn_legacy_device_scan_once(len(legacy_rows))
+                for device in legacy_rows:
+                    if verify_password(device_token, device.device_token_hash):
+                        matched_device = device
+                        break
         if matched_device is None:
             raise HTTPException(status_code=401, detail="Device is revoked or unknown")
         async with session.begin():
@@ -171,16 +210,18 @@ def require_approval_token(scope: str) -> Callable[..., dict[str, object]]:
     """Return a dependency that requires a valid, unused, scope-matched approval token.
 
     The token is presented via the ``X-Approval-Token`` header and is single-use:
-    it is invalidated on first successful validation (replay protection).
+    consumption is persisted in the ``approval_jti`` table (audit L5) so a
+    replay is rejected even across a backend restart.
     """
 
-    def _check(
+    async def _check(
         user: CurrentUser = Depends(get_current_user),
         x_approval_token: Optional[str] = Header(default=None, alias="X-Approval-Token"),
+        session: AsyncSession = Depends(get_session),
     ) -> dict[str, object]:
         if not x_approval_token:
             raise ForbiddenError("Approval token required for this action")
-        claims = consume_approval_token(x_approval_token)
+        claims = await consume_approval_token(x_approval_token, session)
         if claims.get("scope") != scope:
             raise ForbiddenError(f"Approval token scope mismatch: expected {scope}")
         return claims

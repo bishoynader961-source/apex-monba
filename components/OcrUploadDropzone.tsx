@@ -3,6 +3,8 @@
 import React, { useCallback, useState } from "react";
 import { UploadCloud, FileText, Loader2, X, CheckCircle, AlertTriangle } from "lucide-react";
 
+import { getAccessToken } from "@/lib/api";
+
 interface TierInfo {
   tier: number;
   name: string;
@@ -72,7 +74,7 @@ export function OcrUploadDropzone({ onExtract, className = "" }: OcrUploadDropzo
       const res = await fetch("/api/v1/ocr", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          Authorization: `Bearer ${getAccessToken() ?? ""}`,
         },
         body: formData,
       });

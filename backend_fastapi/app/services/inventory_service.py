@@ -19,7 +19,14 @@ from app.shared.exceptions import (
     RecalledLotError,
     ValidationError,
 )
-from app.shared.schemas import BatchRead, BatchUpdate, ProductRead, StockLevelRead
+from app.shared.schemas import (
+    BatchRead,
+    BatchUpdate,
+    ProductPage,
+    ProductRead,
+    StockLevelPage,
+    StockLevelRead,
+)
 
 
 class InventoryService:
@@ -141,29 +148,45 @@ class InventoryService:
             .values(on_hand=SyncInventory.on_hand + quantity)
         )
 
-    async def low_stock(self, threshold_override: Optional[int] = None) -> list[ProductRead]:
-        """Sprint 2B (N+1): one grouped LEFT JOIN computes on-hand for ALL
-        threshold products (was: one SUM query per product inside the loop)."""
-        agg = (
-            await self.session.execute(
-                select(
-                    Product,
-                    func.coalesce(func.sum(InventoryExtended.on_hand), 0).label("on_hand"),
-                )
-                .select_from(Product)
-                .outerjoin(InventoryExtended, InventoryExtended.drug_name == Product.name)
-                .where(Product.reorder_threshold.is_not(None))
-                .group_by(Product.id)
-            )
-        ).all()
-        result: list[ProductRead] = []
-        for product, on_hand in agg:
-            threshold = threshold_override if threshold_override is not None else (
-                product.reorder_threshold or 0
-            )
-            if int(on_hand or 0) <= threshold:
-                result.append(ProductRead.model_validate(product))
-        return result
+    async def low_stock(
+        self,
+        threshold_override: Optional[int] = None,
+        limit: int = 200,
+        cursor: Optional[int] = None,
+    ) -> ProductPage:
+        """Low-stock products, filtered and limited in SQL (audit M9).
+
+        Previously the grouped LEFT JOIN loaded every threshold product and the
+        comparison ran in Python. Keyset pagination: pass the previous page's
+        ``next_cursor`` back as ``cursor``; at most ``limit`` rows are read.
+        """
+        total_on_hand = func.coalesce(func.sum(InventoryExtended.on_hand), 0)
+        threshold_expr = (
+            func.coalesce(Product.reorder_threshold, 0)
+            if threshold_override is None
+            else threshold_override
+        )
+        stmt = (
+            select(Product)
+            .select_from(Product)
+            .outerjoin(InventoryExtended, InventoryExtended.drug_name == Product.name)
+            .where(Product.reorder_threshold.is_not(None))
+            .group_by(Product.id)
+            .having(total_on_hand <= threshold_expr)
+            .order_by(Product.id.asc())
+            .limit(limit + 1)
+        )
+        if cursor is not None:
+            stmt = stmt.where(Product.id > cursor)
+        rows = list((await self.session.execute(stmt)).scalars())
+        next_cursor: Optional[int] = None
+        if len(rows) > limit:
+            rows = rows[:limit]
+            next_cursor = rows[-1].id
+        return ProductPage(
+            items=[ProductRead.model_validate(p) for p in rows],
+            next_cursor=next_cursor,
+        )
 
     async def expiring_soon(self, days: int = 90) -> list[BatchRead]:
         today = date.today().isoformat()
@@ -182,44 +205,69 @@ class InventoryService:
         return [BatchRead.model_validate(row) for row in rows]
 
     async def stock_levels(
-        self, low_stock_only: bool = False, expiring_days: int = 90
-    ) -> list[StockLevelRead]:
-        """Aggregate on-hand + reorder + expiring-soon per medicine (LEFT JOIN, no N+1)."""
+        self,
+        low_stock_only: bool = False,
+        expiring_days: int = 90,
+        limit: int = 200,
+        cursor: Optional[int] = None,
+    ) -> StockLevelPage:
+        """Aggregate on-hand + reorder + expiring-soon per medicine (audit M9).
+
+        The low-stock filter and LIMIT run in SQL, and the expiring-soon count
+        is computed only for the returned page. Keyset pagination ordered by
+        ``Product.id``; the previous page's ``next_cursor`` goes back in as
+        ``cursor``.
+        """
         today = date.today().isoformat()
         cutoff = (date.today() + timedelta(days=expiring_days)).isoformat()
-        agg_rows = (
-            await self.session.execute(
-                select(
-                    Product.id.label("medicine_id"),
-                    Product.name.label("name"),
-                    func.coalesce(func.sum(InventoryExtended.on_hand), 0).label("on_hand"),
-                    Product.reorder_threshold.label("reorder_threshold"),
-                )
-                .select_from(Product)
-                .outerjoin(InventoryExtended, InventoryExtended.drug_name == Product.name)
-                .where(Product.is_deleted == 0)
-                .group_by(Product.id, Product.name, Product.reorder_threshold)
-                .order_by(func.coalesce(func.sum(InventoryExtended.on_hand), 0).asc())
+        total_on_hand = func.coalesce(func.sum(InventoryExtended.on_hand), 0)
+        stmt = (
+            select(
+                Product.id.label("medicine_id"),
+                Product.name.label("name"),
+                total_on_hand.label("on_hand"),
+                Product.reorder_threshold.label("reorder_threshold"),
             )
-        ).all()
-        exp_map = {
-            str(r._mapping["name"]): int(r._mapping["n"] or 0)
-            for r in (
-                await self.session.execute(
-                    select(
-                        InventoryExtended.drug_name.label("name"),
-                        func.count().label("n"),
+            .select_from(Product)
+            .outerjoin(InventoryExtended, InventoryExtended.drug_name == Product.name)
+            .where(Product.is_deleted == 0)
+            .group_by(Product.id, Product.name, Product.reorder_threshold)
+            .order_by(Product.id.asc())
+            .limit(limit + 1)
+        )
+        if cursor is not None:
+            stmt = stmt.where(Product.id > cursor)
+        if low_stock_only:
+            stmt = stmt.having(
+                Product.reorder_threshold.is_not(None),
+                total_on_hand <= Product.reorder_threshold,
+            )
+        agg_rows = list((await self.session.execute(stmt)).all())
+        next_cursor: Optional[int] = None
+        if len(agg_rows) > limit:
+            agg_rows = agg_rows[:limit]
+            next_cursor = int(agg_rows[-1]._mapping["medicine_id"])
+        page_names = [str(r._mapping["name"]) for r in agg_rows]
+        exp_map: dict[str, int] = {}
+        if page_names:
+            exp_map = {
+                str(r._mapping["name"]): int(r._mapping["n"] or 0)
+                for r in (
+                    await self.session.execute(
+                        select(
+                            InventoryExtended.drug_name.label("name"),
+                            func.count().label("n"),
+                        )
+                        .where(
+                            InventoryExtended.drug_name.in_(page_names),
+                            InventoryExtended.expiration_date >= today,
+                            InventoryExtended.expiration_date <= cutoff,
+                            InventoryExtended.on_hand > 0,
+                        )
+                        .group_by(InventoryExtended.drug_name)
                     )
-                    .where(
-                        InventoryExtended.drug_name.is_not(None),
-                        InventoryExtended.expiration_date >= today,
-                        InventoryExtended.expiration_date <= cutoff,
-                        InventoryExtended.on_hand > 0,
-                    )
-                    .group_by(InventoryExtended.drug_name)
-                )
-            ).all()
-        }
+                ).all()
+            }
         results: list[StockLevelRead] = []
         for r in agg_rows:
             m = r._mapping
@@ -238,7 +286,7 @@ class InventoryService:
                     expiring_soon_count=exp_map.get(m["name"], 0),
                 )
             )
-        return results
+        return StockLevelPage(items=results, next_cursor=next_cursor)
 
     async def get_batch(self, batch_id: int) -> BatchRead:
         batch = await BatchRepository(self.session).get(batch_id)

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useCan } from "@/stores/authStore";
 import { TrendingUp, Package, DollarSign, RefreshCcw, Download, Mail } from "lucide-react";
+import { getAccessToken } from "@/lib/api";
 import { sendDailySalesReport } from "@/lib/api/email";
 import { useDashboardAnalyticsStore } from "@/stores/dashboardAnalyticsStore";
 import { DataTable } from "@/components/DataTable";
@@ -48,7 +49,8 @@ export default function SalesAnalyticsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : "";
+      // Audit M3: access token is in memory only (lib/api).
+      const token = getAccessToken() ?? "";
       const res = await fetch(`/api/v1/analytics/top-selling?period=${p}&limit=20`, {
         headers: { Authorization: `Bearer ${token}` },
       });

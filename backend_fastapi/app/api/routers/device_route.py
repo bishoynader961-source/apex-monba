@@ -34,7 +34,7 @@ from app.shared.schemas import (
     MobileRegisterResponse,
     QrPayload,
 )
-from app.shared.security import hash_password
+from app.shared.security import device_token_prefix, hash_password
 
 router = APIRouter(prefix="/api/v1/devices", tags=["mobile-devices"])
 # Pairing lives under /api/v1/auth per owner spec, in this same module.
@@ -84,15 +84,15 @@ async def get_qr_payload(
     only the derived HMAC (network_key) is returned.
 
     Pre-1.6 owner verification: QR pairing is only offered when the instance
-    runs in shared mode. A missing/empty setting means "shared" (the config
-    default and seed value); any explicit non-shared value (independent,
-    cloud, …) hard-fails with 403 so no QR can be minted.
+    runs in shared mode. Audit M1 fail-closed: the setting must EXPLICITLY be
+    'shared' — a missing/empty row (or any other value) hard-fails with 403
+    so no QR can be minted unless shared mode was deliberately configured.
     """
     mode_row = await session.get(SystemSetting, _MOBILE_MODE_KEY)
     mode = (
         mode_row.value.decode("utf-8") if isinstance(mode_row.value, bytes) else str(mode_row.value or "")
     ) if mode_row is not None else ""
-    if mode and mode != _SHARED_MODE:
+    if mode != _SHARED_MODE:
         raise HTTPException(
             status_code=403,
             detail=f"Mobile access is disabled: mobile_access_mode is '{mode}', not '{_SHARED_MODE}'",
@@ -166,6 +166,9 @@ async def mobile_register(payload: MobileRegisterRequest, session: AsyncSession 
     device = Device(
         device_name=payload.device_name,
         device_token_hash=hash_password(device_token),
+        # Audit M7: indexed lookup key for request-time device auth (never
+        # exposed; the plain token above is shown to the client exactly once).
+        token_prefix=device_token_prefix(device_token),
         user_id=None,  # set on first authenticated request
         created_at=datetime.now(timezone.utc).isoformat(),
         last_seen_at=None,

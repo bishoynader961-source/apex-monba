@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +12,8 @@ from app.core.database import get_session
 from app.core.models import User
 from app.core.repositories import UserRepository
 from app.services.seed_service import seed_admin_role, seed_clinical_defaults
-from app.shared.security import hash_password
+from app.shared.rate_limit import limiter
+from app.shared.security import hash_password, validate_password_complexity
 
 router = APIRouter(prefix="/api/v1/setup", tags=["setup"])
 
@@ -48,15 +49,24 @@ async def setup_status(db: AsyncSession = Depends(get_session)) -> SetupStatusRe
 
 
 @router.post("/complete", response_model=SetupCompleteResponse)
+@limiter.limit("5/minute")
 async def complete_setup(
+    request: Request,
     payload: SetupCompleteRequest,
     db: AsyncSession = Depends(get_session),
 ) -> SetupCompleteResponse:
     """Complete the first-run setup by creating the admin user and pharmacy profile.
 
     This endpoint only works when user count is 0 (fresh database).
-    Returns 403 if setup has already been completed.
+    Returns 403 if setup has already been completed, 429 when rate-limited
+    (5 attempts/minute, audit M1: unauthenticated setup-takeover hardening).
+    Password must satisfy complexity rules (>=12 chars, mixed case, digit,
+    symbol); violations answer 400 ``weak_password``.
     """
+    # Audit M1: reject weak admin passwords before anything else so a failed
+    # attempt can never seed roles or leave partial state behind.
+    validate_password_complexity(payload.password)
+
     user_count = await db.scalar(select(func.count()).select_from(User))
     if user_count > 0:
         raise HTTPException(status_code=403, detail="Setup already completed")

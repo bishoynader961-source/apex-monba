@@ -25,8 +25,10 @@ from app.shared.schemas import (
     MovementLogResponse,
     PaginatedProducts,
     ProductCreate,
+    ProductPage,
     ProductRead,
     ReceiveBatch,
+    StockLevelPage,
     StockLevelRead,
     SupplierCreate,
     SupplierRead,
@@ -176,12 +178,14 @@ async def receive_batch(
     return batch
 
 
-@router.get("/batches/low-stock", response_model=list[ProductRead])
+@router.get("/batches/low-stock", response_model=ProductPage)
 async def low_stock(
+    limit: int = Query(default=200, ge=1, le=1000),
+    cursor: Optional[int] = Query(default=None, ge=1),
     _auth: CurrentUser = Depends(require_permission("inventory.read")),
     session: AsyncSession = Depends(get_session),
-) -> list[ProductRead]:
-    return await InventoryService(session).low_stock()
+) -> ProductPage:
+    return await InventoryService(session).low_stock(limit=limit, cursor=cursor)
 
 
 @router.get("/batches/expiring-soon", response_model=list[BatchRead])
@@ -212,15 +216,20 @@ async def adjust_batch(
     return await InventoryService(session).adjust_batch(batch_id, payload)
 
 
-@router.get("/stock-levels", response_model=list[StockLevelRead])
+@router.get("/stock-levels", response_model=StockLevelPage)
 async def stock_levels(
     low_stock_only: bool = Query(default=False),
     expiring_days: int = Query(default=90, ge=1, le=365),
+    limit: int = Query(default=200, ge=1, le=1000),
+    cursor: Optional[int] = Query(default=None, ge=1),
     _auth: CurrentUser = Depends(require_permission("inventory.read")),
     session: AsyncSession = Depends(get_session),
-) -> list[StockLevelRead]:
+) -> StockLevelPage:
     return await InventoryService(session).stock_levels(
-        low_stock_only=low_stock_only, expiring_days=expiring_days
+        low_stock_only=low_stock_only,
+        expiring_days=expiring_days,
+        limit=limit,
+        cursor=cursor,
     )
 
 

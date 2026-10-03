@@ -11,9 +11,11 @@ read and pruned opportunistically on write, so there is no background timer.
 """
 from __future__ import annotations
 
+import functools
+import inspect
 import threading
 import time
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 _DEFAULT_TTL_SECONDS = 60.0
 
@@ -64,3 +66,49 @@ def cache_clear() -> None:
     """Empty the whole cache (used by tests and admin reset paths)."""
     with _lock:
         _store.clear()
+
+
+def ttl_cache(maxsize: int = 128, ttl: float = _DEFAULT_TTL_SECONDS) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Decorator: cache a zero-argument function's result for ``ttl`` seconds.
+
+    Audit M9: the alert loop runs three COUNT scans on startup and every 30
+    minutes; a 30 s TTL means rapid restarts share one scan instead of each
+    re-scanning the inventory tables. ``maxsize`` mirrors ``functools.lru_cache``
+    for familiarity (one entry is spilled per decorated function); the shared
+    store already prunes itself opportunistically. Only zero-argument calls are
+    cached — arguments are not part of the cache key. Async functions are
+    supported.
+    """
+
+    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        key = f"ttl_cache:{fn.__module__}.{fn.__qualname__}"
+
+        if inspect.iscoroutinefunction(fn):
+
+            @functools.wraps(fn)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                if args or kwargs:
+                    return await fn(*args, **kwargs)
+                cached = cache_get(key)
+                if cached is not None:
+                    return cached
+                value = await fn()
+                cache_set(key, value, ttl_seconds=ttl)
+                return value
+
+            return async_wrapper
+
+        @functools.wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if args or kwargs:
+                return fn(*args, **kwargs)
+            cached = cache_get(key)
+            if cached is not None:
+                return cached
+            value = fn()
+            cache_set(key, value, ttl_seconds=ttl)
+            return value
+
+        return wrapper
+
+    return decorator

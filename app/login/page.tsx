@@ -42,7 +42,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (state?.success && state.access_token) {
-      localStorage.setItem("access_token", state.access_token);
+      // Audit M3: the access token is held in memory only (the refresh token
+      // never reaches this code — it lives in an HttpOnly cookie).
       setToken(state.access_token);
       void fetchCurrentUser().then(() => router.replace("/dashboard"));
     }

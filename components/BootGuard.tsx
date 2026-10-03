@@ -58,11 +58,11 @@ export function BootGuard({ children }: { children: ReactNode }) {
           } catch {
             // Setup check failed — proceed to login (setup route handles its own guard).
           }
-          // ── Setup complete: hydrate auth state then show app ──────────────
-          const token = localStorage.getItem("access_token");
-          if (token) {
-            await useAuthStore.getState().fetchCurrentUser();
-          }
+          // ── Setup complete: restore the session, then show the app ────────
+          // Audit M3: the access token is memory-only, so a reload has none.
+          // bootstrap() silently refreshes via the HttpOnly refresh cookie
+          // and leaves the app logged out (login page) when that fails.
+          await useAuthStore.getState().bootstrap();
           setReady(true);
           return;
         }

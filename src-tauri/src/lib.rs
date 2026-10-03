@@ -229,15 +229,9 @@ fn setup_main_device(app: tauri::AppHandle) -> Result<(), String> {
         msg
     })?;
 
-    let config_path = data_dir.join(".env");
-    let env_content = "DB_HOST=127.0.0.1\nDB_PORT=5432\nDB_USER=postgres\nDB_PASS=localpass\n";
-    std::fs::write(&config_path, env_content).map_err(|e| {
-        let msg = format!("[setup] write {} failed: {e}", config_path.display());
-        log_to_file(&log_path, &msg);
-        msg
-    })?;
-
-    log_to_file(&log_path, &format!("[setup] SUCCESS: .env written to {}", config_path.display()));
+    // Batch 1 (audit L3): the legacy .env write (DB_HOST/DB_PORT/DB_USER/
+    // DB_PASS=localpass) was removed — nothing in the app reads those keys
+    // (verified repo-wide; the FastAPI settings schema ignores unknown keys).
     Ok(())
 }
 
@@ -735,8 +729,12 @@ async fn spawn_servers(app: &tauri::AppHandle) {
                 //   shared      → 0.0.0.0 (desktop is the LAN server; firewall note shown in Settings)
                 //   independent → 127.0.0.1 (loopback only — default and safe)
                 //   cloud (stub)→ 127.0.0.1 today; a hosted relay is future work
+                // Audit M2: DB fallback (no setting row) is now 'independent'
+                // so a fresh/legacy install without the row stays loopback-only.
+                // Existing installs with an explicit 'shared' row keep binding
+                // 0.0.0.0 (auto-migrate).
                 let mobile_access_mode =
-                    read_system_setting_value(app, "mobile_access_mode").await.ok().flatten().unwrap_or_else(|| "shared".to_string());
+                    read_system_setting_value(app, "mobile_access_mode").await.ok().flatten().unwrap_or_else(|| "independent".to_string());
                 let bind_host = match mobile_access_mode.as_str() {
                     "shared" => "0.0.0.0",
                     _ => "127.0.0.1", // independent + cloud-stub + unknown values stay safe

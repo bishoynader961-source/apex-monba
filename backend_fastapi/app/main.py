@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Callable
 
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -187,6 +187,10 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
     swagger_ui_oauth2_redirect_url=None,
+    # Audit M2: the OpenAPI schema is served only while DEBUG=true (the
+    # custom /docs and /redoc handlers below re-check settings at request
+    # time, so the gate follows the running configuration).
+    openapi_url="/openapi.json" if settings.debug else None,
 )
 
 app.state.limiter = limiter
@@ -194,22 +198,29 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
+    # Audit M6: explicit same-machine origins only. The LAN CIDR literals,
+    # exp:// wildcards, and the credentialed LAN-wide origin regex are gone —
+    # they let ANY browser page on the local network make credentialed calls
+    # to a LAN-exposed instance. The React Native companion app is non-browser
+    # and never subject to CORS; desktop/web frontends run on localhost:3000.
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        # LAN access — allow local subnet origins for mobile companion app
-        "http://192.168.0.0/16",
-        "http://10.0.0.0/8",
-        "http://172.16.0.0/12",
-        # Expo dev server origins
-        "exp://192.168.*.*:*",
-        "exp://10.*.*.*:*",
-        "exp://172.16.*.*:*",
     ],
-    allow_origin_regex=r"^https?://(192\.168|10\.|172\.(1[6-9]|2[0-9]|3[0-1]))\.\d{1,3}\.\d{1,3}(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=[
+        "authorization",
+        "content-type",
+        "X-Device-Token",
+        "X-Approval-Token",
+        "X-Lock-Password",
+    ],
+    # Headers the browser may read from cross-origin responses.
+    expose_headers=[
+        "X-Setup-Required",
+        "Retry-After",
+    ],
 )
 
 # Sprint 2C (D4): gzip response compression (audit: not enabled). Stacked
@@ -223,6 +234,10 @@ app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
 @app.get("/docs", include_in_schema=False)
 async def swagger_ui_html(req: Request) -> HTMLResponse:
+    # Audit M2: API docs are gated behind DEBUG at request time (reads the
+    # live settings object, so tests and operators can flip it at runtime).
+    if not settings.debug:
+        raise HTTPException(status_code=404)
     root_path = req.scope.get("root_path", "").rstrip("/")
     openapi_url = root_path + app.openapi_url
     return get_swagger_ui_html(
@@ -237,6 +252,9 @@ async def swagger_ui_html(req: Request) -> HTMLResponse:
 
 @app.get("/redoc", include_in_schema=False)
 async def redoc_html(req: Request) -> HTMLResponse:
+    # Audit M2: same DEBUG gate as /docs.
+    if not settings.debug:
+        raise HTTPException(status_code=404)
     root_path = req.scope.get("root_path", "").rstrip("/")
     openapi_url = root_path + app.openapi_url
     return get_redoc_html(
@@ -249,6 +267,11 @@ async def redoc_html(req: Request) -> HTMLResponse:
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    # Audit M2: request-time OpenAPI gate. The route only exists when DEBUG
+    # was true at import (openapi_url=None otherwise); this also blocks it if
+    # debug is flipped off while the process runs.
+    if request.url.path == "/openapi.json" and not settings.debug:
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
     response = await call_next(request)
     for header, value in SECURITY_HEADERS.items():
         if header == "Content-Security-Policy" and request.url.path.startswith(_DOCS_PATHS):

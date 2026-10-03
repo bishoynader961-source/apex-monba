@@ -136,11 +136,9 @@ Report any failures before merging PR #32.
 
 ## LAUNCH PREP — Phase 0 follow-ups (owner, added 2026-10-03, branch release/launch-prep)
 
-### L1 — Support email inbox
-Needed before Freemius product creation (Phase 3.3) and store listing.
-1. Create/choose a support inbox you will actually read (recommended: `support@apexsoftware…` on a domain you own, or a dedicated Gmail).
-2. Enable 2FA on it.
-3. Reply with the address so it can go into `release/DECISIONS.md` and the Freemius listing.
+### L1 — Support email inbox — RESOLVED 2026-10-03
+Owner chose **pharmacypro.support@gmail.com** (recorded in release/DECISIONS.md).
+Remaining: enable 2FA on that inbox before it goes on any public listing.
 
 ### L2 — App logo 512×512 PNG
 Needed for the Freemius product icon, store listing, and installer branding.

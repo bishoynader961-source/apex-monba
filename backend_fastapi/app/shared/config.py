@@ -163,6 +163,13 @@ class Settings(BaseSettings):
     # the backend .env. Different from SECRET_KEY/JWT secret.
     fix_code_secret: str = Field(default="", alias="FIX_CODE_SECRET")
 
+    # ── Support fix-code admin key (audit M4) ──
+    # Second credential issued with each fix code (defense against a stolen
+    # code being used alone). Moved server-side by audit M4: the desktop
+    # binary no longer embeds the key. Empty/missing → every fix code is
+    # rejected (fail-closed), same as FIX_CODE_SECRET.
+    fix_admin_key: str = Field(default="", alias="FIX_ADMIN_KEY")
+
     # ── Multi-terminal sync hub (C.1 hardening) ──
     multi_terminal: bool = Field(default=False, alias="POS_MULTI_TERMINAL")
     device_id: str = Field(default_factory=lambda: _stable_device_id(), alias="POS_DEVICE_ID")
@@ -175,7 +182,10 @@ class Settings(BaseSettings):
     # local network (0.0.0.0). "independent" = mobile keeps its own local DB
     # and the API stays loopback-only (127.0.0.1). "cloud" is a stub for a
     # future hosted relay and currently behaves like "independent".
-    mobile_access_mode: str = Field(default="shared", alias="MOBILE_ACCESS_MODE")
+    # Audit M2: process default is 'independent' (loopback-only). The seed
+    # default for NEW installs matches; existing installs keep their stored
+    # value ('shared' deployments continue to bind 0.0.0.0).
+    mobile_access_mode: str = Field(default="independent", alias="MOBILE_ACCESS_MODE")
     mobile_bind_host: str = Field(default="127.0.0.1", alias="MOBILE_BIND_HOST")
 
     frontend_url: str = Field(default="http://localhost:3000", alias="FRONTEND_URL")

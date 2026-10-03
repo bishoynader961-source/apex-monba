@@ -9,6 +9,7 @@ import { useAuthStore, useCan } from "@/stores/authStore";
 import { useI18n } from "@/components/I18nProvider";
 import { useToast } from "@/hooks/useToast";
 import { formatMoney, parseMoney } from "@/lib/decimalCurrency";
+import { getAccessToken } from "@/lib/api";
 
 const BASE = "/api/v1/receipts";
 
@@ -211,7 +212,7 @@ export default function ReceiptHistoryPage() {
       if (filters.end_date) params.set("end_date", filters.end_date);
       if (filters.search) params.set("search", filters.search);
       const resp = await fetch(`${BASE}?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        headers: { Authorization: `Bearer ${getAccessToken() ?? ""}` },
       });
       if (!resp.ok) throw new Error("Failed to fetch receipts");
       const data = await resp.json();
@@ -236,7 +237,7 @@ export default function ReceiptHistoryPage() {
   const fetchRetention = async () => {
     try {
       const resp = await fetch(`${BASE}/settings`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        headers: { Authorization: `Bearer ${getAccessToken() ?? ""}` },
       });
       if (resp.ok) {
         const data = await resp.json();
@@ -264,7 +265,7 @@ export default function ReceiptHistoryPage() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          Authorization: `Bearer ${getAccessToken() ?? ""}`,
         },
         body: JSON.stringify({ retention_days: days }),
       });
@@ -285,7 +286,7 @@ export default function ReceiptHistoryPage() {
     try {
       const resp = await fetch(`${BASE}/expired`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        headers: { Authorization: `Bearer ${getAccessToken() ?? ""}` },
       });
       if (!resp.ok) throw new Error("Failed to delete");
       const data = await resp.json();
@@ -300,7 +301,7 @@ export default function ReceiptHistoryPage() {
     setDetailLoading(true);
     try {
       const resp = await fetch(`${BASE}/${id}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        headers: { Authorization: `Bearer ${getAccessToken() ?? ""}` },
       });
       if (!resp.ok) throw new Error("Failed to load receipt");
       const data = await resp.json();
@@ -317,7 +318,7 @@ export default function ReceiptHistoryPage() {
     try {
       const resp = await fetch(`${BASE}/${id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        headers: { Authorization: `Bearer ${getAccessToken() ?? ""}` },
       });
       if (!resp.ok) throw new Error("Failed to delete");
       toast({ title: "Success", message: "Receipt deleted", variant: "success" });

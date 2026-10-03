@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import {
   discoverDesktopUrl,
   MANUAL_ENTRY_REQUIRED,
@@ -33,18 +33,24 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
   mobileBaseUrl: null,
 
   setConnection: async (ip: string, token: string) => {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ desktopIp: ip, authToken: token }));
+    // Audit M3: the desktop auth token is a credential — it lives in the
+    // hardware-backed SecureStore (same pattern as `ph_desktop_url` in
+    // lib/api/baseUrl.ts), never in plain AsyncStorage.
+    await SecureStore.setItemAsync(
+      STORAGE_KEY,
+      JSON.stringify({ desktopIp: ip, authToken: token }),
+    );
     set({ desktopIp: ip, authToken: token, isConnected: true });
   },
 
   clearConnection: async () => {
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    await SecureStore.deleteItemAsync(STORAGE_KEY);
     set({ desktopIp: null, authToken: null, isConnected: false });
   },
 
   hydrate: async () => {
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      const stored = await SecureStore.getItemAsync(STORAGE_KEY);
       if (stored) {
         const { desktopIp, authToken } = JSON.parse(stored);
         if (desktopIp && authToken) {
@@ -52,7 +58,7 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
         }
       }
     } catch {
-      // Ignore parse errors
+      // Ignore parse/keystore errors: the ConnectScreen path handles recovery.
     }
   },
 

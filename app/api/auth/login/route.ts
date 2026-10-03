@@ -36,11 +36,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: backendMsg }, { status: apiRes.status });
   }
 
+  // Audit M3: the refresh token is NOT returned to JavaScript — it only ever
+  // travels inside the HttpOnly cookie set below. The access token is kept in
+  // memory by the client (stores/authStore + lib/api).
   const res = NextResponse.json({
     success: true,
     user: data.user as UserPublic,
     access_token: data.access_token,
-    refresh_token: data.refresh_token,
   });
 
   const accessMaxAge = 480 * 60;

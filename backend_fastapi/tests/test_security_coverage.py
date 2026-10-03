@@ -97,7 +97,7 @@ def test_create_refresh_token():
     assert claims["type"] == "refresh"
 
 
-def test_approval_token_lifecycle():
+async def test_approval_token_lifecycle(session):
     from app.shared.security import (
         create_approval_token,
         consume_approval_token,
@@ -107,11 +107,11 @@ def test_approval_token_lifecycle():
     tok = create_approval_token("admin", "drawer_open", ttl_seconds=60)
     claims = decode_approval_token(tok)
     assert claims["scope"] == "drawer_open"
-    # Consume
-    consume_approval_token(tok)
+    # Consume (audit L5: persistence in approval_jti, not process memory)
+    await consume_approval_token(tok, session)
     # Replay should fail
     with pytest.raises(AppException):
-        consume_approval_token(tok)
+        await consume_approval_token(tok, session)
 
 
 def test_approval_token_wrong_type():

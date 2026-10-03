@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { getAccessToken } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -9,7 +10,9 @@ export default function PortalPage() {
   const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
+    // Audit M3: memory-only access token; silent refresh happens in
+    // stores/authStore.bootstrap() before this page renders.
+    const token = getAccessToken();
     setIsAuthed(Boolean(token));
     if (token) router.replace("/dashboard");
   }, [router]);

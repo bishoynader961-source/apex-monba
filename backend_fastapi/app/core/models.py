@@ -244,6 +244,23 @@ class SystemSetting(Base):
     value: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
 
 
+class ApprovalJti(Base):
+    """Consumed single-use manager-approval token IDs (audit L5).
+
+    Previously an in-process ``set`` in ``app/shared/security.py``: a backend
+    restart within the 60-second approval-token TTL allowed a replay, and the
+    set grew without eviction. Persisting the JTI in SQLite makes first-use
+    durable across restarts; a periodic cleanup deletes rows older than 2x
+    the TTL so the table stays small.
+    """
+
+    __tablename__ = "approval_jti"
+
+    jti: Mapped[str] = mapped_column(String(64), primary_key=True)
+    # UTC ISO-8601 (same convention as Device.created_at).
+    consumed_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
 class SyncOutbox(Base):
     """Per-terminal event log for the multi-terminal merge-sync hub (C.1).
 

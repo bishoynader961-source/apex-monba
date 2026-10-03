@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
 from sqlalchemy import func, select, update
@@ -27,6 +28,16 @@ from app.shared.schemas import (
     StockLevelPage,
     StockLevelRead,
 )
+
+
+def today_iso() -> str:
+    """Local calendar date as ISO string — the app's expiry-date convention.
+
+    All ``expiration_date`` values are stored as naive local ISO dates, so every
+    expiry comparison uses the local calendar (not UTC) to decide sellability
+    (audit L7). Single helper so the semantic is defined in exactly one place.
+    """
+    return date.today().isoformat()
 
 
 class InventoryService:
@@ -68,7 +79,7 @@ class InventoryService:
             await repo.get_lots_for_product(product_name),
             key=lambda l: (l.expiration_date or "", l.id),
         )
-        today = date.today().isoformat()
+        today = today_iso()
         recalled_present = any(bool(l.recalled) for l in lots)
         expired_present = any(
             l.expiration_date and l.expiration_date < today for l in lots
@@ -119,7 +130,7 @@ class InventoryService:
         never sellable); used by POS checkout to fail loudly when expired stock
         is still on the shelf instead of silently skipping it (D8 critical fix).
         """
-        today = date.today().isoformat()
+        today = today_iso()
         for lot in await BatchRepository(self.session).get_lots_for_product(product_name):
             if lot.expiration_date and lot.expiration_date < today:
                 return str(lot.expiration_date)
@@ -189,7 +200,7 @@ class InventoryService:
         )
 
     async def expiring_soon(self, days: int = 90) -> list[BatchRead]:
-        today = date.today().isoformat()
+        today = today_iso()
         cutoff = (date.today() + timedelta(days=days)).isoformat()
         rows = (
             await self.session.execute(
@@ -218,7 +229,7 @@ class InventoryService:
         ``Product.id``; the previous page's ``next_cursor`` goes back in as
         ``cursor``.
         """
-        today = date.today().isoformat()
+        today = today_iso()
         cutoff = (date.today() + timedelta(days=expiring_days)).isoformat()
         total_on_hand = func.coalesce(func.sum(InventoryExtended.on_hand), 0)
         stmt = (
@@ -324,16 +335,23 @@ class InventoryService:
         return {"updated": updated, "total_requested": len(batch_ids)}
 
     async def batch_adjust_price(self, medicine_ids: list[int], price_change_pct: float) -> dict[str, object]:
-        """Adjust price for multiple medicines by percentage."""
+        """Adjust price for multiple medicines by percentage.
+
+        Decimal arithmetic with ROUND_HALF_UP cents (audit L1) — float math
+        here produced prices like 10.10 * 1.15 -> 11.615000000000002.
+        """
         from app.core.models import Product
         from sqlalchemy import select
         updated = 0
+        pct = Decimal(str(price_change_pct))
         for med_id in medicine_ids:
             product = await self.session.get(Product, med_id)
             if product:
-                current_price = float(product.price) if product.price else 0
-                new_price = round(current_price * (1 + price_change_pct / 100), 2)
-                product.price = new_price
+                current_price = Decimal(str(product.price or 0))
+                new_price = (current_price * (1 + pct / 100)).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+                product.price = float(new_price)
                 updated += 1
         await self.session.commit()
         return {"updated": updated, "total_requested": len(medicine_ids), "price_change_pct": price_change_pct}

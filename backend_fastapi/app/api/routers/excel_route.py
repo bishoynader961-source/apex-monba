@@ -13,6 +13,7 @@ import io
 import logging
 import uuid
 from datetime import datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -25,6 +26,16 @@ from app.core.database import get_session
 from app.shared.schemas import CurrentUser
 
 log = logging.getLogger(__name__)
+
+def _parse_price(raw: Any) -> Decimal:
+    """Parse a spreadsheet price into an exact 2-dp Decimal (audit L1).
+
+    Raises ``InvalidOperation``/``ValueError`` so callers keep their existing
+    "invalid price value" row-error path; ``float()`` parsing here previously
+    stored binary-float artifacts (e.g. 4.10 -> 4.0999999...) into products.
+    """
+    return Decimal(str(raw)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
 
 router = APIRouter(prefix="/api/v1/excel", tags=["excel"])
 
@@ -295,8 +306,8 @@ async def commit_import(
             mfg_barcode = str(preview_row.get("manufacturer_barcode") or "").strip()
 
             try:
-                price = float(preview_row.get("price") or 0)
-            except (TypeError, ValueError):
+                price = _parse_price(preview_row.get("price") or 0)
+            except (TypeError, ValueError, InvalidOperation):
                 errors.append(f"Row {row_idx}: invalid price value.")
                 skipped += 1
                 continue
@@ -429,7 +440,7 @@ async def export_inventory(
             record["vendor_name"],
             record["expiry_date"],
             record["manufacture_date"],
-            float(record["price"]),
+            float(record["price"]),  # display only: Excel expects a float cell
             record["status"],
             record["category"],
             record.get("lot_number") or "",
@@ -525,8 +536,8 @@ async def import_inventory(
             mfg_barcode = str(record.get("manufacturer_barcode") or "").strip()
 
             try:
-                price = float(record.get("price") or 0)
-            except (TypeError, ValueError):
+                price = _parse_price(record.get("price") or 0)
+            except (TypeError, ValueError, InvalidOperation):
                 errors.append(f"Row {row_idx}: invalid price value.")
                 skipped += 1
                 continue
@@ -627,8 +638,8 @@ async def import_csv(
             mfg_barcode = str(record.get("manufacturer_barcode") or "").strip()
 
             try:
-                price = float(record.get("price") or 0)
-            except (TypeError, ValueError):
+                price = _parse_price(record.get("price") or 0)
+            except (TypeError, ValueError, InvalidOperation):
                 errors.append(f"Row {row_idx}: invalid price value.")
                 skipped += 1
                 continue

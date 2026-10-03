@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -216,7 +216,11 @@ async def receive_shipment(
     4. Creates a ``purchase_history`` record.
     5. Writes an audit log entry.
     """
-    total_cost = Decimal(str(payload.unit_cost)) * payload.quantity
+    # Quantize at intake (audit L1): 2-dp HALF_UP unit cost, exact Decimal total.
+    unit_cost_dec = Decimal(str(payload.unit_cost)).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+    total_cost = unit_cost_dec * payload.quantity
     now = datetime.now(timezone.utc).isoformat()
     received_date = payload.received_date or datetime.now(timezone.utc).date().isoformat()
 
@@ -244,7 +248,7 @@ async def receive_shipment(
                 """),
                 {
                     "name": payload.product_name,
-                    "price": float(payload.unit_cost),
+                    "price": float(unit_cost_dec),
                     "barcode": internal_barcode,
                     "vendor": vendor_name,
                 },
@@ -268,7 +272,7 @@ async def receive_shipment(
                 "vendor_id": payload.vendor_id,
                 "product_name": payload.product_name,
                 "qty": payload.quantity,
-                "unit_cost": float(payload.unit_cost),
+                "unit_cost": float(unit_cost_dec),
                 "total_cost": float(total_cost),
                 "invoice_ref": payload.invoice_ref,
                 "received_date": received_date,

@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' recovery://localhost; img-src 'self' data: https: http://127.0.0.1:3000 http://localhost:3000; style-src 'self' 'unsafe-inline' http://127.0.0.1:3000 http://localhost:3000; script-src 'self' 'wasm-unsafe-eval' http://127.0.0.1:3000 http://localhost:3000 https://cdn.paddle.com; connect-src 'self' http://127.0.0.1:3000 http://localhost:3000 http://localhost:8000 http://127.0.0.1:8000; font-src 'self' http://127.0.0.1:3000 http://localhost:3000 data:"
+      "csp": "default-src 'self' recovery://localhost; img-src 'self' data: http://127.0.0.1:3000 http://localhost:3000; style-src 'self' 'unsafe-inline' http://127.0.0.1:3000 http://localhost:3000; script-src 'self' 'wasm-unsafe-eval' http://127.0.0.1:3000 http://localhost:3000; connect-src 'self' http://127.0.0.1:3000 http://localhost:3000 http://localhost:8000 http://127.0.0.1:8000; font-src 'self' http://127.0.0.1:3000 http://localhost:3000 data:"
     }
   },
   "plugins": {

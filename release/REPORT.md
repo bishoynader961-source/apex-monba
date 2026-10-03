@@ -4,6 +4,68 @@ Branch: `release/launch-prep` (never touches `main`). Format: newest phase on to
 
 ---
 
+# FINAL SUMMARY — Phases 0–3 COMPLETE (2026-10-03)
+
+## What was completed
+- **Phase 0 Discovery** → [`DISCOVERY.md`](DISCOVERY.md): stack confirmed (Tauri v2 + Next.js 16 + FastAPI + SQLite, offline-capable Windows desktop); PHI stored plaintext in live DB (DPAPI `phi_encrypt` defined but unwired — backups ARE AES-256-GCM encrypted); auth/RBAC + first-run wizard (no default creds); single-branch; 6 locales with Arabic RTL; preliminary license scan. Owner answered all gating questions.
+- **Phase 1 Pre-sale audit** → [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md) + [`AUDIT.md`](AUDIT.md) + [`demo/`](demo/README.md): **no GPL/AGPL blockers** across 1,120 deps (npm/Python/Rust); pytest 917/1 ✅, cargo check 0 err ✅, tsc clean ✅, vitest 54/54 ✅; no hardcoded paths/timezones; backup→restore round-trip **MATCH: True**; demo dataset (20 drugs/5 patients/10 receipts/2 suppliers) + verified loader.
+- **Phase 2 Decisions** → [`DECISIONS.md`](DECISIONS.md): one-time **$149** + optional $59/yr renewal; 14-day trial; 14-day no-questions refund; 1-year updates; email support 48h; "Pharmacy Suite" by "Apex Software"; support pharmacypro.support@gmail.com; market Egypt+Arab world, USD base. All owner-approved.
+- **Phase 3 Freemius setup** → store copy + screenshot plan + integration plan + owner steps: [`store-copy/freemius_listing.md`](store-copy/freemius_listing.md), [`store-copy/screenshot_plan.md`](store-copy/screenshot_plan.md), [`LICENSE_INTEGRATION_PLAN.md`](LICENSE_INTEGRATION_PLAN.md), HUMAN_TODO §P1.
+
+## Official-source confirmations (verified 2026-10-03, per hard rule 9)
+1. **Egypt is on Freemius' supported payout-countries list** ("Supported Countries for Payouts" — Egypt listed; payouts via Payoneer/Wise/PayPal/wire): https://freemius.com/help/documentation/selling-with-freemius/supported-countries.md
+2. **Pharmacy management software is not prohibited** — "Downloadable Software … desktop and mobile apps" is an explicitly accepted category; no pharmacy/healthcare-management restriction exists. Caveat honored: products giving *medical/diagnostic advice* are restricted, so the listing describes record-keeping/management features only (FAQ/feature copy wording). Sources: https://freemius.com/help/documentation/selling-with-freemius/allowed-prohibited-products.md + llms.txt index https://freemius.com/help/llms.txt
+3. **Fees for a desktop app (SaaS & Software plan): 4.7% revenue share per successful transaction + ~3.5% average gateway fee; no setup, monthly, payout, currency-conversion, or VAT-rev-share fees**; growth pricing drops rev-share from $50k/mo. Source: https://freemius.com/help/documentation/getting-started/our-pricing.md (on a $149 sale ≈ $12.22 total ≈ 8.2%, excl. VAT).
+4. Payout mechanics (Payoneer/Wise/PayPal/wire; 10th monthly, $100 minimum, ~2-month first-payout delay): https://freemius.com/help/documentation/selling-with-freemius/your-earnings.md
+
+## Waiting for owner input
+1. **Logo 512×512 PNG** (HUMAN_TODO §L2) — blocks Freemius product creation.
+2. **2FA on pharmacypro.support@gmail.com** (§L1 remainder).
+3. **Clean-machine install test** (§L3) — pre-sale gate.
+4. **8 screenshots incl. 2 Arabic-RTL** (§L4) after loading the demo dataset.
+5. **Freemius account + product + keys** (§P1, 11 click-by-click steps) — KYC/payout/legal steps are owner-only by rule.
+6. Phase 4 go-ahead after P1 (product ID + keys via local .env).
+
+## HUMAN_TODO items added by launch prep (numbered)
+- **L1** Support inbox — RESOLVED (email chosen; 2FA remains).
+- **L2** Logo 512×512 PNG — OPEN, blocks P1 step 7.
+- **L3** Clean-machine install test — OPEN, **pre-sale gate**.
+- **L4** Arabic/RTL screenshot confirmation — OPEN, folds into screenshots.
+- **P1** Freemius account/product/pricing/keys — OPEN (11 steps, cited URLs).
+
+## BLOCKERS
+**None.** (Clean-machine test L3 is a manual gate, tracked in HUMAN_TODO — not a code blocker. Non-blocking observations recorded in AUDIT.md: `backup.py` by-value `_engine` import; PHI-at-rest unwired; cosmetic license fields.)
+
+## What comes next
+**Phase 4 — Freemius license integration** (implementation per [`LICENSE_INTEGRATION_PLAN.md`](LICENSE_INTEGRATION_PLAN.md)) once P1 delivers the product ID + keys. Then: screenshots, store publishing, and the release build.
+
+---
+
+---
+
+## Phase 3 — SELLING PLATFORM SETUP ✅ COMPLETE (2026-10-03)
+
+**Did:**
+- Fetched https://freemius.com/help/llms.txt (mandated first step) and confirmed all three gates from official pages (URLs cited in the FINAL SUMMARY above): Egypt payouts ✅, product category allowed ✅, fees 4.7% + ~3.5% gateway ✅.
+- 3.1 → [`store-copy/freemius_listing.md`](store-copy/freemius_listing.md): name, EN+AR tagline (≤12 words), EN+AR short description, 10 verified feature bullets EN+AR (each mapped to code from DISCOVERY/AUDIT), system requirements (Windows 10+/4 GB/500 MB — consistent with the Tauri+sidecar stack), 5-question EN+AR FAQ, 10 EN + 10 AR keywords.
+- 3.2 → [`store-copy/screenshot_plan.md`](store-copy/screenshot_plan.md): exactly 8 screenshots (screen, demo-data state, buyer rationale); capture = owner step (HUMAN_TODO §L4).
+- 3.3 → HUMAN_TODO **§P1**: 11 click-by-click Freemius account/product steps with direct URLs (Get Started → SaaS & Software plan → 2FA → identity verification → Payoneer/Wise payout → product from listing copy → pricing per DECISIONS → 14-day trial + 14-day refund → sandbox test → copy Product ID + keys to local .env).
+- 3.4 → [`LICENSE_INTEGRATION_PLAN.md`](LICENSE_INTEGRATION_PLAN.md) (plan only, no code): **Hosted Checkout in system browser + direct license-key activation API from the FastAPI sidecar (public-key verified, secret never ships) + webhooks to the cloud Next app**; 9 exact files to change (reconciling `lib/license.ts` Paddle gateway — Freemius added as new gateway, Paddle kept for legacy keys); 6 license states incl. `offline_grace`; **21-day offline grace** (trial anchor only — activated perpetual license runs offline forever); expired = read-only + export, never lockout; 7-item Phase 4 test plan.
+
+**Official docs > playbook deviations (rule 7):** (a) plan selection is "SaaS & Software" (desktop apps), not the playbook's literal "Desktop / Web App" button label; (b) fees verified as 4.7% rev-share + ~3.5% gateway, not a flat per-transaction number. Both cited above.
+
+**Left / next:** everything in "Waiting for owner input"; then Phase 4 implementation.
+
+---
+
+## Phase 2 — PRODUCT DECISIONS ✅ COMPLETE (2026-10-03) — commit 095b656
+
+**Did:** Confirmed all playbook defaults with the owner via structured questions (each explicitly approved, none invented) → [`DECISIONS.md`](DECISIONS.md): pricing A one-time **$149** + optional $59/yr renewal; trial **14d**; refund **14d no-questions**; updates **1 year**; support **email 48h**; name **Pharmacy Suite**; publisher **Apex Software**; email **pharmacypro.support@gmail.com**; market **Egypt + Arab world**; currency **USD** base.
+
+**Decisions made:** all values owner-approved; logo still pending (§L2) — recorded as a blocker only for P1 step 7, not for Phase 3 artifacts.
+
+---
+
 ## Phase 1 — PRE-SALE AUDIT ✅ COMPLETE (2026-10-03) — commit 426dd47
 
 **Did:**

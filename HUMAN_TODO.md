@@ -162,3 +162,22 @@ When capturing the 8 store screenshots, capture at least 2 with the UI language 
 1. Settings → Language → العربية.
 2. Confirm the layout flips to right-to-left and no text is cut off in the POS and Inventory screens.
 3. Keep those as 2 of the 8 screenshots (Arabic-speaking buyers need to see RTL support).
+
+### P1 — Create your Freemius account and product (Phase 3.3 — owner-only: KYC, identity, payout details)
+Prerequisites: logo ready (§L2), support inbox 2FA (§L1), screenshots captured (§L4).
+Platform facts verified 2026-10-03 from official pages (cited in release/REPORT.md):
+  • Egypt IS on the supported payout countries list → https://freemius.com/help/documentation/selling-with-freemius/supported-countries.md
+  • Desktop downloadable software is an allowed product; pharmacy management is not prohibited → https://freemius.com/help/documentation/selling-with-freemius/allowed-prohibited-products.md
+  • Fee: 4.7% revenue share + ~3.5% avg gateway fee; no setup/monthly/payout fees → https://freemius.com/help/documentation/getting-started/our-pricing.md
+Steps:
+ 1. Go to https://freemius.com and click "Get Started" (top-right) → https://freemius.com/pricing/
+ 2. Choose the "SaaS & Software" plan (NOT "WordPress & Templates" — Pharmacy Suite is a desktop app; 4.7% applies).
+ 3. Sign up with pharmacypro.support@gmail.com (or your preferred email). Verify your email.
+ 4. Enable 2FA on the Freemius account: https://freemius.com/help/documentation/security/two-factor-authentication-2fa.md
+ 5. Complete identity/business verification to sell in production (government ID / documents): https://freemius.com/help/documentation/selling-with-freemius/verification.md
+ 6. Set up your payout method (My Profile → Payout Methods). Recommended for Egypt: Payoneer or Wise (PayPal MassPay also available). Have the Payoneer/Wise account ready BEFORE this step. Payouts run on the 10th monthly with a $100 minimum and ~2-month first-payout delay: https://freemius.com/help/documentation/selling-with-freemius/your-earnings.md
+ 7. Create a new product: Dashboard → "Create Product" → type "App / Desktop" (SaaS & Software). Use the copy in release/store-copy/freemius_listing.md for name, tagline, description, FAQ, keywords.
+ 8. Set pricing exactly per release/DECISIONS.md: one-time $149 (1 license unit per computer), optional $59/yr renewal plan, 14-day free trial. Configure the 14-day refund policy in the product settings.
+ 9. In Sandbox mode, run one test checkout end-to-end before going live: https://freemius.com/help/documentation/checkout/integration/testing.md
+10. Copy from the Developer Dashboard → My Products → [Pharmacy Suite] → Keys: Product ID, Public Key, Secret Key, and the Webhook URL secret. Put them in a LOCAL .env (never commit). Reply with "P1 done + product ID" (never paste the secret key into chat).
+11. Hand the Product ID + keys to the Phase 4 license integration work (plan already written: release/LICENSE_INTEGRATION_PLAN.md).

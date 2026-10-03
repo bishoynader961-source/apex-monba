@@ -9,8 +9,9 @@ export interface LoginState {
   success?: boolean;
   error?: string;
   user?: UserPublic;
+  // Audit M3: the refresh token is never returned to JavaScript — it is set
+  // as an HttpOnly cookie below. The access token stays in memory client-side.
   access_token?: string;
-  refresh_token?: string;
 }
 
 export async function loginAction(
@@ -70,6 +71,5 @@ export async function loginAction(
     success: true,
     user: data.user as UserPublic,
     access_token: data.access_token,
-    refresh_token: data.refresh_token,
   };
 }

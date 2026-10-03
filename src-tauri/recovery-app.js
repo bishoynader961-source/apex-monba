@@ -12,6 +12,16 @@
   // Tauri v2 global IPC bridge (withGlobalTauri is enabled for this window
   // via the recovery capability; the main window keeps its own config).
   var invoke = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+
+  // Audit M4: fix codes are verified by the local backend now; this is the
+  // fail-closed code shown when that backend cannot be reached.
+  function friendlyError(err) {
+    var code = String(err);
+    if (code === "VERIFY_UNAVAILABLE") {
+      return "Cannot reach the local service (127.0.0.1:8000). Start Pharmacy Suite once, then try again.";
+    }
+    return code;
+  }
   var openUrl = window.__TAURI__ && window.__TAURI__.shell && window.__TAURI__.shell.open;
 
   var SUPPORT_EMAIL = "pharmacypro.support@gmail.com";
@@ -137,7 +147,7 @@
       .catch(function (err) {
         // err is one of the fixed friendly codes from fix_engine.rs
         result.className = "err";
-        result.textContent = String(err);
+        result.textContent = friendlyError(err);
       })
       .then(function () {
         $("btn-fix").disabled = false;
@@ -175,7 +185,7 @@
       })
       .catch(function (err) {
         result.className = "err";
-        result.textContent = String(err);
+        result.textContent = friendlyError(err);
       })
       .then(function () {
         $("reset-confirm").classList.add("hidden");

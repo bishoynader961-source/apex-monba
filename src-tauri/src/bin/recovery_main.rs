@@ -5,8 +5,11 @@
 // it starts when nothing else will.
 //
 // SECURITY:
-//   * Same hardcoded key, same constant-time HMAC verification, same
-//     whitelist as the in-app engine — one implementation, audited once.
+//   * Same server-side verification and the same local whitelist as the
+//     in-app engine — one implementation, audited once. Audit M4: this
+//     binary embeds NO keys; the backend verifies the admin key + HMAC.
+//   * Requires the Pharmacy Suite backend to be running (start the app
+//     once); verification fails closed when it is unreachable.
 //   * Only friendly codes are printed; the fix-code content itself is never
 //     echoed. The admin key is read hidden where the console supports it.
 //   * The only filesystem writes it can perform are the three whitelisted
@@ -118,26 +121,16 @@ fn cmd_apply_fix(admin_key: &str, fix_path: &str) {
         }
     };
 
-    let admin_expected = include_str!("../fix_admin_key.txt");
-    // Constant-time compare; same helper semantics as the engine.
-    if !fixed_ct_eq(admin_key.trim(), admin_expected.trim()) {
-        eprintln!("INVALID_ADMIN_KEY");
-        std::process::exit(1);
-    }
-
-    match app_lib::fix_engine::verify(&fix_code) {
-        Ok((action, payload)) => match app_lib::fix_engine::apply(&action, &payload) {
-            Ok(message) => {
-                println!("\u{2713} {message}");
-                println!("You can now start Pharmacy Suite from the Start Menu.");
-            }
-            Err(e) => {
-                eprintln!("{}", e.as_code());
-                std::process::exit(1);
-            }
-        },
-        Err(e) => {
-            eprintln!("{}", e.as_code());
+    // Audit M4: the admin key and the fix-code HMAC are verified by the local
+    // backend (POST /api/v1/admin/fix/verify). It must be running — the
+    // engine fails closed, printing VERIFY_UNAVAILABLE, when it is not.
+    match app_lib::fix_engine::recovery_apply_fix(admin_key.to_string(), fix_code) {
+        Ok(message) => {
+            println!("\u{2713} {message}");
+            println!("You can now start Pharmacy Suite from the Start Menu.");
+        }
+        Err(code) => {
+            eprintln!("{code}");
             std::process::exit(1);
         }
     }
@@ -168,18 +161,6 @@ fn cmd_launch() {
     }
     eprintln!("Could not find the main Pharmacy Suite executable next to the recovery tool.");
     std::process::exit(1);
-}
-
-/// Constant-time equality for short ASCII secrets.
-fn fixed_ct_eq(a: &str, b: &str) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    let mut diff = 0u8;
-    for (x, y) in a.bytes().zip(b.bytes()) {
-        diff |= x ^ y;
-    }
-    diff == 0
 }
 
 // Keep unused imports meaningful for the interactive path (BufRead/Write are

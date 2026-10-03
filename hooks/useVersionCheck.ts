@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { getAccessToken } from "@/lib/api";
+
 interface VersionInfo {
   current_version: string;
   latest_version: string | null;
@@ -15,7 +17,8 @@ export function useVersionCheck() {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
+    // Audit M3: memory-only access token (bootstrap() refreshes it first).
+    const token = getAccessToken();
     if (!token) return;
 
     fetch("/api/v1/version", {

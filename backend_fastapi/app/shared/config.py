@@ -163,6 +163,13 @@ class Settings(BaseSettings):
     # the backend .env. Different from SECRET_KEY/JWT secret.
     fix_code_secret: str = Field(default="", alias="FIX_CODE_SECRET")
 
+    # ── Support fix-code admin key (audit M4) ──
+    # Second credential issued with each fix code (defense against a stolen
+    # code being used alone). Moved server-side by audit M4: the desktop
+    # binary no longer embeds the key. Empty/missing → every fix code is
+    # rejected (fail-closed), same as FIX_CODE_SECRET.
+    fix_admin_key: str = Field(default="", alias="FIX_ADMIN_KEY")
+
     # ── Multi-terminal sync hub (C.1 hardening) ──
     multi_terminal: bool = Field(default=False, alias="POS_MULTI_TERMINAL")
     device_id: str = Field(default_factory=lambda: _stable_device_id(), alias="POS_DEVICE_ID")

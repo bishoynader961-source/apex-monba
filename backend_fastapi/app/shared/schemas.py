@@ -345,7 +345,9 @@ class Token(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    # Audit M3: browsers present the refresh token via the HttpOnly cookie set
+    # by /auth/login; the body field stays optional for API clients (mobile).
+    refresh_token: Optional[str] = None
 
 
 class VerifyPasswordRequest(BaseModel):

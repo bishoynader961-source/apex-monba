@@ -1267,9 +1267,25 @@ async def migrate_schema(conn: Any) -> None:
             )
         version = 29
 
+    # ── v30: persistent single-use approval JTIs (audit L5) ────────────────
+    # Replaces the in-process set: a restart within the 60s token TTL could
+    # replay an approval, and the set never shrank. Rows are pruned by the
+    # startup cleanup loop (main.py) after 2x the TTL.
+    if version < 30:
+        if not await _table_exists(conn, "approval_jti"):
+            await conn.exec_driver_sql(
+                """
+                CREATE TABLE approval_jti (
+                    jti TEXT PRIMARY KEY,
+                    consumed_at TEXT NOT NULL
+                )
+                """
+            )
+        version = 30
+
     await conn.exec_driver_sql(f"PRAGMA user_version={SCHEMA_VERSION}")
 
 
 
-SCHEMA_VERSION = 29
+SCHEMA_VERSION = 30
 

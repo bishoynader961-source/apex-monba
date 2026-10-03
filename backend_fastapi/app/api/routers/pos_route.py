@@ -98,7 +98,7 @@ async def drawer_movement(
     if _requires_approval(payload.reason, payload.amount):
         if not x_approval_token:
             raise ForbiddenError("Approval token required for this drawer movement")
-        claims = consume_approval_token(x_approval_token)
+        claims = await consume_approval_token(x_approval_token, session)
         if claims.get("scope") != "drawer.move":
             raise ForbiddenError("Approval token scope mismatch: expected drawer.move")
     return await PosService(session).record_drawer_movement(payload, user)

@@ -29,6 +29,11 @@ from typing import Any, Optional, cast
 import bcrypt
 import jwt
 
+from sqlalchemy import delete
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.models import ApprovalJti
 from app.shared.config import settings
 from app.shared.exceptions import AppException
 
@@ -179,14 +184,20 @@ def decode_token(token: str) -> dict[str, Any]:
         raise AppException("Invalid or expired token", status_code=401, error_code="invalid_token") from exc
 
 
-# ── Single-use manager approval tokens (Concern 1 addendum) ──────────────────
+# ── Single-use manager approval tokens (Concern 1 addendum + audit L5) ───────
 # High-risk actions (drawer open, price override, void, discount) require a
 # short-lived, single-use, scope-bound token presented via ``X-Approval-Token``.
-# Tokens are invalidated (jittered) after first use so they cannot be replayed.
-_APPROVAL_JTI_USED: set[str] = set()
+# Consumed JTIs are persisted in the ``approval_jti`` table (SQLite) so the
+# single-use guarantee survives a process restart. The previous in-memory set
+# allowed a replay within the 60s TTL after a restart and grew unbounded; a
+# periodic cleanup (main.py) deletes rows older than 2x the TTL.
+APPROVAL_JTI_TTL_SECONDS = 60
+APPROVAL_JTI_RETENTION_SECONDS = 120  # 2x the token TTL
 
 
-def create_approval_token(subject: str, scope: str, ttl_seconds: int = 60) -> str:
+def create_approval_token(
+    subject: str, scope: str, ttl_seconds: int = APPROVAL_JTI_TTL_SECONDS
+) -> str:
     """Issue a single-use, scope-bound approval token (``X-Approval-Token``)."""
     exp = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
     payload: dict[str, Any] = {
@@ -201,24 +212,56 @@ def create_approval_token(subject: str, scope: str, ttl_seconds: int = 60) -> st
 
 
 def decode_approval_token(token: str) -> dict[str, Any]:
-    """Decode + validate an approval token; raise if malformed/expired/consumed."""
+    """Decode + validate an approval token; raise if malformed/expired/wrong type.
+
+    Single-use is enforced by :func:`consume_approval_token` (which checks the
+    ``approval_jti`` table); this function alone cannot know whether a JTI was
+    already consumed.
+    """
     try:
         claims = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
     except jwt.PyJWTError as exc:  # noqa: BLE001 - normalize all JWT failures
         raise AppException("Invalid or expired approval token", status_code=401, error_code="invalid_approval_token") from exc
     if claims.get("type") != "approval":
         raise AppException("Not an approval token", status_code=401, error_code="invalid_approval_token")
-    jti = claims.get("jti")
-    if jti in _APPROVAL_JTI_USED:
-        raise AppException("Approval token already used", status_code=401, error_code="approval_consumed")
+    if not claims.get("jti"):
+        raise AppException("Approval token missing jti", status_code=401, error_code="invalid_approval_token")
     return claims
 
 
-def consume_approval_token(token: str) -> dict[str, Any]:
-    """Validate and single-use-invalidate an approval token."""
+async def consume_approval_token(token: str, session: AsyncSession) -> dict[str, Any]:
+    """Validate and single-use-consume an approval token (audit L5).
+
+    The JTI is INSERTed into ``approval_jti`` inside one transaction; a row
+    already present (same token replayed — including after a process restart)
+    raises ``401 approval_consumed`` just like the old in-memory set did.
+    A concurrent double-use races on the primary key instead of on memory.
+    """
     claims = decode_approval_token(token)
-    _APPROVAL_JTI_USED.add(claims["jti"])
+    jti = str(claims["jti"])
+    try:
+        async with session.begin():
+            if await session.get(ApprovalJti, jti) is not None:
+                raise AppException("Approval token already used", status_code=401, error_code="approval_consumed")
+            session.add(ApprovalJti(jti=jti, consumed_at=datetime.now(timezone.utc).isoformat()))
+    except IntegrityError as exc:
+        # Lost the primary-key race: the other request consumed this JTI.
+        raise AppException("Approval token already used", status_code=401, error_code="approval_consumed") from exc
     return claims
+
+
+async def purge_consumed_approval_jtis(session: AsyncSession) -> int:
+    """Delete consumed approval JTIs older than 2x the token TTL (audit L5).
+
+    Keeps the table small; called from the backend startup cleanup loop.
+    Returns the number of deleted rows.
+    """
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(seconds=APPROVAL_JTI_RETENTION_SECONDS)
+    ).isoformat()
+    result = await session.execute(delete(ApprovalJti).where(ApprovalJti.consumed_at < cutoff))
+    await session.commit()
+    return int(result.rowcount or 0)
 
 
 # ── PIN peppering (C.4) ──────────────────────────────────────────────────

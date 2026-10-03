@@ -15,7 +15,7 @@ use tokio::time::{sleep, Duration};
 use base64::{Engine as _, engine::general_purpose};
 use std::fs;
 use std::path::PathBuf;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 static BROADCASTING: AtomicBool = AtomicBool::new(false);
 static SIDECAR_NODE: std::sync::Mutex<Option<tauri_plugin_shell::process::CommandChild>> = std::sync::Mutex::new(None);
@@ -134,6 +134,70 @@ pub fn update_system_setting(key: &str, value: &str) -> Result<(), String> {
     Ok(())
 }
 
+// ── UDP discovery signing (audit L4) ────────────────────────────────────────
+/// Max age/skew accepted for a discovery packet's timestamp (replay window).
+const DISCOVERY_MAX_SKEW_SECONDS: i64 = 30;
+
+/// Read one SystemSetting row from the sidecar DB without an AppHandle.
+fn read_setting_for_discovery(key: &str) -> Option<String> {
+    let db_path = data_dir_for_fixes().ok()?.join("pharmacy.db");
+    if !db_path.exists() {
+        return None;
+    }
+    use sqlite::State;
+    let conn = sqlite::open(&db_path).ok()?;
+    let mut stmt = conn
+        .prepare("SELECT value FROM system_settings WHERE key = ?1")
+        .ok()?;
+    stmt.bind((1, key)).ok()?;
+    match stmt.next() {
+        Ok(State::Row) => stmt.read::<String, _>(0).ok(),
+        _ => None,
+    }
+}
+
+/// Per-install UDP discovery key: the same `qr_secret_key` the backend uses
+/// for QR pairing, generated + persisted on first use (mirrors
+/// device_route.get_qr_secret). Returns `None` when the DB is unavailable —
+/// callers then fail closed rather than send/receive unsigned packets.
+fn discovery_key() -> Option<String> {
+    if let Some(existing) = read_setting_for_discovery("qr_secret_key") {
+        if !existing.is_empty() {
+            return Some(existing);
+        }
+    }
+    let generated = uuid::Uuid::new_v4().to_string();
+    update_system_setting("qr_secret_key", &generated).ok()?;
+    Some(generated)
+}
+
+/// Verify a signed discovery broadcast: `{instance_id, ip, ts, sig}` where
+/// `sig` is the HMAC-SHA256 of the canonical `{instance_id, ip, ts}` object
+/// under the per-install key. Unsigned packets, tampered payloads, and
+/// timestamps outside the 30 s replay window are all rejected (audit L4).
+/// Returns the original message on success.
+pub(crate) fn verify_broadcast(msg: &str, key: &str, now_ts: i64) -> Option<String> {
+    if key.is_empty() {
+        return None;
+    }
+    let parsed: serde_json::Value = serde_json::from_str(msg).ok()?;
+    let instance_id = parsed.get("instance_id")?.as_str()?;
+    let ip = parsed.get("ip")?.as_str()?;
+    let ts = parsed.get("ts")?.as_i64()?;
+    let sig = parsed.get("sig")?.as_str()?;
+    if ts > now_ts.saturating_add(DISCOVERY_MAX_SKEW_SECONDS)
+        || ts < now_ts.saturating_sub(DISCOVERY_MAX_SKEW_SECONDS)
+    {
+        return None;
+    }
+    let payload = serde_json::json!({"instance_id": instance_id, "ip": ip, "ts": ts});
+    let expected = fix_engine::sign_payload(&payload, key.as_bytes());
+    if !fix_engine::ct_eq(&expected, &sig.to_lowercase()) {
+        return None;
+    }
+    Some(msg.to_string())
+}
+
 // Recovery-window commands (Step 2.3/2.4). Declared HERE (not in the
 // fix_engine module) because tauri-build generates the allow-* permissions
 // for commands found in this file; logic itself lives in fix_engine.rs.
@@ -158,7 +222,18 @@ async fn start_udp_broadcast() -> Result<(), String> {
         return Ok(());
     }
     BROADCASTING.store(true, Ordering::SeqCst);
-    
+
+    // Audit L4: sign every broadcast with the per-install qr_secret_key.
+    // Without a key we do not broadcast at all (fail closed rather than send
+    // spoofable unsigned packets).
+    let signing_key = match discovery_key() {
+        Some(key) => key,
+        None => {
+            BROADCASTING.store(false, Ordering::SeqCst);
+            return Err("discovery key unavailable".to_string());
+        }
+    };
+
     tauri::async_runtime::spawn(async move {
         let socket = match UdpSocket::bind("0.0.0.0:0").await {
             Ok(s) => s,
@@ -166,7 +241,7 @@ async fn start_udp_broadcast() -> Result<(), String> {
         };
         let _ = socket.set_broadcast(true);
         let target: std::net::SocketAddr = "255.255.255.255:54321".parse().unwrap();
-        
+
         let local_ip = match std::net::UdpSocket::bind("0.0.0.0:0") {
             Ok(s) => {
                 if s.connect("8.8.8.8:80").is_ok() {
@@ -177,10 +252,25 @@ async fn start_udp_broadcast() -> Result<(), String> {
             }
             Err(_) => "127.0.0.1".to_string(),
         };
-        
-        let msg = format!("{{\"instance_id\": \"pharmacy_main_device\", \"ip\": \"{}\"}}", local_ip);
-        
+
         while BROADCASTING.load(Ordering::SeqCst) {
+            // The HMAC covers the canonical {instance_id, ip, ts} object only;
+            // `sig` is appended after signing. A fresh ts each round keeps the
+            // packet inside the receiver's 30-second replay window.
+            let ts = chrono::Utc::now().timestamp();
+            let payload = serde_json::json!({
+                "instance_id": "pharmacy_main_device",
+                "ip": local_ip,
+                "ts": ts,
+            });
+            let sig = fix_engine::sign_payload(&payload, signing_key.as_bytes());
+            let msg = serde_json::json!({
+                "instance_id": "pharmacy_main_device",
+                "ip": local_ip,
+                "ts": ts,
+                "sig": sig,
+            })
+            .to_string();
             let _ = socket.send_to(msg.as_bytes(), target).await;
             sleep(Duration::from_secs(2)).await;
         }
@@ -196,17 +286,39 @@ fn stop_udp_broadcast() {
 
 #[tauri::command]
 async fn scan_udp_broadcast() -> Result<String, String> {
+    // Audit L4: only signed broadcasts are trusted; no key on this install
+    // means nothing can verify, so the scan fails closed (timeout).
+    let key = match discovery_key() {
+        Some(key) => key,
+        None => return Err("Timeout waiting for server broadcast".to_string()),
+    };
+
     let socket = UdpSocket::bind("0.0.0.0:54321").await.map_err(|e| e.to_string())?;
     let mut buf = [0u8; 1024];
-    
-    let res = tokio::time::timeout(Duration::from_secs(5), socket.recv_from(&mut buf)).await;
-    match res {
-        Ok(Ok((amt, _src))) => {
-            let msg = String::from_utf8_lossy(&buf[..amt]).into_owned();
-            Ok(msg)
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            return Err("Timeout waiting for server broadcast".to_string());
         }
-        Ok(Err(e)) => Err(e.to_string()),
-        Err(_) => Err("Timeout waiting for server broadcast".to_string()),
+        match tokio::time::timeout(remaining, socket.recv_from(&mut buf)).await {
+            Ok(Ok((amt, _src))) => {
+                let msg = String::from_utf8_lossy(&buf[..amt]).into_owned();
+                match verify_broadcast(&msg, &key, chrono::Utc::now().timestamp()) {
+                    Some(verified) => return Ok(verified),
+                    None => {
+                        // Legacy/mixed-version terminals send unsigned packets;
+                        // spoofers send bad ones. Both are ignored silently —
+                        // debug log only, never a user-visible error (audit L4-D).
+                        debug!("udp discovery packet rejected (unsigned, tampered, or stale)");
+                        continue;
+                    }
+                }
+            }
+            Ok(Err(e)) => return Err(e.to_string()),
+            Err(_) => return Err("Timeout waiting for server broadcast".to_string()),
+        }
     }
 }
 
@@ -1236,5 +1348,80 @@ async fn check_for_updates(app: tauri::AppHandle) {
         }
     } else {
         log_to_file(&log_path, "[updater] user declined; will check again next launch");
+    }
+}
+
+#[cfg(test)]
+mod discovery_tests {
+    use super::*;
+
+    const KEY: &str = "test-per-install-key-0123456789abcdef";
+
+    fn signed_packet(ip: &str, ts: i64, key: &str) -> String {
+        let payload = serde_json::json!({
+            "instance_id": "pharmacy_main_device",
+            "ip": ip,
+            "ts": ts,
+        });
+        let sig = fix_engine::sign_payload(&payload, key.as_bytes());
+        serde_json::json!({
+            "instance_id": "pharmacy_main_device",
+            "ip": ip,
+            "ts": ts,
+            "sig": sig,
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn valid_signed_packet_accepted() {
+        let now = 1_700_000_000i64;
+        let msg = signed_packet("192.168.1.50", now - 5, KEY);
+        assert_eq!(verify_broadcast(&msg, KEY, now), Some(msg));
+    }
+
+    #[test]
+    fn tampered_packet_rejected() {
+        let now = 1_700_000_000i64;
+        let msg = signed_packet("192.168.1.50", now - 5, KEY);
+        // Attacker swaps in their own IP but cannot re-sign it.
+        let tampered = msg.replace("192.168.1.50", "10.0.0.66");
+        assert!(verify_broadcast(&tampered, KEY, now).is_none());
+    }
+
+    #[test]
+    fn replayed_packet_rejected() {
+        let now = 1_700_000_000i64;
+        let msg = signed_packet("192.168.1.50", now - 31, KEY);
+        assert!(verify_broadcast(&msg, KEY, now).is_none());
+    }
+
+    #[test]
+    fn unsigned_legacy_packet_rejected() {
+        let now = 1_700_000_000i64;
+        // Legacy/mixed-version terminals broadcast without a signature.
+        let legacy = r#"{"instance_id": "pharmacy_main_device", "ip": "192.168.1.50"}"#;
+        assert!(verify_broadcast(legacy, KEY, now).is_none());
+    }
+
+    #[test]
+    fn packet_signed_with_another_key_rejected() {
+        let now = 1_700_000_000i64;
+        let msg = signed_packet("192.168.1.50", now, "a-different-install-key");
+        assert!(verify_broadcast(&msg, KEY, now).is_none());
+    }
+
+    #[test]
+    fn future_timestamp_rejected() {
+        let now = 1_700_000_000i64;
+        let msg = signed_packet("192.168.1.50", now + 600, KEY);
+        assert!(verify_broadcast(&msg, KEY, now).is_none());
+    }
+
+    #[test]
+    fn empty_key_never_verifies() {
+        let now = 1_700_000_000i64;
+        let msg = signed_packet("192.168.1.50", now, "");
+        assert!(verify_broadcast(&msg, "", now).is_none());
     }
 }

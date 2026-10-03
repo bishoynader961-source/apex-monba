@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { AlertTriangle, ShieldCheck, Info, Loader2, X, Lock, Stethoscope } from "lucide-react";
 
+import { getAccessToken } from "@/lib/api";
+
 type EvalStatus = "safe" | "warning" | "severe";
 
 interface EvaluateResult {
@@ -24,7 +26,8 @@ interface DrugEvaluateButtonProps {
 }
 
 function apiHeaders() {
-  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : "";
+  // Audit M3: access token is in memory only (lib/api).
+  const token = getAccessToken() ?? "";
   return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 }
 

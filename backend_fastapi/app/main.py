@@ -52,6 +52,7 @@ from app.api.routers.settings_route import router as settings_router
 from app.api.routers.setup_route import router as setup_router
 from app.api.routers.support_route import router as support_router
 from app.api.routers.support_fix_route import router as support_fix_router
+from app.api.routers.support_fix_route import admin_fix_router
 from app.api.routers.sync_route import router as sync_router
 from app.api.routers.users_route import router as users_router
 from app.api.routers.ocr_route import router as ocr_router
@@ -171,13 +172,29 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             except Exception:  # noqa: BLE001
                 logger.warning("alert_check_failed", exc_info=True)
 
+    async def _approval_jti_cleanup_loop() -> None:
+        """Audit L5: prune consumed approval JTIs older than 2x the 60s TTL."""
+        from app.shared.security import purge_consumed_approval_jtis
+
+        while True:
+            await asyncio.sleep(60)
+            try:
+                async with database._sessionmaker() as session:
+                    removed = await purge_consumed_approval_jtis(session)
+                    if removed:
+                        logger.info("approval_jti_cleanup", removed=removed)
+            except Exception:  # noqa: BLE001 - cleanup must never crash the app
+                logger.warning("approval_jti_cleanup_failed", exc_info=True)
+
     snapshot_task = asyncio.create_task(_snapshot_loop())
     alert_task = asyncio.create_task(_alert_loop())
+    approval_cleanup_task = asyncio.create_task(_approval_jti_cleanup_loop())
     try:
         yield
     finally:
         snapshot_task.cancel()
         alert_task.cancel()
+        approval_cleanup_task.cancel()
 
 
 app = FastAPI(
@@ -346,6 +363,12 @@ app.include_router(rx_queue_router, dependencies=_SETUP_GATE)
 app.include_router(settings_router, dependencies=_SETUP_GATE)
 app.include_router(support_router, dependencies=_SETUP_GATE)
 app.include_router(support_fix_router, dependencies=_SETUP_GATE)
+# Audit M4: fix-code verification for the desktop engine. Deliberately NOT
+# behind the first-run setup gate and NOT JWT-gated: the recovery window has
+# no user session, and support must be able to apply a fix on a
+# half-configured install. Authenticated by the admin key instead
+# (constant-time compare server-side); rate-limited to 5/minute.
+app.include_router(admin_fix_router)
 app.include_router(sync_router, dependencies=_SETUP_GATE)
 app.include_router(setup_router)
 app.include_router(users_router, dependencies=_SETUP_GATE)
@@ -445,6 +468,8 @@ _GATED_ROUTERS = (
     settings_router,
     support_router,
     support_fix_router,
+    # NOTE: admin_fix_router (audit M4) is intentionally NOT in this tuple —
+    # the recovery window must be able to verify a fix pre-setup.
     sync_router,
     setup_router,
     users_router,

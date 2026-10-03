@@ -171,16 +171,18 @@ def require_approval_token(scope: str) -> Callable[..., dict[str, object]]:
     """Return a dependency that requires a valid, unused, scope-matched approval token.
 
     The token is presented via the ``X-Approval-Token`` header and is single-use:
-    it is invalidated on first successful validation (replay protection).
+    consumption is persisted in the ``approval_jti`` table (audit L5) so a
+    replay is rejected even across a backend restart.
     """
 
-    def _check(
+    async def _check(
         user: CurrentUser = Depends(get_current_user),
         x_approval_token: Optional[str] = Header(default=None, alias="X-Approval-Token"),
+        session: AsyncSession = Depends(get_session),
     ) -> dict[str, object]:
         if not x_approval_token:
             raise ForbiddenError("Approval token required for this action")
-        claims = consume_approval_token(x_approval_token)
+        claims = await consume_approval_token(x_approval_token, session)
         if claims.get("scope") != scope:
             raise ForbiddenError(f"Approval token scope mismatch: expected {scope}")
         return claims

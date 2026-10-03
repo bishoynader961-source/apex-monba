@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Callable
 
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -52,6 +52,7 @@ from app.api.routers.settings_route import router as settings_router
 from app.api.routers.setup_route import router as setup_router
 from app.api.routers.support_route import router as support_router
 from app.api.routers.support_fix_route import router as support_fix_router
+from app.api.routers.support_fix_route import admin_fix_router
 from app.api.routers.sync_route import router as sync_router
 from app.api.routers.users_route import router as users_router
 from app.api.routers.ocr_route import router as ocr_router
@@ -60,6 +61,7 @@ from app.api.routers.vendors_route import router as vendors_router
 from app.api.routers.wc_route import router as wc_router
 from app.core import database
 from app.core.database import create_schema, init_engine
+from app.core.ttl_cache import ttl_cache
 from app.core.backup import vacuum_backup
 from app.services.seed_service import seed_admin_if_absent, seed_admin_role, seed_clinical_defaults, seed_default_locked_features, seed_drug_dictionary, seed_session_settings, seed_product_templates, seed_default_settings
 from app.shared.config import settings
@@ -133,6 +135,38 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             except Exception:  # noqa: BLE001 - snapshot must never crash the app
                 logger.warning("snapshot_failed", exc_info=True)
 
+    @ttl_cache(maxsize=1, ttl=30)
+    async def _alert_aggregates() -> tuple[int, int, int]:
+        """Expired / expiring-in-30-days / low-stock counts (audit M9).
+
+        Cached for 30 s: the loop's first pass runs 60 s after startup, so a
+        burst of restarts shares one set of COUNT scans instead of re-scanning
+        the inventory tables each time.
+        """
+        from datetime import timedelta as _td
+        from sqlalchemy import text as _text
+
+        async with database._sessionmaker() as session:
+            now = datetime.now(timezone.utc)
+            today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            cutoff_30 = (today + _td(days=30)).isoformat()
+            today_str = today.isoformat()
+            r = await session.execute(
+                _text("SELECT COUNT(*) FROM inventory_extended WHERE expiration_date < :today AND on_hand > 0"),
+                {"today": today_str},
+            )
+            expired = int(r.scalar() or 0)
+            r = await session.execute(
+                _text("SELECT COUNT(*) FROM inventory_extended WHERE expiration_date >= :today AND expiration_date <= :cutoff AND on_hand > 0"),
+                {"today": today_str, "cutoff": cutoff_30},
+            )
+            critical = int(r.scalar() or 0)
+            r = await session.execute(
+                _text("SELECT COUNT(*) FROM products p JOIN inventory_extended ie ON ie.drug_name = p.name WHERE (p.deleted = 0 OR p.deleted IS NULL) AND p.reorder_threshold IS NOT NULL AND p.reorder_threshold > 0 AND ie.on_hand <= p.reorder_threshold"),
+            )
+            low_stock = int(r.scalar() or 0)
+        return expired, critical, low_stock
+
     async def _alert_loop() -> None:
         """Periodic alert check — logs low-stock and expiry counts every 30 minutes."""
         _ALERT_INTERVAL = 30 * 60
@@ -140,44 +174,40 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         while True:
             await asyncio.sleep(_ALERT_INTERVAL)
             try:
-                async with database._sessionmaker() as session:
-                    from datetime import timedelta as _td
-                    from sqlalchemy import text as _text
-                    now = datetime.now(timezone.utc)
-                    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                    cutoff_30 = (today + _td(days=30)).isoformat()
-                    today_str = today.isoformat()
-                    r = await session.execute(
-                        _text("SELECT COUNT(*) FROM inventory_extended WHERE expiration_date < :today AND on_hand > 0"),
-                        {"today": today_str},
+                expired, critical, low_stock = await _alert_aggregates()
+                if expired or critical or low_stock:
+                    logger.warning(
+                        "alert_summary",
+                        expired=expired,
+                        critical_30d=critical,
+                        low_stock=low_stock,
                     )
-                    expired = r.scalar() or 0
-                    r = await session.execute(
-                        _text("SELECT COUNT(*) FROM inventory_extended WHERE expiration_date >= :today AND expiration_date <= :cutoff AND on_hand > 0"),
-                        {"today": today_str, "cutoff": cutoff_30},
-                    )
-                    critical = r.scalar() or 0
-                    r = await session.execute(
-                        _text("SELECT COUNT(*) FROM products p JOIN inventory_extended ie ON ie.drug_name = p.name WHERE (p.deleted = 0 OR p.deleted IS NULL) AND p.reorder_threshold IS NOT NULL AND p.reorder_threshold > 0 AND ie.on_hand <= p.reorder_threshold"),
-                    )
-                    low_stock = r.scalar() or 0
-                    if expired or critical or low_stock:
-                        logger.warning(
-                            "alert_summary",
-                            expired=expired,
-                            critical_30d=critical,
-                            low_stock=low_stock,
-                        )
             except Exception:  # noqa: BLE001
                 logger.warning("alert_check_failed", exc_info=True)
 
+    async def _approval_jti_cleanup_loop() -> None:
+        """Audit L5: prune consumed approval JTIs older than 2x the 60s TTL."""
+        from app.shared.security import purge_consumed_approval_jtis
+
+        while True:
+            await asyncio.sleep(60)
+            try:
+                async with database._sessionmaker() as session:
+                    removed = await purge_consumed_approval_jtis(session)
+                    if removed:
+                        logger.info("approval_jti_cleanup", removed=removed)
+            except Exception:  # noqa: BLE001 - cleanup must never crash the app
+                logger.warning("approval_jti_cleanup_failed", exc_info=True)
+
     snapshot_task = asyncio.create_task(_snapshot_loop())
     alert_task = asyncio.create_task(_alert_loop())
+    approval_cleanup_task = asyncio.create_task(_approval_jti_cleanup_loop())
     try:
         yield
     finally:
         snapshot_task.cancel()
         alert_task.cancel()
+        approval_cleanup_task.cancel()
 
 
 app = FastAPI(
@@ -187,6 +217,10 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
     swagger_ui_oauth2_redirect_url=None,
+    # Audit M2: the OpenAPI schema is served only while DEBUG=true (the
+    # custom /docs and /redoc handlers below re-check settings at request
+    # time, so the gate follows the running configuration).
+    openapi_url="/openapi.json" if settings.debug else None,
 )
 
 app.state.limiter = limiter
@@ -194,22 +228,29 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
+    # Audit M6: explicit same-machine origins only. The LAN CIDR literals,
+    # exp:// wildcards, and the credentialed LAN-wide origin regex are gone —
+    # they let ANY browser page on the local network make credentialed calls
+    # to a LAN-exposed instance. The React Native companion app is non-browser
+    # and never subject to CORS; desktop/web frontends run on localhost:3000.
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        # LAN access — allow local subnet origins for mobile companion app
-        "http://192.168.0.0/16",
-        "http://10.0.0.0/8",
-        "http://172.16.0.0/12",
-        # Expo dev server origins
-        "exp://192.168.*.*:*",
-        "exp://10.*.*.*:*",
-        "exp://172.16.*.*:*",
     ],
-    allow_origin_regex=r"^https?://(192\.168|10\.|172\.(1[6-9]|2[0-9]|3[0-1]))\.\d{1,3}\.\d{1,3}(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=[
+        "authorization",
+        "content-type",
+        "X-Device-Token",
+        "X-Approval-Token",
+        "X-Lock-Password",
+    ],
+    # Headers the browser may read from cross-origin responses.
+    expose_headers=[
+        "X-Setup-Required",
+        "Retry-After",
+    ],
 )
 
 # Sprint 2C (D4): gzip response compression (audit: not enabled). Stacked
@@ -223,6 +264,10 @@ app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
 @app.get("/docs", include_in_schema=False)
 async def swagger_ui_html(req: Request) -> HTMLResponse:
+    # Audit M2: API docs are gated behind DEBUG at request time (reads the
+    # live settings object, so tests and operators can flip it at runtime).
+    if not settings.debug:
+        raise HTTPException(status_code=404)
     root_path = req.scope.get("root_path", "").rstrip("/")
     openapi_url = root_path + app.openapi_url
     return get_swagger_ui_html(
@@ -237,6 +282,9 @@ async def swagger_ui_html(req: Request) -> HTMLResponse:
 
 @app.get("/redoc", include_in_schema=False)
 async def redoc_html(req: Request) -> HTMLResponse:
+    # Audit M2: same DEBUG gate as /docs.
+    if not settings.debug:
+        raise HTTPException(status_code=404)
     root_path = req.scope.get("root_path", "").rstrip("/")
     openapi_url = root_path + app.openapi_url
     return get_redoc_html(
@@ -249,6 +297,11 @@ async def redoc_html(req: Request) -> HTMLResponse:
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    # Audit M2: request-time OpenAPI gate. The route only exists when DEBUG
+    # was true at import (openapi_url=None otherwise); this also blocks it if
+    # debug is flipped off while the process runs.
+    if request.url.path == "/openapi.json" and not settings.debug:
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
     response = await call_next(request)
     for header, value in SECURITY_HEADERS.items():
         if header == "Content-Security-Policy" and request.url.path.startswith(_DOCS_PATHS):
@@ -323,6 +376,12 @@ app.include_router(rx_queue_router, dependencies=_SETUP_GATE)
 app.include_router(settings_router, dependencies=_SETUP_GATE)
 app.include_router(support_router, dependencies=_SETUP_GATE)
 app.include_router(support_fix_router, dependencies=_SETUP_GATE)
+# Audit M4: fix-code verification for the desktop engine. Deliberately NOT
+# behind the first-run setup gate and NOT JWT-gated: the recovery window has
+# no user session, and support must be able to apply a fix on a
+# half-configured install. Authenticated by the admin key instead
+# (constant-time compare server-side); rate-limited to 5/minute.
+app.include_router(admin_fix_router)
 app.include_router(sync_router, dependencies=_SETUP_GATE)
 app.include_router(setup_router)
 app.include_router(users_router, dependencies=_SETUP_GATE)
@@ -422,6 +481,8 @@ _GATED_ROUTERS = (
     settings_router,
     support_router,
     support_fix_router,
+    # NOTE: admin_fix_router (audit M4) is intentionally NOT in this tuple —
+    # the recovery window must be able to verify a fix pre-setup.
     sync_router,
     setup_router,
     users_router,

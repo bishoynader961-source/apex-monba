@@ -1,7 +1,7 @@
 """Authentication routes: login, refresh, register (admin), me, logout, pepper rotation."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_permission
@@ -25,11 +25,41 @@ from app.shared.security import rotate_pin_pepper
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
+# ── Audit M3: refresh-token cookie (HttpOnly, SameSite=Strict) ───────────────
+# The desktop frontend keeps its access token in memory only; the refresh
+# token is delivered as an HttpOnly cookie so webview JavaScript can never
+# read it. The cookie is scoped to the auth path, so it is not attached to
+# unrelated API calls.
+REFRESH_COOKIE_NAME = "refresh_token"
+REFRESH_COOKIE_PATH = "/api/v1/auth"
+
+
+def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=refresh_token,
+        httponly=True,
+        samesite="strict",
+        path=REFRESH_COOKIE_PATH,
+        # The sidecar is plain HTTP on loopback/LAN (audit M5 tracks TLS);
+        # Secure would stop the cookie from ever being sent. HttpOnly +
+        # SameSite=Strict + a short path is the control this finding asks for.
+        secure=False,
+        max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
+    )
+
 
 @router.post("/login", response_model=Token)
 @limiter.limit(get_auth_limit())
-async def login(request: Request, payload: LoginRequest, service: AuthService = Depends(get_auth_service)) -> Token:
-    return await service.login(payload.username, payload.password)
+async def login(
+    request: Request,
+    payload: LoginRequest,
+    response: Response,
+    service: AuthService = Depends(get_auth_service),
+) -> Token:
+    token = await service.login(payload.username, payload.password)
+    _set_refresh_cookie(response, token.refresh_token)
+    return token
 
 
 @router.post("/login/pin", response_model=Token)
@@ -50,8 +80,25 @@ async def set_pin(
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh(payload: RefreshRequest, service: AuthService = Depends(get_auth_service)) -> Token:
-    return await service.refresh(payload.refresh_token)
+async def refresh(
+    request: Request,
+    response: Response,
+    payload: RefreshRequest | None = None,
+    service: AuthService = Depends(get_auth_service),
+) -> Token:
+    """Refresh the session (audit M3).
+
+    Prefers the HttpOnly ``refresh_token`` cookie (browser path: silent
+    refresh after a restart, with no token ever readable by JavaScript). The
+    request body remains supported for API clients (mobile, tests). The
+    rotated token is written back to the cookie.
+    """
+    presented = (payload.refresh_token if payload else None) or request.cookies.get(REFRESH_COOKIE_NAME)
+    if not presented:
+        raise HTTPException(status_code=401, detail="Missing refresh token")
+    token = await service.refresh(presented)
+    _set_refresh_cookie(response, token.refresh_token)
+    return token
 
 
 @router.post("/register", status_code=201, response_model=UserPublic)
@@ -97,17 +144,21 @@ async def get_me(
 @router.post("/logout", status_code=200)
 async def logout(
     request: Request,
+    response: Response,
     user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, str]:
-    # Sprint 1C: logout is still client-side token discard, but the event is
-    # now audit-logged (user_id + timestamp, IP when the request carries one).
+    # Sprint 1C: the access token is discarded client-side, but the event is
+    # audit-logged (user_id + timestamp, IP when the request carries one).
+    # Audit M3: the HttpOnly refresh cookie is cleared server-side so a
+    # logout cannot be undone by replaying a still-valid refresh token.
     await AuditRepository(session).log(
         action="auth.logout",
         subject_type="user",
         subject_id=user.id,
         details=f"username={user.username} ip={request.client.host if request.client else 'unknown'}",
     )
+    response.delete_cookie(REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
     return {"status": "ok", "message": f"Logged out {user.username}"}
 
 

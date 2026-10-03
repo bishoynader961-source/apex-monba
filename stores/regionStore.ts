@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import { getAccessToken } from "@/lib/api";
+
 interface RegionInfo {
   code: string;
   name: string;
@@ -78,7 +80,7 @@ export const useRegionStore = create<RegionState>((set, get) => ({
     set({ isLoading: true });
     try {
       const res = await fetch("/api/v1/region/detect", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        headers: { Authorization: `Bearer ${getAccessToken() ?? ""}` },
       });
       if (res.ok) {
         const data: RegionInfo = await res.json();
@@ -97,7 +99,7 @@ export const useRegionStore = create<RegionState>((set, get) => ({
     set({ isLoading: true });
     try {
       const res = await fetch(`/api/v1/region/${code}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        headers: { Authorization: `Bearer ${getAccessToken() ?? ""}` },
       });
       if (res.ok) {
         const data: RegionInfo = await res.json();

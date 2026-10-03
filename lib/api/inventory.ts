@@ -41,8 +41,12 @@ export async function searchMedicines(q: string): Promise<Medicine[]> {
 }
 
 export async function getStockLevels(): Promise<StockLevel[]> {
-  const { data } = await api.get<StockLevel[]>(`${BASE}/stock-levels`);
-  return data;
+  // Audit M9: the backend now returns a keyset page ({ items, next_cursor })
+  // capped at 200 rows by default. Unwrap for the existing (unpaged) UI.
+  const { data } = await api.get<{ items: StockLevel[]; next_cursor: number | null }>(
+    `${BASE}/stock-levels`,
+  );
+  return data.items;
 }
 
 export async function listSuppliers(): Promise<SupplierRead[]> {
@@ -129,8 +133,11 @@ export async function listBatches(params?: {
 }
 
 export async function listLowStock(): Promise<Medicine[]> {
-  const { data } = await api.get<Medicine[]>(`${BASE}/batches/low-stock`);
-  return data;
+  // Audit M9: keyset page capped at 200 rows by default — unwrap for the UI.
+  const { data } = await api.get<{ items: Medicine[]; next_cursor: number | null }>(
+    `${BASE}/batches/low-stock`,
+  );
+  return data.items;
 }
 
 export async function listExpiringSoon(days = 90): Promise<BatchRead[]> {

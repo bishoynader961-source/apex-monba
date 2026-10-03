@@ -138,6 +138,14 @@ class StockLevelRead(BaseModel):
     expiring_soon_count: int
 
 
+class StockLevelPage(BaseModel):
+    """Keyset-paginated stock levels (audit M9): ``next_cursor`` is the last
+    product id in ``items``, or None when this is the final page."""
+
+    items: list[StockLevelRead]
+    next_cursor: Optional[int] = None
+
+
 class BatchUpdate(BaseModel):
     """Partial batch mutation. ``drug_name`` intentionally omitted to preserve the
     string-join + per-drug lock invariants (see §7.3 edge case)."""
@@ -257,6 +265,14 @@ class PaginatedProducts(BaseModel):
     page_size: int
 
 
+class ProductPage(BaseModel):
+    """Keyset-paginated products (audit M9): ``next_cursor`` is the last
+    product id in ``items``, or None when this is the final page."""
+
+    items: list[ProductRead]
+    next_cursor: Optional[int] = None
+
+
 # ── Users / RBAC ─────────────────────────────────────────────────────────────
 class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -345,7 +361,9 @@ class Token(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    # Audit M3: browsers present the refresh token via the HttpOnly cookie set
+    # by /auth/login; the body field stays optional for API clients (mobile).
+    refresh_token: Optional[str] = None
 
 
 class VerifyPasswordRequest(BaseModel):

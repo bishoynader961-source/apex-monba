@@ -12,7 +12,7 @@ import { changePassword } from "@/lib/api/auth";
 import { useToast } from "@/hooks/useToast";
 import type { SystemSettingRead } from "@/types/contracts";
 import { Plug, Plus, X, Check, Loader2, Building2, Receipt, ShieldAlert, Mail, Clock, Globe, MessageSquare, Server, Cpu, Wifi, WifiOff, Save, Sun, Moon, Monitor, Smartphone } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getAccessToken } from "@/lib/api";
 import { useUiStore } from "@/stores/uiStore";
 import { UpdateChecker } from "@/components/UpdateChecker";
 import { useDemoMode, refreshDemoMode } from "@/hooks/useDemoMode";
@@ -256,7 +256,8 @@ export default function SettingsPage() {
 
   const loadRegion = useCallback(async () => {
     try {
-      const token = localStorage.getItem("access_token");
+      // Audit M3: memory-only access token (lib/api).
+      const token = getAccessToken();
       const res = await fetch("/api/v1/region/detect", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -279,7 +280,8 @@ export default function SettingsPage() {
   const handleRegionChange = async (code: string) => {
     setRegionCode(code);
     try {
-      const token = localStorage.getItem("access_token");
+      // Audit M3: memory-only access token (lib/api).
+      const token = getAccessToken();
       const res = await fetch(`/api/v1/region/${code}`, {
         headers: { Authorization: `Bearer ${token}` },
       });

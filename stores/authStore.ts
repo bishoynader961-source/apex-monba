@@ -1,14 +1,25 @@
 import { create } from "zustand";
 
-import { getCurrentUser } from "@/lib/api/auth";
+import { clearAccessToken, getAccessToken, setAccessToken } from "@/lib/api";
+import { getCurrentUser, logoutUser } from "@/lib/api/auth";
 import { initializeOfflineKey } from "@/lib/offlineKey";
 import type { CurrentUser, LoginRequest, Token } from "@/types/contracts";
 
 interface AuthState {
   token: string | null;
   user: CurrentUser | null;
+  /** False until the reload-time silent refresh has been attempted (audit M3). */
+  bootstrapped: boolean;
   setUser: (user: CurrentUser | null) => void;
   setToken: (token: string | null) => void;
+  /**
+   * Silent session restore after a page reload. The access token is held in
+   * memory only, so a reload starts logged out; the HttpOnly refresh-token
+   * cookie (set by the backend, forwarded by /api/auth/refresh) is the one
+   * credential that survives, and this method exchanges it for a new access
+   * token. On failure the user stays logged out and the login page takes over.
+   */
+  bootstrap: () => Promise<void>;
   fetchCurrentUser: () => Promise<void>;
   login: (payload: LoginRequest) => Promise<void>;
   logout: () => Promise<void>;
@@ -21,8 +32,10 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  token: typeof window !== "undefined" ? localStorage.getItem("access_token") : null,
+  // Audit M3: memory only — null on a fresh page load, repopulated by bootstrap().
+  token: getAccessToken(),
   user: null,
+  bootstrapped: false,
   lastPermissions: [],
 
   setUser: (user: CurrentUser | null) => {
@@ -30,7 +43,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   setToken: (token: string | null) => {
+    // Keep the Axios interceptor's source of truth in sync with the store.
+    setAccessToken(token);
     set({ token });
+  },
+
+  bootstrap: async () => {
+    try {
+      const res = await fetch("/api/auth/refresh", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("no session");
+      const data = await res.json();
+      if (!data.access_token) throw new Error("no session");
+      get().setToken(data.access_token);
+      await get().fetchCurrentUser();
+    } catch {
+      get().setToken(null);
+      set({ user: null, lastPermissions: [] });
+    } finally {
+      set({ bootstrapped: true });
+    }
   },
 
   fetchCurrentUser: async () => {
@@ -56,22 +90,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const token: Token = data;
-      if (typeof window !== "undefined") {
-        localStorage.setItem("access_token", token.access_token);
-        localStorage.setItem("refresh_token", token.refresh_token);
-        // Initialize offline encryption key from token
-        initializeOfflineKey(token.access_token);
-      }
+    // Audit M3: the login response no longer carries the refresh token
+    // (HttpOnly cookie only), and the access token is never persisted.
+    setAccessToken(token.access_token);
+    if (typeof window !== "undefined") {
+      // Initialize offline encryption key from token
+      initializeOfflineKey(token.access_token);
+    }
     set({ token: token.access_token });
     await get().fetchCurrentUser();
   },
 
   logout: async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
+    // Clear the HttpOnly cookies on this origin (Next.js route)...
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch {
+      // Best effort: the in-memory session is dropped regardless.
     }
+    // ...and on the FastAPI sidecar itself (audit M3). Requires a live access
+    // token, so this is best-effort; a failure must not block the local reset.
+    try {
+      await logoutUser();
+    } catch {
+      // Ignore: cookies/local state are cleared below either way.
+    }
+    clearAccessToken();
     set({ token: null, user: null, lastPermissions: [] });
   },
 

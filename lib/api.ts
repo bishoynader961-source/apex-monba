@@ -10,15 +10,22 @@ export const api: AxiosInstance = axios.create({
 
 type RequestConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("access_token");
+// Audit M3: the access token lives in memory only — never localStorage, never
+// anything JavaScript can read back after a reload. A reload starts with
+// `null`; `stores/authStore.bootstrap()` performs a silent refresh using the
+// HttpOnly refresh-token cookie and repopulates this variable.
+let accessToken: string | null = null;
+
+export function getAccessToken(): string | null {
+  return accessToken;
 }
 
-function clearToken(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+}
+
+export function clearAccessToken(): void {
+  accessToken = null;
 }
 
 function getErrorMessage(error: AxiosError): string {
@@ -44,7 +51,7 @@ api.interceptors.request.use(
       }
     }
 
-    const token = getToken();
+    const token = getAccessToken();
     if (token) {
       const headers = config.headers as unknown as Record<string, string>;
       headers.Authorization = `Bearer ${token}`;
@@ -54,8 +61,10 @@ api.interceptors.request.use(
   (error: unknown) => Promise.reject(error),
 );
 
-// On 401: call /api/auth/refresh (reads HTTP-only refresh_token cookie server-side),
-// store new access_token in localStorage, then retry the request once.
+// On 401: call /api/auth/refresh, which reads the HttpOnly refresh_token
+// cookie server-side (the cookie rides along automatically — same-origin +
+// `credentials: "include"`), then retry the request once with the new access
+// token held in memory. Audit M3: nothing here touches localStorage.
 // On 403/500: show toast notification to user.
 // Every failure is recorded in the in-memory error log (Spec 08) so the
 // Support tab's diagnostic report can show recent errors. Only status,
@@ -85,23 +94,21 @@ api.interceptors.response.use(
       const original = (error.config || {}) as RequestConfig;
       if (original && !original._retry) {
         original._retry = true;
-        return fetch("/api/auth/refresh", { method: "POST" })
+        return fetch("/api/auth/refresh", { method: "POST", credentials: "include" })
           .then((res) => res.json())
           .then((data) => {
             if (!data.access_token) throw new Error("unauthorized");
-            if (typeof window !== "undefined") {
-              localStorage.setItem("access_token", data.access_token);
-            }
+            setAccessToken(data.access_token);
             const headers = original.headers as unknown as Record<string, string>;
             headers.Authorization = `Bearer ${data.access_token}`;
             return api(original);
           })
           .catch(() => {
-            clearToken();
+            clearAccessToken();
             return Promise.reject(new Error(getErrorMessage(error)));
           });
       }
-      clearToken();
+      clearAccessToken();
       return Promise.reject(new Error(getErrorMessage(error)));
     }
 

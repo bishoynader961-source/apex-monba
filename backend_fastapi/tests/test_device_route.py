@@ -44,6 +44,15 @@ async def auth(client: AsyncClient, session: AsyncSession) -> dict[str, str]:
     return {"Authorization": f"Bearer {await _admin_token(client, session)}"}
 
 
+@pytest.fixture(autouse=True)
+async def shared_mode(session: AsyncSession) -> None:
+    """Audit M1: the QR gate is fail-closed — a missing/empty setting row now
+    hard-fails 403 instead of meaning 'shared'. Seed the explicit 'shared'
+    value for every test here (the forbidden test overwrites it)."""
+    session.add(SystemSetting(key="mobile_access_mode", value=b"shared"))
+    await session.commit()
+
+
 def _bearer(auth: dict[str, str]) -> str:
     return auth["Authorization"].split(" ", 1)[1]
 
@@ -103,10 +112,11 @@ async def test_qr_payload_shape_and_no_secret(client: AsyncClient, auth: dict[st
 async def test_qr_payload_forbidden_when_mode_not_shared(
     client: AsyncClient, auth: dict[str, str], session: AsyncSession
 ) -> None:
-    """An explicit non-shared mode must block QR minting (403).
+    """A non-shared mode must block QR minting (403).
 
-    Missing/empty mobile_access_mode stays "shared" (config default + seed),
-    so the existing default-flow tests keep passing without seeding the row.
+    Audit M1 fail-closed: only an EXPLICIT 'shared' value allows QR minting;
+    a missing/empty row (or any other value, e.g. 'independent') hard-fails
+    403. The autouse shared_mode fixture seeds 'shared'; this test flips it.
     """
     row = await session.get(SystemSetting, "mobile_access_mode")
     if row is None:
@@ -118,6 +128,24 @@ async def test_qr_payload_forbidden_when_mode_not_shared(
     resp = await client.get("/api/v1/devices/qr-payload", headers=auth)
     assert resp.status_code == 403, resp.text
     assert "mobile_access_mode" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_qr_payload_forbidden_when_mode_row_missing(
+    client: AsyncClient, auth: dict[str, str], session: AsyncSession
+) -> None:
+    """Audit M1 fail-closed: NO mobile_access_mode row → 403, never shared.
+
+    Previously a missing/empty row defaulted to shared (config/seed default);
+    now only an explicit 'shared' value mints QR payloads.
+    """
+    row = await session.get(SystemSetting, "mobile_access_mode")
+    if row is not None:
+        await session.delete(row)
+        await session.commit()
+
+    resp = await client.get("/api/v1/devices/qr-payload", headers=auth)
+    assert resp.status_code == 403, resp.text
 
 
 # ── CHECK A: expiry + signature checked once, at pairing ────────────────────

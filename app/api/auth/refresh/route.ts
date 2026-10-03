@@ -46,6 +46,19 @@ export async function POST(req: NextRequest) {
   }
 
   const res = NextResponse.json({ access_token: data.access_token });
+  // Audit M3: the backend rotates the refresh token on every refresh (tvr
+  // bump invalidates the presented one). Since the HttpOnly cookie is now the
+  // only place the refresh token lives, the rotated value MUST be persisted
+  // here — otherwise the next silent refresh would be rejected as a replay.
+  if (data.refresh_token) {
+    res.cookies.set("refresh_token", data.refresh_token, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 30 * 24 * 60 * 60,
+    });
+  }
   res.cookies.set("access_token", data.access_token, {
     httpOnly: true,
     sameSite: "strict",

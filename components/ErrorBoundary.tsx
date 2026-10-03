@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { getAccessToken } from "@/lib/api";
 import { useUiStore } from "@/stores/uiStore";
 
 interface ErrorBoundaryState {
@@ -48,7 +49,8 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("access_token") || ""}`,
+        // Audit M3: memory-only access token (may be empty right after a crash).
+        Authorization: `Bearer ${getAccessToken() ?? ""}`,
       },
       body: JSON.stringify(payload),
     }).catch(() => {});

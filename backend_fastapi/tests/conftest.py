@@ -7,6 +7,9 @@ import os
 # ``seed_admin_if_absent``), which is env-gated to development in production
 # code. Force the development env before any app code reads it.
 os.environ.setdefault("APP_ENV", "development")
+# Audit M2: docs/openapi gating tests and the offline-docs suite assume the
+# DEBUG default; set it before the app (and its cached Settings) import.
+os.environ.setdefault("DEBUG", "true")
 
 import pytest
 import pytest_asyncio

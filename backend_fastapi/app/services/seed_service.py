@@ -414,7 +414,10 @@ async def seed_default_settings(session: AsyncSession) -> None:
         # Mobile Access Mode (Phase 4 Step 1.4): shared = desktop becomes the
         # LAN server; independent = mobile keeps loopback-only API. Cloud is a
         # documented future option and intentionally has no seed.
-        ("mobile_access_mode", "shared"),
+        # Audit M2: new installs seed 'independent' (loopback-first); installs
+        # that already have the setting keep their existing value, so existing
+        # 'shared' deployments and QR pairing are unaffected (auto-migrate).
+        ("mobile_access_mode", "independent"),
         ("qr_secret_key", ""),
         # Demo mode (Task 4 Step 4.7): disabled by default; admins toggle it
         # (and seed/reset the sample data) from Settings via /api/v1/admin/demo/*.

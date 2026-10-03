@@ -729,8 +729,12 @@ async fn spawn_servers(app: &tauri::AppHandle) {
                 //   shared      → 0.0.0.0 (desktop is the LAN server; firewall note shown in Settings)
                 //   independent → 127.0.0.1 (loopback only — default and safe)
                 //   cloud (stub)→ 127.0.0.1 today; a hosted relay is future work
+                // Audit M2: DB fallback (no setting row) is now 'independent'
+                // so a fresh/legacy install without the row stays loopback-only.
+                // Existing installs with an explicit 'shared' row keep binding
+                // 0.0.0.0 (auto-migrate).
                 let mobile_access_mode =
-                    read_system_setting_value(app, "mobile_access_mode").await.ok().flatten().unwrap_or_else(|| "shared".to_string());
+                    read_system_setting_value(app, "mobile_access_mode").await.ok().flatten().unwrap_or_else(|| "independent".to_string());
                 let bind_host = match mobile_access_mode.as_str() {
                     "shared" => "0.0.0.0",
                     _ => "127.0.0.1", // independent + cloud-stub + unknown values stay safe

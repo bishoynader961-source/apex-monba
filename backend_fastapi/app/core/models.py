@@ -13,6 +13,7 @@ from decimal import Decimal
 from sqlalchemy import (
     Float,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     Numeric,
@@ -64,6 +65,11 @@ class Product(Base):
 
 class InventoryExtended(Base):
     __tablename__ = "inventory_extended"
+
+    # Audit M8: expiry-alert COUNTs and FEFO batch ordering scan this column.
+    # Explicit name (not SQLAlchemy's table-prefixed default) so a fresh
+    # create_all database and the v32 migration agree on ix_inventory_expiration.
+    __table_args__ = (Index("ix_inventory_expiration", "expiration_date"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     ndc_code: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -168,13 +174,13 @@ class Receipt(Base):
     __tablename__ = "receipts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    timestamp: Mapped[str] = mapped_column(String, nullable=False, default="")
+    timestamp: Mapped[str] = mapped_column(String, nullable=False, default="", index=True)
     total_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
     payment_method: Mapped[str] = mapped_column(String, nullable=False, default="Cash")
     patient_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # B.8: server is the canonical time source; ts_skew_confidence quantifies the
     # client→server clock delta so a tampered client timestamp is detectable.
-    server_created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    server_created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
     ts_skew_confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     # B.7: every sale is attributed to the cashier who initiated it.
     created_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -209,7 +215,7 @@ class SoldItem(Base):
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
     manufacturer_barcode: Mapped[str] = mapped_column(String, nullable=False, default="")
     internal_barcode: Mapped[str] = mapped_column(String, nullable=False, default="")
-    timestamp_of_sale: Mapped[str] = mapped_column(String, nullable=False, default="")
+    timestamp_of_sale: Mapped[str] = mapped_column(String, nullable=False, default="", index=True)
     vendor_name: Mapped[str] = mapped_column(String, nullable=False, default="N/A")
 
 
@@ -217,7 +223,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    timestamp: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    timestamp: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
     action: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     user_pin: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -622,13 +628,13 @@ class Dispense(Base):
     __tablename__ = "dispenses"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"), nullable=False)
+    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
     receipt_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     product_name: Mapped[str] = mapped_column(String, nullable=False, default="")
     ndc_code: Mapped[str] = mapped_column(String, nullable=False, default="")
     sig_code: Mapped[str] = mapped_column(String, nullable=False, default="")
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    fill_date: Mapped[str] = mapped_column(String, nullable=False, default="")
+    fill_date: Mapped[str] = mapped_column(String, nullable=False, default="", index=True)
     price_at_time: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
     insurance_copay: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
     insurance_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
@@ -1211,4 +1217,10 @@ class Device(Base):
     last_seen_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # 0 = active, 1 = revoked (revoked devices authenticate as 401)
     revoked: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Audit M7: fast indexed lookup key = SHA-256(raw device token)[:16] hex.
+    # Not a security boundary — bcrypt still verifies the token; this column
+    # only avoids verifying every unrevoked device row on each request. NULL
+    # for devices paired before schema v31 (their raw token is unrecoverable),
+    # which fall back to the full scan in app/api/deps.py.
+    token_prefix: Mapped[Optional[str]] = mapped_column(String(16), nullable=True, index=True)
 

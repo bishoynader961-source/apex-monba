@@ -34,7 +34,7 @@ from app.shared.schemas import (
     MobileRegisterResponse,
     QrPayload,
 )
-from app.shared.security import hash_password
+from app.shared.security import device_token_prefix, hash_password
 
 router = APIRouter(prefix="/api/v1/devices", tags=["mobile-devices"])
 # Pairing lives under /api/v1/auth per owner spec, in this same module.
@@ -166,6 +166,9 @@ async def mobile_register(payload: MobileRegisterRequest, session: AsyncSession 
     device = Device(
         device_name=payload.device_name,
         device_token_hash=hash_password(device_token),
+        # Audit M7: indexed lookup key for request-time device auth (never
+        # exposed; the plain token above is shown to the client exactly once).
+        token_prefix=device_token_prefix(device_token),
         user_id=None,  # set on first authenticated request
         created_at=datetime.now(timezone.utc).isoformat(),
         last_seen_at=None,

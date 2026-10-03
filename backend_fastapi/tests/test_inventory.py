@@ -171,7 +171,7 @@ async def test_low_stock_alert(
 
     resp = await client.get("/api/v1/inventory/batches/low-stock", headers=auth_headers)
     assert resp.status_code == 200
-    names = [p["name"] for p in resp.json()]
+    names = [p["name"] for p in resp.json()["items"]]
     assert "Amoxicillin" in names
     assert "Ibuprofen" not in names
 

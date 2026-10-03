@@ -100,7 +100,7 @@ async def test_stock_levels_shows_aggregate_and_expiring(
 
     resp = await client.get("/api/v1/inventory/stock-levels", headers=admin)
     assert resp.status_code == 200, resp.text
-    levels = resp.json()
+    levels = resp.json()["items"]
     by_name = {l["name"]: l for l in levels}
     asp_lvl = by_name["Aspirin"]
     ibu_lvl = by_name["Ibuprofen"]
@@ -126,7 +126,7 @@ async def test_stock_levels_low_stock_filter(
 
     resp = await client.get("/api/v1/inventory/stock-levels", params={"low_stock_only": "true"}, headers=admin)
     assert resp.status_code == 200
-    names = [l["name"] for l in resp.json()]
+    names = [l["name"] for l in resp.json()["items"]]
     assert names == ["Ibuprofen"]
 
 
@@ -146,7 +146,7 @@ async def test_medicine_soft_delete_hidden(
     searched = [p["name"] for p in (await client.get("/api/v1/inventory/medicines/search", params={"q": "Par"}, headers=admin)).json()]
     assert searched == []
     # hidden from stock levels
-    assert all(p["name"] != "Paracetamol" for p in (await client.get("/api/v1/inventory/stock-levels", headers=admin)).json())
+    assert all(p["name"] != "Paracetamol" for p in (await client.get("/api/v1/inventory/stock-levels", headers=admin)).json()["items"])
 
 
 async def test_soft_deleted_still_resolvable_by_name(

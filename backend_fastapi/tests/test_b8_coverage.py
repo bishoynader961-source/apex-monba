@@ -610,8 +610,8 @@ async def test_low_stock_override(session):
     )
     await InventoryService(session).receive_batch("Low", "L1", "2030-01-01", 2, 1.0, "Acme")
     await session.commit()
-    result = await InventoryService(session).low_stock(threshold_override=10)
-    assert any(p.name == "Low" for p in result)
+    page = await InventoryService(session).low_stock(threshold_override=10)
+    assert any(p.name == "Low" for p in page.items)
 
 
 async def test_expiring_soon(session):
@@ -634,8 +634,8 @@ async def test_stock_levels(session):
     )
     await InventoryService(session).receive_batch("Lev", "L1", "2030-01-01", 2, 1.0, "Acme")
     await session.commit()
-    result = await InventoryService(session).stock_levels()
-    assert any(s.name == "Lev" for s in result)
+    page = await InventoryService(session).stock_levels()
+    assert any(s.name == "Lev" for s in page.items)
 
 
 async def test_get_batch_not_found(session):

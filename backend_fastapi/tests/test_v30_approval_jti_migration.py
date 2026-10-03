@@ -37,7 +37,10 @@ async def test_v30_creates_approval_jti_table(engine: AsyncEngine) -> None:
         await migrate_schema(conn)
 
     assert await _table_exists(engine, "approval_jti") is True
-    assert await _user_version(engine) == SCHEMA_VERSION == 30
+    # Version pin deliberately loose: later migrations (v31+) legitimately bump
+    # SCHEMA_VERSION; the invariant here is "v30 ran and we landed on current".
+    assert await _user_version(engine) >= 30
+    assert await _user_version(engine) == SCHEMA_VERSION
 
 
 async def test_v30_migration_idempotent(engine: AsyncEngine) -> None:

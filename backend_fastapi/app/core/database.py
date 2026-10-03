@@ -1283,9 +1283,50 @@ async def migrate_schema(conn: Any) -> None:
             )
         version = 30
 
+    # ── v31: indexed device-token prefix (audit M7) ─────────────────────────
+    # Device auth previously bcrypt-verified every unrevoked device row per
+    # request (O(N) × ~100 ms). New pairings store SHA-256(raw token)[:16] in
+    # this column; lookup becomes one indexed query + one bcrypt verify.
+    # Pre-v31 rows keep token_prefix NULL (the raw token is unrecoverable) and
+    # fall back to the old full scan in app/api/deps.py during the transition.
+    if version < 31:
+        if await _table_exists(conn, "devices"):
+            if not await _table_has_column(conn, "devices", "token_prefix"):
+                await conn.exec_driver_sql(
+                    "ALTER TABLE devices ADD COLUMN token_prefix VARCHAR(16)"
+                )
+            await conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_devices_token_prefix ON devices(token_prefix)"
+            )
+        version = 31
+
+    # ── v32: hot-path indexes (audit M8) ───────────────────────────────────
+    # date/FK columns behind dashboard filters, analytics, expiry alerts and
+    # the audit log. CREATE INDEX IF NOT EXISTS is idempotent, so this runs
+    # safely on databases initialized by create_all (which already has them).
+    # NOTE: audit_logs has ``timestamp`` (the audit report's ``created_at``
+    # column does not exist in this schema) — index the real column.
+    if version < 32:
+        for table, column, index_name in (
+            ("receipts", "timestamp", "ix_receipts_timestamp"),
+            ("receipts", "server_created_at", "ix_receipts_server_created_at"),
+            ("sold_items", "timestamp_of_sale", "ix_sold_items_timestamp"),
+            ("dispenses", "patient_id", "ix_dispenses_patient_id"),
+            ("dispenses", "fill_date", "ix_dispenses_fill_date"),
+            ("inventory_extended", "expiration_date", "ix_inventory_expiration"),
+            ("audit_logs", "timestamp", "ix_audit_logs_timestamp"),
+        ):
+            if await _table_exists(conn, table) and await _table_has_column(
+                conn, table, column
+            ):
+                await conn.exec_driver_sql(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} ON {table}({column})"
+                )
+        version = 32
+
     await conn.exec_driver_sql(f"PRAGMA user_version={SCHEMA_VERSION}")
 
 
 
-SCHEMA_VERSION = 30
+SCHEMA_VERSION = 32
 

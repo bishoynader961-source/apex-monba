@@ -106,6 +106,8 @@ export default function InventoryPage() {
     if (!isAuthenticated()) router.replace("/login");
   }, [isAuthenticated, router]);
 
+  // TODO: pagination required — see M9 fix. `stockLevels` is the first keyset
+  // page (200 rows default); this view has no next-page control yet.
   const lowStock = useMemo(
     () => stockLevels?.filter((l) => l.is_low_stock) ?? [],
     [stockLevels],

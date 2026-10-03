@@ -10,10 +10,11 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,6 +58,40 @@ _CENTS = Decimal("0.01")
 
 def _round2(value: Decimal) -> Decimal:
     return value.quantize(_CENTS, rounding=ROUND_HALF_UP)
+
+
+# Audit M9: reporting queries load at most this many rows per call.
+_REPORT_ROW_CAP = 10_000
+# Audit M9: an inclusive range longer than this is rejected with HTTP 400.
+_REPORT_MAX_RANGE_DAYS = 366
+_REPORT_RANGE_ERROR = "Date range must be 366 days or less. Export to Excel for longer ranges."
+
+
+def _report_range(
+    start_date: str | None, end_date: str | None
+) -> tuple[str | None, str | None]:
+    """Validate an inclusive report range and produce SQL bounds (audit M9).
+
+    Returns ``(start_iso, end_exclusive_iso)`` where the exclusive bound is the
+    day after ``end_date`` so ISO-string comparisons are inclusive of the end
+    day. Dates are ISO-8601 (YYYY-MM-DD); malformed values and ranges over 366
+    days raise HTTP 400 instead of silently scanning unbounded history.
+    """
+    if start_date is None and end_date is None:
+        return None, None
+    try:
+        start = date.fromisoformat(start_date) if start_date else None
+        end = date.fromisoformat(end_date) if end_date else None
+    except ValueError:
+        raise HTTPException(
+            status_code=400, detail="Dates must be ISO-8601 (YYYY-MM-DD)"
+        )
+    if start is not None and end is not None and (end - start).days > _REPORT_MAX_RANGE_DAYS:
+        raise HTTPException(status_code=400, detail=_REPORT_RANGE_ERROR)
+    return (
+        start.isoformat() if start is not None else None,
+        (end + timedelta(days=1)).isoformat() if end is not None else None,
+    )
 
 
 def _skew_seconds(client_ts: Optional[str], server_dt: datetime) -> Optional[float]:
@@ -518,11 +553,32 @@ class PosService:
             refund_amount=refund_amount,
         )
 
-    async def sales_report(self) -> SalesReport:
-        """Aggregated sales + refunds for the reporting view (B5)."""
+    async def sales_report(
+        self, start_date: str | None = None, end_date: str | None = None
+    ) -> SalesReport:
+        """Aggregated sales + refunds for the reporting view (B5; audit M9).
+
+        The optional inclusive date range is validated (≤ 366 days) and pushed
+        into SQL; both queries are capped at ``_REPORT_ROW_CAP`` rows so a
+        report can never load unbounded history into memory.
+        """
+        start_iso, end_exclusive = _report_range(start_date, end_date)
+        receipt_stmt = select(Receipt)
+        refund_stmt = select(func.coalesce(func.sum(Refund.total_amount), 0))
+        if start_iso is not None:
+            receipt_stmt = receipt_stmt.where(Receipt.timestamp >= start_iso)
+            refund_stmt = refund_stmt.where(Refund.server_created_at >= start_iso)
+        if end_exclusive is not None:
+            receipt_stmt = receipt_stmt.where(Receipt.timestamp < end_exclusive)
+            refund_stmt = refund_stmt.where(Refund.server_created_at < end_exclusive)
         rows = (
-            await self.session.execute(select(Receipt))
+            await self.session.execute(
+                receipt_stmt.order_by(Receipt.id.asc()).limit(_REPORT_ROW_CAP + 1)
+            )
         ).scalars().all()
+        if len(rows) > _REPORT_ROW_CAP:
+            rows = rows[:_REPORT_ROW_CAP]
+            logger.warning("sales_report_row_cap_hit", cap=_REPORT_ROW_CAP)
         by_method: dict[str, Decimal] = {}
         gross = Decimal("0")
         count = 0
@@ -533,7 +589,7 @@ class PosService:
             gross += r.total_amount
             by_method[r.payment_method] = by_method.get(r.payment_method, Decimal("0")) + r.total_amount
         refunds = (
-            await self.session.execute(select(func.coalesce(func.sum(Refund.total_amount), 0)))
+            await self.session.execute(refund_stmt)
         ).scalar() or Decimal("0")
         net = _round2(gross + refunds)
         return SalesReport(
@@ -545,13 +601,25 @@ class PosService:
         )
 
     async def eod_summary(self, target_date: str | None = None) -> EODSummary:
-        """End-of-Day summary for *target_date* (default: today UTC)."""
+        """End-of-Day summary for *target_date* (default: today UTC; audit M9).
+
+        The date filter and the row cap now run in SQL — previously every
+        receipt in the database was loaded and filtered in Python.
+        """
         if target_date is None:
             target_date = date.today().isoformat()
-        # Fetch all receipts, filter by date prefix.
-        result = await self.session.execute(select(Receipt))
-        all_receipts = result.scalars().all()
-        day_receipts = [r for r in all_receipts if r.timestamp and r.timestamp[:10] == target_date]
+        result = await self.session.execute(
+            select(Receipt)
+            .where(Receipt.timestamp.startswith(target_date))
+            .order_by(Receipt.id.asc())
+            .limit(_REPORT_ROW_CAP + 1)
+        )
+        day_receipts = list(result.scalars().all())
+        if len(day_receipts) > _REPORT_ROW_CAP:
+            day_receipts = day_receipts[:_REPORT_ROW_CAP]
+            logger.warning(
+                "eod_summary_row_cap_hit", cap=_REPORT_ROW_CAP, date=target_date
+            )
         by_method: dict[str, Decimal] = {}
         total = Decimal("0")
         items_sold = 0

@@ -61,6 +61,7 @@ from app.api.routers.vendors_route import router as vendors_router
 from app.api.routers.wc_route import router as wc_router
 from app.core import database
 from app.core.database import create_schema, init_engine
+from app.core.ttl_cache import ttl_cache
 from app.core.backup import vacuum_backup
 from app.services.seed_service import seed_admin_if_absent, seed_admin_role, seed_clinical_defaults, seed_default_locked_features, seed_drug_dictionary, seed_session_settings, seed_product_templates, seed_default_settings
 from app.shared.config import settings
@@ -134,6 +135,38 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             except Exception:  # noqa: BLE001 - snapshot must never crash the app
                 logger.warning("snapshot_failed", exc_info=True)
 
+    @ttl_cache(maxsize=1, ttl=30)
+    async def _alert_aggregates() -> tuple[int, int, int]:
+        """Expired / expiring-in-30-days / low-stock counts (audit M9).
+
+        Cached for 30 s: the loop's first pass runs 60 s after startup, so a
+        burst of restarts shares one set of COUNT scans instead of re-scanning
+        the inventory tables each time.
+        """
+        from datetime import timedelta as _td
+        from sqlalchemy import text as _text
+
+        async with database._sessionmaker() as session:
+            now = datetime.now(timezone.utc)
+            today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            cutoff_30 = (today + _td(days=30)).isoformat()
+            today_str = today.isoformat()
+            r = await session.execute(
+                _text("SELECT COUNT(*) FROM inventory_extended WHERE expiration_date < :today AND on_hand > 0"),
+                {"today": today_str},
+            )
+            expired = int(r.scalar() or 0)
+            r = await session.execute(
+                _text("SELECT COUNT(*) FROM inventory_extended WHERE expiration_date >= :today AND expiration_date <= :cutoff AND on_hand > 0"),
+                {"today": today_str, "cutoff": cutoff_30},
+            )
+            critical = int(r.scalar() or 0)
+            r = await session.execute(
+                _text("SELECT COUNT(*) FROM products p JOIN inventory_extended ie ON ie.drug_name = p.name WHERE (p.deleted = 0 OR p.deleted IS NULL) AND p.reorder_threshold IS NOT NULL AND p.reorder_threshold > 0 AND ie.on_hand <= p.reorder_threshold"),
+            )
+            low_stock = int(r.scalar() or 0)
+        return expired, critical, low_stock
+
     async def _alert_loop() -> None:
         """Periodic alert check — logs low-stock and expiry counts every 30 minutes."""
         _ALERT_INTERVAL = 30 * 60
@@ -141,34 +174,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         while True:
             await asyncio.sleep(_ALERT_INTERVAL)
             try:
-                async with database._sessionmaker() as session:
-                    from datetime import timedelta as _td
-                    from sqlalchemy import text as _text
-                    now = datetime.now(timezone.utc)
-                    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                    cutoff_30 = (today + _td(days=30)).isoformat()
-                    today_str = today.isoformat()
-                    r = await session.execute(
-                        _text("SELECT COUNT(*) FROM inventory_extended WHERE expiration_date < :today AND on_hand > 0"),
-                        {"today": today_str},
+                expired, critical, low_stock = await _alert_aggregates()
+                if expired or critical or low_stock:
+                    logger.warning(
+                        "alert_summary",
+                        expired=expired,
+                        critical_30d=critical,
+                        low_stock=low_stock,
                     )
-                    expired = r.scalar() or 0
-                    r = await session.execute(
-                        _text("SELECT COUNT(*) FROM inventory_extended WHERE expiration_date >= :today AND expiration_date <= :cutoff AND on_hand > 0"),
-                        {"today": today_str, "cutoff": cutoff_30},
-                    )
-                    critical = r.scalar() or 0
-                    r = await session.execute(
-                        _text("SELECT COUNT(*) FROM products p JOIN inventory_extended ie ON ie.drug_name = p.name WHERE (p.deleted = 0 OR p.deleted IS NULL) AND p.reorder_threshold IS NOT NULL AND p.reorder_threshold > 0 AND ie.on_hand <= p.reorder_threshold"),
-                    )
-                    low_stock = r.scalar() or 0
-                    if expired or critical or low_stock:
-                        logger.warning(
-                            "alert_summary",
-                            expired=expired,
-                            critical_30d=critical,
-                            low_stock=low_stock,
-                        )
             except Exception:  # noqa: BLE001
                 logger.warning("alert_check_failed", exc_info=True)
 

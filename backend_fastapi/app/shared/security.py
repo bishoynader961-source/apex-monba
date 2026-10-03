@@ -111,6 +111,16 @@ def upgrade_legacy_hash(password: str) -> bytes:
     return hash_password(password)
 
 
+def device_token_prefix(token: str) -> str:
+    """Fast, non-secret device-token lookup key (audit M7).
+
+    SHA-256(token)[:16] hex, stored in the indexed ``devices.token_prefix``
+    column. It only narrows the bcrypt candidate set — acceptance is still
+    decided by ``verify_password`` against the bcrypt hash.
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+
+
 def validate_password_complexity(password: str) -> None:
     """Reject weak passwords (B2): >=12 chars with upper, lower, digit, symbol.
 

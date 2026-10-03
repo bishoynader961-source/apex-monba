@@ -146,11 +146,15 @@ async def refund(
 
 @router.get("/reports/sales", response_model=SalesReport, status_code=status.HTTP_200_OK)
 async def sales_report(
+    start_date: str | None = None,
+    end_date: str | None = None,
     user: CurrentUser = Depends(require_permission("inventory.reports")),
     session: AsyncSession = Depends(get_session),
 ) -> SalesReport:
-    """Aggregated sales + refunds summary (B5)."""
-    return await PosService(session).sales_report()
+    """Aggregated sales + refunds summary (B5; audit M9: ranges ≤ 366 days)."""
+    return await PosService(session).sales_report(
+        start_date=start_date, end_date=end_date
+    )
 
 
 @router.get("/receipts/recent", response_model=list[ReceiptRead], status_code=status.HTTP_200_OK)

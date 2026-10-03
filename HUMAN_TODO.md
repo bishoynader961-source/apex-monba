@@ -67,3 +67,67 @@ untrusted extension, rotate the affected admin passwords as the safe follow-up.
   entry remains available for mixed-version networks.
 - The `approval_jti` table is additive (schema v30) and self-prunes rows older
   than 120 s; no data migration or cleanup is required.
+
+## Phase D — Manual steps (owner only)
+
+### D1 — Git history scrub (H1 + L2)
+
+The following files were committed to git history and must be scrubbed:
+login.json, test_verify.json, validate.json, debug_login.txt, app.exe,
+src-tauri/test-cert.pfx, and the venv/ directory (commit 1ee047a).
+Steps (do this on a private machine, coordinate with any collaborators first):
+1. Install git-filter-repo: pip install git-filter-repo
+2. Run: git filter-repo --invert-paths
+     --path login.json
+     --path test_verify.json
+     --path validate.json
+     --path debug_login.txt
+     --path app.exe
+     --path src-tauri/test-cert.pfx
+   This rewrites all history. Every collaborator must re-clone afterwards.
+3. Force-push: git push origin --force --all && git push origin --force --tags
+4. Ask GitHub support to clear their caches for the repo (optional but thorough).
+5. Verify: git log --all --full-history -- login.json should return nothing.
+
+Note: this is irreversible. Take a full backup of the repo before starting.
+
+### D2 — test-cert.pfx inspection
+
+Before scrubbing history, inspect the certificate:
+Run: openssl pkcs12 -in src-tauri/test-cert.pfx -info -noout
+If it contains a private key (you will see 'MAC verified OK' and key material):
+- That private key is compromised if the repo was ever public or shared.
+- Do not use it for any signing purpose.
+- Generate a new local test cert: the src-tauri/*.bat scripts show the command.
+If it contains no private key: it is a certificate-only file and lower risk.
+
+### D3 — FIX_CODE_SECRET and FIX_ADMIN_KEY rotation
+
+Rotate both secrets on every installed machine before announcing
+PR #32 is merged. Instructions are already in HUMAN_TODO.md under
+the URGENT heading added in Phase A.
+
+### D4 — Coverage gate
+
+The CI coverage gate requires 90% but the suite is at ~73%.
+This is pre-existing and not caused by any batch fix.
+Two options:
+Option A (recommended): lower the --cov-fail-under threshold in
+  .github/workflows/ci.yml to match the real current coverage (73%)
+  and raise it incrementally as you add tests.
+Option B: write enough new tests to reach 90% before the next release.
+Pick one and action it before the app goes on sale, because a failing
+CI gate means every PR shows red.
+
+### D5 — Cargo test on a real Windows machine
+
+Status update: the Rust test binary could not execute in the agent's build
+environment (STATUS_ENTRYPOINT_NOT_FOUND), but that environment blocker has
+since been solved — `cargo test --lib` passes here: **14 passed / 0 failed**
+(7 udp_discovery L4 tests + 7 fix_engine M4 tests). The loader workaround used
+to run them in this environment is build-only and does not affect source code.
+Real-machine verification is still recommended before merging PR #32:
+Run on your Windows dev machine:
+    cargo test --lib
+All 14 tests in the udp_discovery and fix_engine modules must pass.
+Report any failures before merging PR #32.

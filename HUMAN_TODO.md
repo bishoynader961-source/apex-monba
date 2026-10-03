@@ -4,6 +4,18 @@ Items here are deliberately **not** automated: they are irreversible, or they
 require credentials/systems the agent does not have. Each item names the audit
 finding it closes.
 
+## URGENT — Do before announcing PR #32 is merged
+
+The old FIX_CODE_SECRET shipped inside the compiled binary and is in git
+history. Rotate it now:
+1. Generate a new secret: python -c "import secrets; print(secrets.token_hex(32))"
+2. Update FIX_CODE_SECRET in the .env file on every installed machine
+   (yours + any customer installs).
+3. Restart the FastAPI sidecar on each machine.
+4. Old fix codes signed with the old key will stop working — this is correct.
+5. Update your support tool that generates fix codes to use the new key.
+6. Also rotate FIX_ADMIN_KEY by the same process.
+
 ## Batch 3 — Secrets & trust (M4, M3, L4, L5)
 
 ### 1. Rotate FIX_CODE_SECRET on every production install (audit M4) — REQUIRED

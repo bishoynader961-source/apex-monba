@@ -1,5 +1,17 @@
 # PROJECT_MAP.md - Pharmacy Suite
 
+Last Updated: 2026-10-03 | Build Status: PASSING | Backend Suite: 917 passed / 1 skipped (batch4+5 branches) | Security Hardening COMPLETE (audit H1-H2/M1-M9/L1-L7 → PRs #30–#34; M5 tracked open) — see release/SECURITY_HARDENING_COMPLETE.md
+
+## [SECURITY & PERFORMANCE HARDENING — 2026-10-03] ALL BATCHES COMPLETE (PRs open, unmerged)
+- **Pattern:** one PR per audit batch, branches stacked (each cut from the previous), targeted at `master`, none merged by the agent. All 18 findings addressed; **M5 (LAN plaintext HTTP) intentionally open** pending an owner TLS decision.
+- **Batch 1 (#30, `fix/batch1-hygiene`):** H1/H2/L2/L3 — untracked credentials/cert/binary + gitignore, prod seeding defaults, removed `DB_PASS` write. History scrub = owner step D1.
+- **Batch 2 (#31, `fix/batch2-*`):** M1/M2/M6 — first-run setup hardening, LAN bind/docs exposure, CORS.
+- **Batch 3 (#32, `fix/batch3-secrets-trust`):** M4/M3/L4/L5 — fix-engine keys out of binary (fail-closed), HttpOnly cookie sessions (silent-refresh E2E verified in Tauri webview), signed UDP discovery, `approval_jti` schema v30. `cargo test --lib` = **14/14** (Phase A; build-env loader workaround documented — comctl32 v6 import-table patch, build-only, never committed).
+- **Batch 4 (#33, `fix/batch4-performance`, commit bf1f90f):** M7/M8/M9 — `devices.token_prefix` indexed lookup (bcrypt candidates only, legacy fallback; schema v31), 7 hot-path indexes (v32; **deviation:** `audit_logs` has no `created_at` → indexed `timestamp` as `ix_audit_logs_timestamp`), keyset pagination + 366-day/10k-row caps + alert `ttl_cache(30s)`; frontend API layer unwraps `{items, next_cursor}` pages. pytest 903/1. `EXPLAIN QUERY PLAN` confirms all six hot queries use the new indexes.
+- **Batch 5 (#34, `fix/batch5-correctness`, commits 1cf58dd + 3ef3d97):** L1/L7/L6 — Decimal ROUND_HALF_UP cents (bulk adjust, Excel import `_parse_price`, vendor intake quantization), single `today_iso()` expiry semantic (local calendar), CSP hardened (Paddle script-src + `img-src https:` removed; **`style-src 'unsafe-inline'` intentionally retained** — needed by `app/print-label/page.tsx` and `app/dashboard/bulk-label-print/page.tsx` `<style>` blocks). pytest 917/1, cargo 0 errors, tsc clean. **tauri.conf.json staged surgically CSP-only** (update-index with hand-built blob); owner's unrelated worktree edits preserved unstaged. HUMAN_TODO.md gained the Phase D owner checklist (D1 history scrub, D2 pfx inspection, D3 key rotation, D4 coverage gate, D5 real-Windows cargo test).
+- **Owner-file rule held throughout:** `src-tauri/tauri.conf.json` (except the surgical CSP line), `tsconfig.tsbuildinfo`, `next-env.d.ts` never committed wholesale.
+- **Remaining (owner):** merge PRs 30→31→32→33→34 in order (stacked); Phase D manual steps in HUMAN_TODO.md; M5 TLS decision. Final report: `release/SECURITY_HARDENING_COMPLETE.md`.
+
 Last Updated: 2026-09-24 | Build Status: PASSING (exit 0, 50/50 routes; `next build`, tsc, lint 0 errors, vitest 54/54, a11y audit 0/192) | Backend Suite: 746 passed / 0 failed | All Specs Complete + Emergency Fixes + Spec 04 MSIX + Diagnostics Pass + UI/Orphans Finalization
 
 ## [LINT GATE + A11Y CLOSEOUT + CI HARDENING - 2026-09-24]
